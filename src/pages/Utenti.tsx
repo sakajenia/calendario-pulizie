@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/AppShell'
 import {
-  Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Checkbox,
+  Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Checkbox, MobileRecord,
   Dialog, Dropdown, DropdownItem, DropdownSeparator, EmptyState, Field, Input, Select,
   Switch, Table, Td, Th, Tooltip,
 } from '@/components/ui'
@@ -513,11 +513,11 @@ export default function Utenti() {
           <>
             <Button variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
               <Download />
-              Esporta CSV
+              <span className="hidden sm:inline">Esporta CSV</span>
             </Button>
             <Button onClick={() => { setEditingId(null); setFormOpen(true) }}>
               <Plus />
-              Nuovo utente
+              Nuovo <span className="hidden sm:inline">utente</span>
             </Button>
           </>
         }
@@ -635,7 +635,27 @@ export default function Utenti() {
             }
           />
         ) : (
-          <Table className="min-w-[1180px]">
+          <>
+            <div className="stagger space-y-3 p-4 md:hidden">
+              {filtered.map((r) => (
+                <MobileRecord
+                  key={r.user.id}
+                  title={r.user.name}
+                  subtitle={r.user.email}
+                  selected={selected.has(r.user.id)}
+                  onClick={() => openEdit(r.user)}
+                  badge={<ActiveBadge active={r.user.active} />}
+                  fields={[
+                    { label: 'Ruolo', value: ROLE_LABEL[r.user.role] },
+                    { label: 'Telefono', value: r.user.phone ?? '—' },
+                    { label: 'Richieste', value: fmtNum(r.requestCount) },
+                    { label: 'Creato il', value: fmtDate(r.user.createdAt) },
+                  ]}
+                />
+              ))}
+            </div>
+
+          <Table className="hidden min-w-[1180px] md:table">
             <thead>
               <tr>
                 <Th className="w-10">
@@ -765,6 +785,7 @@ export default function Utenti() {
               })}
             </tbody>
           </Table>
+          </>
         )}
       </div>
 

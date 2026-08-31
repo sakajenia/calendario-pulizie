@@ -816,7 +816,7 @@ export default function Dashboard() {
                 action={
                   <Button variant="outline" size="sm" onClick={exportBudget}>
                     <Download />
-                    Esporta CSV
+                    <span className="hidden sm:inline">Esporta CSV</span>
                   </Button>
                 }
               />

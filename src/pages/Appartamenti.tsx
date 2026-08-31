@@ -6,7 +6,7 @@ import {
 import { PageHeader } from '@/components/layout/AppShell'
 import {
   Badge, Button, Checkbox, Dialog, Dropdown, DropdownItem, DropdownSeparator,
-  EmptyState, Field, Input, Label, Select, Switch, Table, Td, Textarea, Th, Tooltip,
+  EmptyState, Field, Input, MobileRecord, Label, Select, Switch, Table, Td, Textarea, Th, Tooltip,
 } from '@/components/ui'
 import { StatusChip } from '@/components/StatusChip'
 import { scopeApartments, scopeRequests, useCurrentUser, useStore } from '@/data/store'
@@ -767,11 +767,11 @@ export default function Appartamenti() {
           <>
             <Button variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
               <Download />
-              Esporta CSV
+              <span className="hidden sm:inline">Esporta CSV</span>
             </Button>
             <Button onClick={() => { setEditingId(null); setFormOpen(true) }}>
               <Plus />
-              Nuovo appartamento
+              Nuovo <span className="hidden sm:inline">appartamento</span>
             </Button>
           </>
         }
@@ -854,7 +854,27 @@ export default function Appartamenti() {
             }
           />
         ) : (
-          <Table className="min-w-[1120px]">
+          <>
+            {/* Sotto md la tabella a nove colonne mostrerebbe solo il nome. */}
+            <div className="stagger space-y-3 p-4 md:hidden">
+              {filtered.map((r) => (
+                <MobileRecord
+                  key={r.apt.id}
+                  title={r.apt.name}
+                  subtitle={`${r.apt.district} · ${r.apt.city}`}
+                  selected={selected.has(r.apt.id)}
+                  onClick={() => setDetailId(r.apt.id)}
+                  fields={[
+                    { label: 'Letti', value: fmtNum(r.apt.beds.length) },
+                    { label: 'Prezzo base', value: fmtEur(r.apt.prices.base) },
+                    { label: 'Proprietario', value: r.ownerName },
+                    { label: 'Richieste', value: fmtNum(r.requestCount) },
+                  ]}
+                />
+              ))}
+            </div>
+
+          <Table className="hidden min-w-[1120px] md:table">
             <thead>
               <tr>
                 <Th className="w-10">
@@ -959,6 +979,7 @@ export default function Appartamenti() {
               })}
             </tbody>
           </Table>
+          </>
         )}
       </div>
 

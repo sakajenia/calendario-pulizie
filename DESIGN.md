@@ -74,13 +74,24 @@ si ferma a 65 caratteri.
 
 ## 5. Adattamento
 
-Sotto `md` le tabelle dense cedono il posto alle card: su un telefono la
-tabella richieste mostrava solo l'indirizzo, e stato, date e ospiti restavano
-fuori schermo. I filtri di stato scorrono su una riga sola invece di occuparne
+Sotto `md` **tutte** le tabelle dense cedono il posto ai record impilati
+(`MobileRecord`): su un telefono la tabella richieste mostrava solo
+l'indirizzo, e stato, date e ospiti restavano fuori schermo dietro uno
+scorrimento orizzontale che nessuno fa. Le azioni secondarie in testata
+restano a sola icona sotto `sm`, e le primarie tengono il verbo e nascondono
+il complemento. I filtri di stato scorrono su una riga sola invece di occuparne
 quattro, e le azioni secondarie restano icona sola. Il body non scorre mai in
 orizzontale: lo scorrimento vive dentro il contenitore della tabella.
 
-## 6. Movimento
+## 6. Tastiera
+
+Il primo `Tab` di ogni pagina è "Salta al contenuto": senza, si attraversa
+tutta la navigazione a ogni cambio di pagina. Nei dialog il focus entra,
+resta confinato finché sono aperti e torna al pulsante che li ha aperti alla
+chiusura. Ogni elemento raggiungibile ha un anello di focus visibile,
+verificato su tutti gli stop delle pagine più fitte.
+
+## 7. Movimento
 
 Curve di uscita esponenziali (`cubic-bezier(0.16, 1, 0.3, 1)`), 140–280 ms,
 solo `transform` e `opacity`. Nessun rimbalzo, nessun elastico.
@@ -88,7 +99,7 @@ solo `transform` e `opacity`. Nessun rimbalzo, nessun elastico.
 di scarto per elemento, azzerato dopo i primi sette: in fondo a una lista lunga
 aspettare non ha senso.
 
-## 7. Vietato
+## 8. Vietato
 
 Bianco e nero puri. Grigi neutri non tinti. Emoji al posto delle icone.
 Testo in gradiente. Vetro smerigliato decorativo. Il modulo "numerone più

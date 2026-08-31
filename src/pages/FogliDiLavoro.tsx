@@ -620,11 +620,11 @@ export default function FogliDiLavoro() {
           <>
             <Button variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
               <Download />
-              Esporta CSV
+              <span className="hidden sm:inline">Esporta CSV</span>
             </Button>
             <Button onClick={openNew}>
               <Plus />
-              Nuovo foglio di lavoro
+              Nuovo <span className="hidden sm:inline">foglio di lavoro</span>
             </Button>
           </>
         }

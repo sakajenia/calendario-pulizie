@@ -6,7 +6,7 @@ import {
 import { PageHeader } from '@/components/layout/AppShell'
 import {
   Badge, Button, Checkbox, Dialog, Dropdown, DropdownItem, DropdownSeparator, EmptyState,
-  Field, Input, Select, Table, Tabs, Td, Th,
+  Field, Input, MobileRecord, Select, Table, Tabs, Td, Th,
 } from '@/components/ui'
 import { scopeRequests, useCurrentUser, useStore } from '@/data/store'
 import { asDate, downloadFile, fmtDate, fmtEur, fmtNum, norm, plural, toCsv } from '@/lib/format'
@@ -607,11 +607,11 @@ export default function Extra() {
           <>
             <Button variant="outline" onClick={exportCsv} disabled={rows.length === 0}>
               <Download />
-              Esporta CSV
+              <span className="hidden sm:inline">Esporta CSV</span>
             </Button>
             <Button onClick={openNew}>
               <Plus />
-              Nuovo Extra
+              Nuovo <span className="hidden sm:inline">Extra</span>
             </Button>
           </>
         }
@@ -735,7 +735,26 @@ export default function Extra() {
             action={<Button variant="outline" onClick={clearFilters}>Cancella filtri</Button>}
           />
         ) : (
-          <Table className={isBedTab ? 'min-w-[1080px]' : 'min-w-[880px]'}>
+          <>
+            {/* Sotto md la tabella mostrerebbe solo il nome dell'articolo. */}
+            <div className="stagger space-y-3 p-4 md:hidden">
+              {rows.map((r) => (
+                <MobileRecord
+                  key={r.extra.id}
+                  title={r.extra.name}
+                  subtitle={r.warehouse?.name ?? (r.orphanWarehouse ? 'Magazzino rimosso' : 'Non assegnato')}
+                  onClick={() => openEdit(r.extra.id)}
+                  fields={[
+                    { label: 'Costo unitario', value: fmtEur(r.cost) },
+                    { label: 'Impegnato', value: fmtNum(r.qty) },
+                    { label: 'Richieste', value: fmtNum(r.requests) },
+                    { label: 'Valore', value: fmtEur(r.value) },
+                  ]}
+                />
+              ))}
+            </div>
+
+          <Table className={cn('hidden md:table', isBedTab ? 'min-w-[1080px]' : 'min-w-[880px]')}>
             <thead>
               <tr>
                 <Th className="w-10">
@@ -875,6 +894,7 @@ export default function Extra() {
               </tr>
             </tfoot>
           </Table>
+          </>
         )}
       </div>
 

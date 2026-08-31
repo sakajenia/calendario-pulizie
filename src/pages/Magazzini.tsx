@@ -542,7 +542,7 @@ export default function Magazzini() {
             </div>
             <Button onClick={openNew}>
               <Plus />
-              Nuovo Magazzino
+              Nuovo <span className="hidden sm:inline">Magazzino</span>
             </Button>
           </>
         }
@@ -826,7 +826,7 @@ export default function Magazzini() {
                   disabled={tableRows.length === 0}
                 >
                   <Download />
-                  Esporta CSV
+                  <span className="hidden sm:inline">Esporta CSV</span>
                 </Button>
               </div>
             </div>

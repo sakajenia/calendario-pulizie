@@ -6,7 +6,7 @@ import {
 import { PageHeader } from '@/components/layout/AppShell'
 import {
   Badge, Button, Checkbox, Dialog, Dropdown, DropdownItem, DropdownSeparator, EmptyState,
-  Field, Input, Select, Table, Td, Textarea, Th,
+  Field, Input, MobileRecord, Select, Table, Td, Textarea, Th,
 } from '@/components/ui'
 import { useIsAdmin, useStore } from '@/data/store'
 import { fmtNum, norm, plural } from '@/lib/format'
@@ -477,7 +477,7 @@ export default function CatalogoTask() {
             </div>
             <Button onClick={openNew}>
               <Plus />
-              Nuovo Task
+              Nuovo <span className="hidden sm:inline">Task</span>
             </Button>
           </>
         }
@@ -610,7 +610,23 @@ export default function CatalogoTask() {
             }
           />
         ) : (
-          <Table className="min-w-[980px]">
+          <>
+            <div className="stagger space-y-3 p-4 md:hidden">
+              {filtered.map((r) => (
+                <MobileRecord
+                  key={r.task.id}
+                  title={r.task.name}
+                  subtitle={r.task.description}
+                  onClick={() => openEdit(r.task.id)}
+                  fields={[
+                    { label: 'Stima', value: r.task.estimateMin ? fmtMin(r.task.estimateMin) : '—' },
+                    { label: 'Usato in', value: plural(r.sheets.length, 'foglio', 'fogli') },
+                  ]}
+                />
+              ))}
+            </div>
+
+          <Table className="hidden min-w-[980px] md:table">
             <thead>
               <tr>
                 <Th className="w-10">
@@ -698,6 +714,7 @@ export default function CatalogoTask() {
               })}
             </tbody>
           </Table>
+          </>
         )}
       </div>
 

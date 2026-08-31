@@ -221,13 +221,46 @@ export function Dialog({
   open: boolean; onClose: () => void; title?: React.ReactNode; description?: string
   children: React.ReactNode; footer?: React.ReactNode; size?: 'sm' | 'md' | 'lg' | 'xl'
 }) {
+  const panelRef = React.useRef<HTMLDivElement>(null)
+
   React.useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    // Alla chiusura il focus deve tornare da dove era partito, altrimenti chi
+    // naviga da tastiera si ritrova all'inizio della pagina.
+    const returnTo = document.activeElement as HTMLElement | null
+
+    const focusables = () =>
+      [...(panelRef.current?.querySelectorAll<HTMLElement>(
+        'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])',
+      ) ?? [])].filter((el) => el.offsetParent !== null)
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { onClose(); return }
+      if (e.key !== 'Tab') return
+      // Il Tab non deve uscire dal dialog finche' resta aperto.
+      const items = focusables()
+      if (!items.length) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      const active = document.activeElement
+      if (e.shiftKey && (active === first || !panelRef.current?.contains(active))) {
+        e.preventDefault(); last.focus()
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault(); first.focus()
+      }
+    }
+
     document.addEventListener('keydown', onKey)
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev }
+    const t = window.setTimeout(() => focusables()[0]?.focus(), 0)
+
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+      window.clearTimeout(t)
+      returnTo?.focus?.()
+    }
   }, [open, onClose])
 
   if (!open) return null
@@ -237,6 +270,7 @@ export function Dialog({
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:p-8">
       <div className="fixed inset-0 bg-foreground/45 backdrop-blur-[2px] animate-fade-in" onClick={onClose} />
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         className={cn(
@@ -414,6 +448,66 @@ export const Th = ({ className, ...p }: React.ThHTMLAttributes<HTMLTableCellElem
 export const Td = ({ className, ...p }: React.TdHTMLAttributes<HTMLTableCellElement>) => (
   <td className={cn('px-3 py-2.5 align-middle', className)} {...p} />
 )
+
+/* ------------------------------------------------ Record su schermo stretto */
+
+/**
+ * Una riga di tabella densa, resa leggibile su telefono.
+ * Sotto `md` una tabella a dieci colonne mostra solo la prima: titolo e campi
+ * chiave vanno impilati, altrimenti il contenuto che conta resta fuori schermo
+ * dietro uno scorrimento orizzontale che nessuno fa.
+ */
+export function MobileRecord({
+  title, subtitle, badge, action, fields, onClick, selected,
+}: {
+  title: React.ReactNode
+  subtitle?: React.ReactNode
+  badge?: React.ReactNode
+  action?: React.ReactNode
+  fields: { label: string; value: React.ReactNode }[]
+  onClick?: () => void
+  selected?: boolean
+}) {
+  const interactive = Boolean(onClick)
+  return (
+    <div
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (!interactive) return
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.() }
+      }}
+      className={cn(
+        'rounded-xl border bg-card p-4 shadow-card transition-colors duration-200 ease-out-expo',
+        interactive && 'cursor-pointer hover:border-primary/40 focus-ring',
+        selected ? 'border-primary ring-1 ring-primary' : 'border-border',
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate font-medium">{title}</p>
+          {subtitle && <p className="mt-0.5 truncate text-xs text-muted-foreground">{subtitle}</p>}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {badge}
+          {action && <span onClick={(e) => e.stopPropagation()}>{action}</span>}
+        </div>
+      </div>
+
+      {fields.length > 0 && (
+        <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-border/60 pt-3 text-sm">
+          {fields.map((f) => (
+            <React.Fragment key={f.label}>
+              <dt className="truncate text-muted-foreground">{f.label}</dt>
+              <dd className="truncate text-right tabular-nums">{f.value}</dd>
+            </React.Fragment>
+          ))}
+        </dl>
+      )}
+    </div>
+  )
+}
 
 /* ------------------------------------------------------------------- Tabs */
 

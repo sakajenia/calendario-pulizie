@@ -107,6 +107,13 @@ export function AppShell() {
 
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-background">
+      {/* Senza questo, da tastiera si attraversa tutta la navigazione a ogni pagina. */}
+      <a
+        href="#contenuto"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"
+      >
+        Salta al contenuto
+      </a>
       <aside className="hidden w-60 shrink-0 lg:block">{sidebar}</aside>
 
       {mobileOpen && (
@@ -170,7 +177,7 @@ export function AppShell() {
           </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-y-auto">
+        <main id="contenuto" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto focus:outline-none">
           <Outlet />
         </main>
       </div>
