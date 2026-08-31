@@ -101,7 +101,7 @@ export default function Login() {
       </main>
 
       <footer className="relative z-10 border-t border-border bg-card py-3 text-center text-xs text-muted-foreground">
-        ProProManager® — Versione {APP_VERSION}
+        ProProManager® · Versione {APP_VERSION}
       </footer>
     </div>
   )

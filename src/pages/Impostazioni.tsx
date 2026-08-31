@@ -337,8 +337,8 @@ export default function Impostazioni() {
                 <InfoRow label="Archiviazione" value="Locale al browser" />
               </div>
               <p className="text-xs text-muted-foreground">
-                {APP_NAME} riprende il flusso operativo di {LEGACY_APP} — calendario, richieste di
-                pulizia, appartamenti ed extra — con l'identità visiva e i ruoli di ProProManager.
+                {APP_NAME} riprende il flusso operativo di {LEGACY_APP} · calendario, richieste di
+                pulizia, appartamenti ed extra · con l'identità visiva e i ruoli di ProProManager.
               </p>
             </CardContent>
           </Card>

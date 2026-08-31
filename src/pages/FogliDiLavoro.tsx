@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/AppShell'
 import {
-  Badge, Button, Card, CardContent, CardFooter, CardHeader, CardTitle, Dialog, Dropdown,
+  Badge, Button, Dialog, Dropdown,
   DropdownItem, DropdownSeparator, EmptyState, Field, Input, Select, Textarea,
 } from '@/components/ui'
 import { scopeRequests, useCurrentUser, useStore } from '@/data/store'
@@ -352,11 +352,11 @@ function SheetCard({
   const rest = row.tasks.length - preview.length
 
   return (
-    <Card className="flex h-full flex-col">
-      <CardHeader className="flex-row items-start justify-between gap-3 space-y-0 p-5 pb-3">
+    <article className="group grid gap-4 px-5 py-5 transition-colors duration-200 ease-out-expo hover:bg-muted/40 lg:grid-cols-[minmax(0,1fr)_15rem] lg:gap-8">
+      <div className="flex items-start justify-between gap-3 lg:hidden">
         <div className="min-w-0 space-y-1">
-          <CardTitle className="truncate">{row.sheet.name}</CardTitle>
-          <p className="line-clamp-2 text-sm text-muted-foreground">
+          <h3 className="font-display text-base font-bold tracking-tight">{row.sheet.name}</h3>
+          <p className="text-sm text-muted-foreground">
             {row.sheet.description ?? 'Nessuna descrizione'}
           </p>
         </div>
@@ -372,9 +372,15 @@ function SheetCard({
           <DropdownSeparator />
           <DropdownItem danger onClick={onDelete}><Trash2 /> Elimina</DropdownItem>
         </Dropdown>
-      </CardHeader>
+      </div>
 
-      <CardContent className="flex-1 space-y-3 p-5 pt-0">
+      <div className="min-w-0 space-y-3">
+        <div className="hidden min-w-0 space-y-1 lg:block">
+          <h3 className="font-display text-base font-bold tracking-tight">{row.sheet.name}</h3>
+          <p className="max-w-[65ch] text-sm text-muted-foreground">
+            {row.sheet.description ?? 'Nessuna descrizione'}
+          </p>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge className="bg-muted text-muted-foreground">
             <ListChecks className="size-3.5" />
@@ -414,9 +420,23 @@ function SheetCard({
             )}
           </ul>
         )}
-      </CardContent>
+      </div>
 
-      <CardFooter className="mt-auto flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-border p-5 pt-3">
+      <div className="flex items-start justify-between gap-3 lg:flex-col lg:items-end lg:justify-start lg:gap-1.5 lg:text-right">
+        <div className="hidden lg:block">
+          <Dropdown
+            trigger={
+              <Button variant="ghost" size="icon" aria-label={`Azioni per ${row.sheet.name}`}>
+                <MoreVertical />
+              </Button>
+            }
+          >
+            <DropdownItem onClick={onEdit}><Pencil /> Modifica</DropdownItem>
+            <DropdownItem onClick={onDuplicate}><Copy /> Duplica</DropdownItem>
+            <DropdownSeparator />
+            <DropdownItem danger onClick={onDelete}><Trash2 /> Elimina</DropdownItem>
+          </Dropdown>
+        </div>
         <span className="text-xs text-muted-foreground">
           {row.usage === 0 ? (
             'Nessuna richiesta usa questo foglio'
@@ -434,8 +454,8 @@ function SheetCard({
             ultima il {fmtDate(row.lastUsedAt)}
           </span>
         )}
-      </CardFooter>
-    </Card>
+      </div>
+    </article>
   )
 }
 
@@ -692,7 +712,7 @@ export default function FogliDiLavoro() {
             action={<Button variant="outline" onClick={clearFilters}>Cancella filtri</Button>}
           />
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
             {filtered.map((row) => (
               <SheetCard
                 key={row.sheet.id}

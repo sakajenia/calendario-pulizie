@@ -98,10 +98,11 @@ function SortHeader({
 }) {
   const active = current === sortKey
   return (
-    <Th className={className}>
+    <Th className={className} aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
       <button
         type="button"
         onClick={() => onSort(sortKey)}
+        aria-label={`Ordina per ${label}`}
         className={cn(
           'inline-flex items-center gap-1 rounded uppercase tracking-wide transition-colors focus-ring hover:text-foreground',
           active && 'text-foreground',

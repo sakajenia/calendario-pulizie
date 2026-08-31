@@ -79,7 +79,7 @@ export const apartments: Apartment[] = [
     providerListingId: 'GY-88266', beds: [
       { id: 'b-lab-1', type: MATR }, { id: 'b-lab-2', type: MATR }, { id: 'b-lab-3', type: SING },
     ],
-    notes: '1) Mettere di nostro:\n   Amenities\n   Cialde (1 a persona).\n   Tutti i refill si trovano nel vostro armadio, codice 0000\n\n2) Spegnere i riscaldamenti: nel corridoio, sul termostato premere OFF (IMPORTANTE)\n\n3) Controllare sempre se le chiavi sono nelle rispettive keybox\n   Cassetta ospiti: 2307 — Cassetta pulizie: 1405\n   NON scambiarle per favore.',
+    notes: '1) Mettere di nostro:\n   Amenities\n   Cialde (1 a persona).\n   Tutti i refill si trovano nel vostro armadio, codice 0000\n\n2) Spegnere i riscaldamenti: nel corridoio, sul termostato premere OFF (IMPORTANTE)\n\n3) Controllare sempre se le chiavi sono nelle rispettive keybox\n   Cassetta ospiti: 2307 · Cassetta pulizie: 1405\n   NON scambiarle per favore.',
     prices: { base: 55, min: 45, max: 85, perGuest: { 1: 46, 2: 55, 3: 64, 4: 72, 5: 80 } },
     cleaningFrequencyDays: 2, createdAt: iso(day(-300)),
   },
@@ -231,8 +231,8 @@ function buildRequests(): CleaningRequest[] {
 export const requests: CleaningRequest[] = buildRequests()
 
 export const notifications: AppNotification[] = [
-  { id: 'n-1', kind: 'cleaningCreated', title: 'Nuova richiesta di pulizia', body: 'Via della Scala 9 — check-out 03-09-2026 10:00', createdAt: iso(day(0, 8, 12)), read: false, requestId: requests[0]?.id },
-  { id: 'n-2', kind: 'cleaningChanged', title: 'Richiesta aggiornata', body: 'Via Trionfale 20 — ospiti in arrivo passati da 2 a 3', createdAt: iso(day(-1, 17, 40)), read: false, requestId: requests[1]?.id },
-  { id: 'n-3', kind: 'cleaningCancelled', title: 'Richiesta cancellata da Guesty', body: 'Piazza dei Consoli, 51 — prenotazione annullata dall’ospite', createdAt: iso(day(-2, 11, 5)), read: true },
+  { id: 'n-1', kind: 'cleaningCreated', title: 'Nuova richiesta di pulizia', body: 'Via della Scala 9 · check-out 03-09-2026 10:00', createdAt: iso(day(0, 8, 12)), read: false, requestId: requests[0]?.id },
+  { id: 'n-2', kind: 'cleaningChanged', title: 'Richiesta aggiornata', body: 'Via Trionfale 20 · ospiti in arrivo passati da 2 a 3', createdAt: iso(day(-1, 17, 40)), read: false, requestId: requests[1]?.id },
+  { id: 'n-3', kind: 'cleaningCancelled', title: 'Richiesta cancellata da Guesty', body: 'Piazza dei Consoli, 51 · prenotazione annullata dall’ospite', createdAt: iso(day(-2, 11, 5)), read: true },
   { id: 'n-4', kind: 'system', title: 'Scorte in esaurimento', body: 'Magazzino Prati: lenzuola matrimoniali sotto la soglia minima', createdAt: iso(day(-3, 9, 30)), read: true },
 ]

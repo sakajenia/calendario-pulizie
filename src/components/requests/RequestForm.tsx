@@ -111,7 +111,7 @@ export function RequestForm({
           <Field label="Appartamento">
             <Select
               value={draft.apartmentId}
-              options={apartments.map((a) => ({ value: a.id, label: `${a.name} — ${a.district}` }))}
+              options={apartments.map((a) => ({ value: a.id, label: `${a.name} · ${a.district}` }))}
               onChange={(e) => setDraft((d) => ({ ...d, apartmentId: e.target.value, beds: [] }))}
             />
           </Field>

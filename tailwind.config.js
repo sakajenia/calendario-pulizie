@@ -43,16 +43,19 @@ export default {
         sm: 'calc(var(--radius) - 4px)',
       },
       fontFamily: {
-        sans: ['Inter var', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        display: ['Archivo', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: ['Geist', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        display: ['Archivo', 'Geist', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        /* Il serif vive solo nel lockup del marchio: nelle UI software e' bandito. */
         serif: ['Spectral', 'ui-serif', 'Georgia', 'serif'],
-        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+        mono: ['Geist Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
+      /* Le ombre sono tinte sulla base, non nere: un'ombra neutra su un fondo
+         caldo legge come sporco. */
       boxShadow: {
-        brand: '0 10px 20px hsl(var(--primary) / 0.28), inset 0 1px 0 rgb(255 255 255 / 0.22)',
-        card: '0 1px 2px rgb(16 24 40 / 0.05), 0 1px 3px rgb(16 24 40 / 0.06)',
-        raised: '0 8px 30px rgb(16 24 40 / 0.08)',
-        pill: '0 6px 24px rgb(16 24 40 / 0.10)',
+        brand: '0 8px 18px -6px hsl(var(--primary) / 0.35), inset 0 1px 0 hsl(0 0% 100% / 0.16)',
+        card: '0 1px 2px hsl(345 30% 12% / 0.05), 0 1px 3px hsl(345 30% 12% / 0.05)',
+        raised: '0 12px 32px -10px hsl(345 30% 12% / 0.14)',
+        pill: '0 6px 22px -8px hsl(345 30% 12% / 0.16)',
       },
       keyframes: {
         'accordion-down': { from: { height: '0' }, to: { height: 'var(--radix-accordion-content-height)' } },
@@ -60,10 +63,14 @@ export default {
         'slide-up': { from: { opacity: '0', transform: 'translateY(6px)' }, to: { opacity: '1', transform: 'none' } },
         'scale-in': { from: { opacity: '0', transform: 'scale(.97)' }, to: { opacity: '1', transform: 'none' } },
       },
+      transitionTimingFunction: {
+        'out-expo': 'cubic-bezier(0.16, 1, 0.3, 1)',
+        'out-quart': 'cubic-bezier(0.25, 1, 0.5, 1)',
+      },
       animation: {
-        'fade-in': 'fade-in .18s ease-out',
-        'slide-up': 'slide-up .2s cubic-bezier(.16,1,.3,1)',
-        'scale-in': 'scale-in .16s cubic-bezier(.16,1,.3,1)',
+        'fade-in': 'fade-in .16s cubic-bezier(0.25,1,0.5,1)',
+        'slide-up': 'slide-up .22s cubic-bezier(0.16,1,0.3,1)',
+        'scale-in': 'scale-in .16s cubic-bezier(0.16,1,0.3,1)',
       },
     },
   },

@@ -98,10 +98,11 @@ function SortHeader({
 }) {
   const active = current === sortKey
   return (
-    <Th className={className}>
+    <Th className={className} aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
       <button
         type="button"
         onClick={() => onSort(sortKey)}
+        aria-label={`Ordina per ${label}`}
         className={cn(
           'inline-flex items-center gap-1 rounded uppercase tracking-wide transition-colors focus-ring hover:text-foreground',
           active && 'text-foreground',
@@ -176,7 +177,7 @@ function ApartmentDetail({
           <div className="rounded-lg border border-border bg-muted/30 px-3 py-1">
             <DetailRow label="Nome" value={apartment.name} />
             <DetailRow label="Indirizzo" value={apartment.address} />
-            <DetailRow label="Località" value={`${apartment.district} — ${apartment.city}`} />
+            <DetailRow label="Località" value={`${apartment.district} · ${apartment.city}`} />
             <DetailRow label="Proprietario" value={ownerName} />
             <DetailRow
               label="Provider"

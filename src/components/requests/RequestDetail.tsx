@@ -42,7 +42,7 @@ function ExtraTable({ lines }: { lines: ExtraLine[] }) {
   )
 }
 
-/** Somma gli extra dei letti per nome — replica "Totale extra dei letti". */
+/** Somma gli extra dei letti per nome · replica "Totale extra dei letti". */
 export function totalBedExtras(req: CleaningRequest): ExtraLine[] {
   const acc = new Map<string, number>()
   for (const b of req.beds) for (const e of b.extras) acc.set(e.name, (acc.get(e.name) ?? 0) + e.qty)

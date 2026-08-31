@@ -1,7 +1,7 @@
 import * as React from 'react'
 import {
-  Activity, ArrowDown, ArrowDownRight, ArrowUp, ArrowUpRight, BedDouble, Building2,
-  ChartPie, ChevronsUpDown, CircleCheckBig, ClipboardList, Clock3, Download, Inbox,
+  Activity, ArrowDown, ArrowDownRight, ArrowUp, ArrowUpRight, Building2,
+  ChartPie, ChevronsUpDown, Download, Inbox,
   Minus, ShieldAlert, Users, Wallet,
 } from 'lucide-react'
 import {
@@ -147,16 +147,16 @@ function SectionHeader({
   description?: string
   action?: React.ReactNode
 }) {
+  /* Niente icona dentro un quadratino colorato: e' la firma visiva piu' battuta
+     dei dashboard generati. L'icona resta, in linea col titolo e senza sfondo. */
   return (
     <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
-      <div className="flex min-w-0 items-start gap-3">
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-          <Icon className="size-4" />
-        </span>
-        <div className="min-w-0 space-y-1">
-          <CardTitle>{title}</CardTitle>
-          {description && <CardDescription>{description}</CardDescription>}
-        </div>
+      <div className="min-w-0 space-y-1">
+        <CardTitle className="flex items-center gap-2">
+          <Icon className="size-4 shrink-0 text-primary" />
+          {title}
+        </CardTitle>
+        {description && <CardDescription>{description}</CardDescription>}
       </div>
       {action}
     </CardHeader>
@@ -201,32 +201,38 @@ function Delta({ current, previous }: { current: number; previous: number }) {
   )
 }
 
-function KpiCard({
-  icon: Icon, label, value, hint, current, previous,
+/**
+ * Banda di metriche, non griglia di card.
+ * Quattro riquadri identici con numerone e badge-icona sono il "hero metric"
+ * da SaaS: qui le cifre stanno direttamente sul fondo della pagina, separate
+ * da filetti, e la prima domina le altre per scala invece che per decorazione.
+ */
+function Stat({
+  label, value, hint, current, previous, lead = false,
 }: {
-  icon: React.ComponentType<{ className?: string }>
   label: string
   value: string
   hint: string
   current: number
   previous: number
+  lead?: boolean
 }) {
   return (
-    <Card className="p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
-          <p className="mt-2 font-display text-3xl font-extrabold tabular-nums tracking-tight">{value}</p>
-        </div>
-        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-          <Icon className="size-4" />
+    <div className={cn('min-w-0 px-5 py-4 first:pl-0 last:pr-0', lead && 'sm:col-span-2 xl:col-span-1')}>
+      <p className="eyebrow truncate">{label}</p>
+      <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span
+          className={cn(
+            'font-display font-extrabold tabular-nums tracking-tight',
+            lead ? 'text-[2.75rem] leading-[0.95]' : 'text-3xl leading-none',
+          )}
+        >
+          {value}
         </span>
-      </div>
-      <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
-      <div className="mt-3 border-t border-border pt-2.5">
         <Delta current={current} previous={previous} />
       </div>
-    </Card>
+      <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{hint}</p>
+    </div>
   )
 }
 
@@ -534,33 +540,30 @@ export default function Dashboard() {
       </div>
 
       <div className="space-y-4 p-5">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard
-            icon={ClipboardList}
+        <div className="grid grid-cols-1 border-y border-border sm:grid-cols-2 sm:divide-x sm:divide-border xl:grid-cols-4">
+          <Stat
+            lead
             label="Richieste nel periodo"
             value={fmtNum(kpi.cur.total)}
             hint={`Su ${plural(scoped.length, 'richiesta totale', 'richieste totali')} in archivio`}
             current={kpi.cur.total}
             previous={kpi.prev.total}
           />
-          <KpiCard
-            icon={CircleCheckBig}
+          <Stat
             label="Completate"
             value={fmtNum(kpi.cur.done)}
             hint={`${fmtNum(donePct)}% delle richieste del periodo`}
             current={kpi.cur.done}
             previous={kpi.prev.done}
           />
-          <KpiCard
-            icon={Clock3}
+          <Stat
             label="In attesa"
             value={fmtNum(kpi.cur.pending)}
             hint="Da accettare o assegnare a un operatore"
             current={kpi.cur.pending}
             previous={kpi.prev.pending}
           />
-          <KpiCard
-            icon={BedDouble}
+          <Stat
             label="Letti preparati"
             value={fmtNum(kpi.cur.beds)}
             hint={`Media di ${fmtNum(Math.round(bedsPerRequest * 10) / 10)} letti a richiesta`}

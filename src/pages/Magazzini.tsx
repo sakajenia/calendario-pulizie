@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/AppShell'
 import {
-  Badge, Button, Card, CardContent, CardFooter, CardHeader, CardTitle, Checkbox, Dialog,
+  Badge, Button, Checkbox, Dialog,
   Dropdown, DropdownItem, DropdownSeparator, EmptyState, Field, Input, Select, Switch,
   Table, TableScroller, Td, Textarea, Th,
 } from '@/components/ui'
@@ -85,20 +85,13 @@ function SummaryTile({
   tone?: 'brand' | 'warn'
 }) {
   return (
-    <div className="flex items-start gap-3 bg-card px-5 py-3.5">
-      <span
-        className={cn(
-          'mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg',
-          tone === 'warn' ? 'bg-status-pending/12 text-status-pending' : 'bg-primary/10 text-primary',
-        )}
-      >
-        <Icon className="size-4" />
-      </span>
-      <div className="min-w-0">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="font-display text-lg font-bold leading-tight tabular-nums">{value}</p>
-        {hint && <div className="mt-0.5 text-xs text-muted-foreground">{hint}</div>}
-      </div>
+    <div className="min-w-0 bg-card px-5 py-3.5">
+      <p className="eyebrow flex items-center gap-1.5">
+        <Icon className={cn('size-3.5 shrink-0', tone === 'warn' ? 'text-status-pending' : 'text-primary')} />
+        <span className="truncate">{label}</span>
+      </p>
+      <p className="mt-1.5 font-display text-xl font-bold leading-none tabular-nums">{value}</p>
+      {hint && <div className="mt-1 text-xs leading-relaxed text-muted-foreground">{hint}</div>}
     </div>
   )
 }
@@ -115,10 +108,11 @@ function SortHeader({
 }) {
   const active = current === sortKey
   return (
-    <Th className={className}>
+    <Th className={className} aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
       <button
         type="button"
         onClick={() => onSort(sortKey)}
+        aria-label={`Ordina per ${label}`}
         className={cn(
           'inline-flex items-center gap-1 rounded uppercase tracking-wide transition-colors focus-ring hover:text-foreground',
           active && 'text-foreground',
@@ -686,20 +680,21 @@ export default function Magazzini() {
               action={<Button variant="outline" onClick={() => setText('')}>Cancella ricerca</Button>}
             />
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
               {cards.map((r) => {
                 const w = r.warehouse
                 const isSelected = selected.has(w.id)
                 return (
-                  <Card
+                  <article
                     key={w.id}
                     onClick={() => openEdit(w.id)}
                     className={cn(
-                      'flex cursor-pointer flex-col transition-colors',
-                      isSelected ? 'border-primary/50 bg-primary/5' : 'hover:border-primary/30',
+                      'grid cursor-pointer gap-4 px-5 py-4 transition-colors duration-200 ease-out-expo lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8',
+                      isSelected ? 'bg-primary/5' : 'hover:bg-muted/40',
                     )}
                   >
-                    <CardHeader className="flex-row items-start justify-between gap-3 space-y-0 pb-3">
+                    <div className="min-w-0 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-3">
                         <span className="mt-1">
                           <Checkbox
@@ -709,8 +704,8 @@ export default function Magazzini() {
                           />
                         </span>
                         <div className="min-w-0">
-                          <CardTitle className="truncate">{w.name}</CardTitle>
-                          <p className="mt-1 text-xs text-muted-foreground">
+                          <h3 className="truncate font-display text-base font-bold tracking-tight">{w.name}</h3>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
                             {plural(r.items.length, 'articolo assegnato', 'articoli assegnati')}
                           </p>
                         </div>
@@ -732,9 +727,8 @@ export default function Magazzini() {
                           </DropdownItem>
                         </Dropdown>
                       </span>
-                    </CardHeader>
+                      </div>
 
-                    <CardContent className="flex-1 space-y-3">
                       <p className="flex items-start gap-2 text-sm">
                         <MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                         {w.address
@@ -759,23 +753,22 @@ export default function Magazzini() {
                           {w.notes}
                         </p>
                       )}
-                    </CardContent>
+                    </div>
 
-                    <CardFooter className="mt-auto grid grid-cols-2 gap-3 border-t border-border pt-4">
+                    <div className="grid grid-cols-2 gap-3 border-t border-border pt-3 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
                       <div className="min-w-0">
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Articoli</p>
+                        <p className="eyebrow whitespace-nowrap">Articoli</p>
                         <p className="font-display text-base font-bold tabular-nums">{fmtNum(r.items.length)}</p>
                         <p className="truncate text-xs tabular-nums text-muted-foreground">
                           {fmtNum(r.committed)} pz impegnati
                         </p>
                       </div>
                       <div className="min-w-0 text-right">
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Valore impegnato</p>
+                        <p className="eyebrow whitespace-nowrap">Valore</p>
                         <p className="font-display text-base font-bold tabular-nums">{fmtEur(r.value)}</p>
-                        <p className="truncate text-xs text-muted-foreground">{BASIS_LABEL[basis]}</p>
                       </div>
-                    </CardFooter>
-                  </Card>
+                    </div>
+                  </article>
                 )
               })}
             </div>

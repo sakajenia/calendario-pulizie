@@ -115,10 +115,11 @@ function SortHeader({
 }) {
   const active = current === sortKey
   return (
-    <Th className={className}>
+    <Th className={className} aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
       <button
         type="button"
         onClick={() => onSort(sortKey)}
+        aria-label={`Ordina per ${label}`}
         className={cn(
           'inline-flex items-center gap-1 rounded uppercase tracking-wide transition-colors focus-ring hover:text-foreground',
           active && 'text-foreground',
@@ -351,7 +352,7 @@ function ExtraForm({
               Su {BASIS_LABEL[basis]} questo nome risulta impegnato per{' '}
               <span className="font-medium text-foreground">{fmtNum(preview.qty)} unità</span> in{' '}
               {plural(preview.requests, 'richiesta', 'richieste')}
-              {showValue ? <> — valore {fmtEur(preview.qty * amount)}.</> : '.'}
+              {showValue ? <> · valore {fmtEur(preview.qty * amount)}.</> : '.'}
             </>
           ) : (
             <>
@@ -879,7 +880,7 @@ export default function Extra() {
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3">
         <span className="text-sm text-muted-foreground">
-          {meta.tab} — valore complessivo{' '}
+          {meta.tab} · valore complessivo{' '}
           <span className="font-medium text-foreground">{fmtEur(tabValue)}</span> su {BASIS_LABEL[basis]}
         </span>
         <span className="text-sm tabular-nums text-muted-foreground">

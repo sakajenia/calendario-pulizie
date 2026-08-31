@@ -425,7 +425,7 @@ export default function Calendario() {
                       type="button"
                       onClick={() => pickDay(d)}
                       aria-pressed={isSelected}
-                      aria-label={`${fmtDayLong(d)} — ${plural(list.length, 'richiesta', 'richieste')}`}
+                      aria-label={`${fmtDayLong(d)} · ${plural(list.length, 'richiesta', 'richieste')}`}
                       className={cn(
                         'flex min-h-[52px] flex-col items-start gap-1.5 rounded-lg border border-transparent p-1.5 text-left transition-colors focus-ring',
                         weekend && !outside && 'bg-muted/40',
@@ -599,7 +599,7 @@ export default function Calendario() {
                 <h2 className="font-display text-sm font-bold leading-snug">
                   {selectedDay ? fmtDayLong(selectedDay) : periodTitle}
                   <span className="font-normal text-muted-foreground">
-                    {' — '}
+                    {' · '}
                     {plural(visible.length, 'richiesta', 'richieste')}
                   </span>
                 </h2>

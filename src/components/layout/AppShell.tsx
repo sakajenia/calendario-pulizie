@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import type { LucideIcon } from 'lucide-react'
 import {
   Bell, Boxes, Building2, CalendarDays, ClipboardList, LayoutDashboard, ListChecks,
   LogOut, Moon, PackageOpen, Settings, Sun, Users, Menu, X,
@@ -13,7 +14,7 @@ import { cn } from '@/lib/utils'
 interface NavEntry {
   to: string
   label: string
-  icon: React.ComponentType<{ className?: string }>
+  icon: LucideIcon
   adminOnly?: boolean
 }
 
@@ -40,7 +41,7 @@ function NavItem({ entry, onNavigate }: { entry: NavEntry; onNavigate?: () => vo
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
-          'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+          'group flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-[background-color,color] duration-200 ease-out-expo',
           isActive
             ? 'bg-sidebar-accent text-white'
             : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-white',
@@ -49,11 +50,15 @@ function NavItem({ entry, onNavigate }: { entry: NavEntry; onNavigate?: () => vo
     >
       {({ isActive }) => (
         <>
-          <span className={cn('relative flex size-5 items-center justify-center', isActive && 'text-primary')}>
-            <Icon className="size-[18px]" />
+          <span
+            className={cn(
+              'relative flex size-5 items-center justify-center transition-colors duration-200 ease-out-expo',
+              isActive ? 'text-primary' : 'text-sidebar-foreground/55 group-hover:text-sidebar-foreground',
+            )}
+          >
+            <Icon className="size-[18px]" strokeWidth={isActive ? 2.1 : 1.75} />
           </span>
           <span className="truncate">{entry.label}</span>
-          {isActive && <span className="ml-auto h-4 w-1 rounded-full bg-primary" />}
         </>
       )}
     </NavLink>
@@ -101,7 +106,7 @@ export function AppShell() {
   )
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-[100dvh] overflow-hidden bg-background">
       <aside className="hidden w-60 shrink-0 lg:block">{sidebar}</aside>
 
       {mobileOpen && (
