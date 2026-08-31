@@ -762,7 +762,7 @@ export default function Appartamenti() {
   )
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-col lg:h-full">
       <PageHeader
         title="Appartamenti"
         subtitle={
@@ -846,7 +846,7 @@ export default function Appartamenti() {
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="lg:min-h-0 lg:flex-1 lg:overflow-auto">
         {filtered.length === 0 ? (
           <EmptyState
             icon={Building2}

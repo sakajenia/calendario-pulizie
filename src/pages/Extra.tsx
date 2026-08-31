@@ -589,7 +589,7 @@ export default function Extra() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-col lg:h-full">
       <PageHeader
         title={<span className="inline-flex items-center gap-1.5">Extra<HelpTip term="extra" /></span>}
         subtitle={
@@ -713,7 +713,7 @@ export default function Extra() {
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="lg:min-h-0 lg:flex-1 lg:overflow-auto">
         {extraCatalog.length === 0 ? (
           <EmptyState
             icon={PackageOpen}

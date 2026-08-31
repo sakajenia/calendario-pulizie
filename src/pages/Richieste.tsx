@@ -486,7 +486,7 @@ export default function Richieste() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-col lg:h-full">
       <PageHeader
         title="Richieste"
         subtitle={
@@ -626,7 +626,7 @@ export default function Richieste() {
       )}
 
       {pageRows.length > 0 && (
-        <div className="stagger min-h-0 flex-1 space-y-3 overflow-y-auto p-4 md:hidden">
+        <div className="stagger space-y-3 p-4 md:hidden">
           {pageRows.map((r) => (
             <RequestCard
               key={r.req.id}
@@ -637,7 +637,7 @@ export default function Richieste() {
         </div>
       )}
 
-      <TableScroller className={cn('flex-1', pageRows.length > 0 && 'hidden md:flex')} innerClassName="min-h-0 flex-1">
+      <TableScroller className={cn('lg:flex-1', pageRows.length > 0 && 'hidden md:flex')} innerClassName="lg:min-h-0 lg:flex-1">
         {pageRows.length === 0 ? (
           <EmptyState
             icon={ClipboardList}

@@ -460,7 +460,7 @@ export default function CatalogoTask() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-col lg:h-full">
       <PageHeader
         title={<span className="inline-flex items-center gap-1.5">Catalogo Task<HelpTip term="task" /></span>}
         subtitle="Definisci i singoli task che potranno essere inseriti nei fogli di lavoro"
@@ -594,7 +594,7 @@ export default function CatalogoTask() {
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="lg:min-h-0 lg:flex-1 lg:overflow-auto">
         {filtered.length === 0 ? (
           <EmptyState
             icon={ClipboardList}

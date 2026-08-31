@@ -525,7 +525,7 @@ export default function Magazzini() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-col lg:h-full">
       <PageHeader
         title={<span className="inline-flex items-center gap-1.5">Magazzini<HelpTip term="magazzino" /></span>}
         subtitle="Crea, modifica ed elimina i magazzini"
@@ -664,7 +664,7 @@ export default function Magazzini() {
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="lg:min-h-0 lg:flex-1 lg:overflow-auto">
         <div className="space-y-6 p-5">
           {warehouses.length === 0 ? (
             <EmptyState

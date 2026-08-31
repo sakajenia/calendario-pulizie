@@ -290,7 +290,7 @@ export default function Notifiche() {
   const detail = detailId ? requestById.get(detailId) ?? null : null
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-col lg:h-full">
       <PageHeader
         title="Notifiche"
         subtitle={
@@ -410,7 +410,7 @@ export default function Notifiche() {
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
         {notifications.length === 0 ? (
           <EmptyState
             icon={Bell}

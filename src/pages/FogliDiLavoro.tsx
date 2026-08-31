@@ -602,7 +602,7 @@ export default function FogliDiLavoro() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-col lg:h-full">
       <PageHeader
         title={<span className="inline-flex items-center gap-1.5">Fogli di Lavoro<HelpTip term="foglio di lavoro" /></span>}
         subtitle={
@@ -692,7 +692,7 @@ export default function FogliDiLavoro() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="p-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
         {workSheets.length === 0 ? (
           <EmptyState
             icon={ClipboardList}
