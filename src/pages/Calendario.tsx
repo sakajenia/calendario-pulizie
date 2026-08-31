@@ -421,7 +421,7 @@ export default function Calendario() {
                       aria-pressed={isSelected}
                       aria-label={`${fmtDayLong(d)} — ${plural(list.length, 'richiesta', 'richieste')}`}
                       className={cn(
-                        'flex min-h-[58px] flex-col items-start gap-1 rounded-lg border border-transparent p-1.5 text-left transition-colors focus-ring',
+                        'flex min-h-[52px] flex-col items-start gap-1.5 rounded-lg border border-transparent p-1.5 text-left transition-colors focus-ring',
                         weekend && !outside && 'bg-muted/40',
                         outside && 'opacity-45',
                         !isSelected && 'hover:border-border hover:bg-muted',
@@ -439,13 +439,13 @@ export default function Calendario() {
                       </span>
 
                       {list.length > 0 && (
-                        <span className="mt-auto flex w-full flex-wrap items-center gap-1">
-                          {list.slice(0, 3).map((r) => (
+                        <span className="flex w-full flex-wrap items-center gap-1">
+                          {list.slice(0, 4).map((r) => (
                             <StatusDot key={r.id} status={r.status} className="size-2" />
                           ))}
-                          {list.length > 3 && (
+                          {list.length > 4 && (
                             <span className="text-[10px] font-semibold leading-none text-muted-foreground">
-                              +{list.length - 3}
+                              +{list.length - 4}
                             </span>
                           )}
                         </span>
@@ -525,12 +525,12 @@ export default function Calendario() {
           )}
 
           {/* legenda-filtro per stato, con i conteggi del periodo visualizzato */}
-          <div className="flex flex-wrap items-center gap-1 border-t border-border px-2.5 py-2">
+          <div className="no-scrollbar flex items-center gap-1 overflow-x-auto border-t border-border px-2.5 py-2">
             <button
               type="button"
               onClick={() => setStatuses([])}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-medium transition-colors focus-ring',
+                'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-medium transition-colors focus-ring',
                 statuses.length === 0 ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted',
               )}
             >
@@ -547,7 +547,7 @@ export default function Calendario() {
                   onClick={() => toggleStatus(s)}
                   aria-pressed={on}
                   className={cn(
-                    'inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-medium transition-colors focus-ring',
+                    'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-medium transition-colors focus-ring',
                     on ? 'bg-muted text-foreground ring-1 ring-inset ring-border' : 'text-muted-foreground hover:bg-muted',
                     !on && n === 0 && 'opacity-45',
                   )}
