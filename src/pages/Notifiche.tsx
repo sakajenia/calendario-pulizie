@@ -122,7 +122,7 @@ function NotificationRow({
             </Tooltip>
             <span aria-hidden className="text-border">|</span>
             {request ? (
-              <span className="inline-flex items-center gap-0.5 font-medium text-primary">
+              <span className="inline-flex items-center gap-0.5 font-medium text-brand">
                 Apri richiesta
                 <ChevronRight className="size-3" />
               </span>
@@ -132,7 +132,7 @@ function NotificationRow({
             {unread && (
               <>
                 <span aria-hidden className="text-border">|</span>
-                <span className="font-medium text-primary">Da leggere</span>
+                <span className="font-medium text-brand">Da leggere</span>
               </>
             )}
           </span>
@@ -437,7 +437,7 @@ export default function Notifiche() {
                 </span>
                 <span className="text-[11px] tabular-nums text-muted-foreground">{fmtNum(g.items.length)}</span>
               </div>
-              <ul className="divide-y divide-border">
+              <ul className="stagger divide-y divide-border">
                 {g.items.map((n) => (
                   <NotificationRow
                     key={n.id}

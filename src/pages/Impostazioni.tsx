@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/AppShell'
 import {
-  Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Dialog,
+  Badge, Button, Dialog,
   EmptyState, Field, Input,
 } from '@/components/ui'
 import { StatusChip } from '@/components/StatusChip'
@@ -185,16 +185,16 @@ export default function Impostazioni() {
     <div>
       <PageHeader title="Impostazioni" subtitle="Profilo, aspetto e gestione del dataset locale." />
 
-      <div className="mx-auto max-w-4xl p-6 sm:p-8">
-        <div className="grid gap-6 lg:grid-cols-2">
+      <div className="mx-auto max-w-3xl px-6 sm:px-8">
+        <div className="divide-y divide-border">
 
           {/* ------------------------------------------------------------ Profilo */}
-          <Card className="lg:col-span-2">
-            <CardHeader className="flex-row items-center gap-2 space-y-0">
-              <UserRound className="size-4 text-primary" />
-              <CardTitle>Profilo</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <section className="py-8 first:pt-7">
+            <h2 className="mb-4 flex items-center gap-2 font-display text-base font-bold tracking-tight">
+              <UserRound className="size-4 text-brand" />
+              Profilo
+            </h2>
+            <div>
               <form onSubmit={saveProfile} className="space-y-5" noValidate>
                 <div className="flex flex-wrap items-center gap-4">
                   <div className="grid size-16 shrink-0 place-items-center rounded-2xl bg-primary font-display text-xl font-bold text-primary-foreground shadow-brand">
@@ -205,7 +205,7 @@ export default function Impostazioni() {
                       {form.name.trim() || user.name}
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge className="bg-primary/10 text-primary ring-1 ring-inset ring-primary/25">
+                      <Badge className="bg-primary/10 text-brand ring-1 ring-inset ring-primary/25">
                         {ROLE_LABEL[user.role]}
                       </Badge>
                       <Badge
@@ -282,16 +282,16 @@ export default function Impostazioni() {
                   )}
                 </div>
               </form>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
           {/* ----------------------------------------------------------- Aspetto */}
-          <Card>
-            <CardHeader className="flex-row items-center gap-2 space-y-0">
-              <Palette className="size-4 text-primary" />
-              <CardTitle>Aspetto</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <section className="py-8 first:pt-7">
+            <h2 className="mb-4 flex items-center gap-2 font-display text-base font-bold tracking-tight">
+              <Palette className="size-4 text-brand" />
+              Aspetto
+            </h2>
+            <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 {dark
                   ? 'Interfaccia a basso contrasto luminoso, adatta alle ore serali.'
@@ -307,7 +307,7 @@ export default function Impostazioni() {
                     className={cn(
                       'flex items-center gap-2 rounded-lg border p-3 text-left text-sm font-medium transition-colors focus-ring',
                       dark === value
-                        ? 'border-primary bg-primary/5 text-primary'
+                        ? 'border-primary bg-primary/5 text-brand'
                         : 'border-border text-muted-foreground hover:bg-muted',
                     )}
                   >
@@ -320,16 +320,16 @@ export default function Impostazioni() {
               <p className="text-xs text-muted-foreground">
                 La preferenza resta su questo browser e viene riapplicata a ogni accesso.
               </p>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
           {/* ------------------------------------------------------ Informazioni */}
-          <Card>
-            <CardHeader className="flex-row items-center gap-2 space-y-0">
-              <Info className="size-4 text-primary" />
-              <CardTitle>Informazioni</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
+          <section className="py-8 first:pt-7">
+            <h2 className="mb-4 flex items-center gap-2 font-display text-base font-bold tracking-tight">
+              <Info className="size-4 text-brand" />
+              Informazioni
+            </h2>
+            <div className="space-y-3">
               <div>
                 <InfoRow label="Applicazione" value={`${APP_NAME}®`} />
                 <InfoRow label="Versione" value={APP_VERSION} />
@@ -340,22 +340,22 @@ export default function Impostazioni() {
                 {APP_NAME} riprende il flusso operativo di {LEGACY_APP} · calendario, richieste di
                 pulizia, appartamenti ed extra · con l'identità visiva e i ruoli di ProProManager.
               </p>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
           {/* ------------------------------------------------ Piano di lavoro */}
-          <Card className="lg:col-span-2">
-            <CardHeader className="flex-row items-start gap-2 space-y-0">
-              <BarChart3 className="mt-0.5 size-4 shrink-0 text-primary" />
-              <div className="space-y-1">
-                <CardTitle>Il tuo piano di lavoro</CardTitle>
-                <CardDescription>
-                  {plural(total, 'richiesta visibile', 'richieste visibili')} con il profilo{' '}
-                  {ROLE_LABEL[user.role].toLowerCase()} di {user.name}.
-                </CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-5">
+          <section className="py-8 first:pt-7">
+            <div className="mb-4">
+              <h2 className="flex items-center gap-2 font-display text-base font-bold tracking-tight">
+                <BarChart3 className="size-4 shrink-0 text-brand" />
+                Il tuo piano di lavoro
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {plural(total, 'richiesta visibile', 'richieste visibili')} con il profilo{' '}
+                {ROLE_LABEL[user.role].toLowerCase()} di {user.name}.
+              </p>
+            </div>
+            <div className="space-y-5">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <Stat icon={ClipboardList} label="Richieste totali" value={fmtNum(total)} hint="Visibili al tuo ruolo" />
                 <Stat icon={CheckCircle2} label="Completate" value={fmtNum(done)} hint={`${completion}% del totale`} />
@@ -401,23 +401,23 @@ export default function Impostazioni() {
                   })}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
           {/* --------------------------------------------- Dati dimostrativi */}
-          <Card className="lg:col-span-2">
-            <CardHeader className="flex-row items-start gap-2 space-y-0">
-              <Database className="mt-0.5 size-4 shrink-0 text-primary" />
-              <div className="space-y-1">
-                <CardTitle>Dati dimostrativi</CardTitle>
-                <CardDescription>
-                  L'applicazione gira su un dataset dimostrativo ricostruito dal modello di {LEGACY_APP}:
-                  vive nel tuo browser, non viene inviato ad alcun server e ogni modifica che fai resta
-                  solo su questo dispositivo. L'export contiene i dati visibili al tuo ruolo.
-                </CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-5">
+          <section className="py-8 first:pt-7">
+            <div className="mb-4">
+              <h2 className="flex items-center gap-2 font-display text-base font-bold tracking-tight">
+                <Database className="size-4 shrink-0 text-brand" />
+                Dati dimostrativi
+              </h2>
+              <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
+                L'applicazione gira su un dataset dimostrativo ricostruito dal modello di {LEGACY_APP}:
+                vive nel tuo browser, non viene inviato ad alcun server e ogni modifica che fai resta
+                solo su questo dispositivo. L'export contiene i dati visibili al tuo ruolo.
+              </p>
+            </div>
+            <div className="space-y-5">
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {dataset.map((d) => (
                   <div key={d.label} className="rounded-lg border border-border px-3 py-2">
@@ -449,8 +449,8 @@ export default function Impostazioni() {
                   </span>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
         </div>
       </div>

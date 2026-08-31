@@ -92,7 +92,7 @@ function SummaryTile({
       <span
         className={cn(
           'mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg',
-          tone === 'warn' ? 'bg-status-pending/12 text-status-pending' : 'bg-primary/10 text-primary',
+          tone === 'warn' ? 'bg-status-pending/12 text-status-pending' : 'bg-primary/10 text-brand',
         )}
       >
         <Icon className="size-4" />
@@ -123,12 +123,12 @@ function SheetChips({
             type="button"
             title={`Mostra solo i task del foglio ${w.name}`}
             onClick={(e) => { e.stopPropagation(); onPick(w.id) }}
-            className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary ring-1 ring-inset ring-primary/25 transition-colors focus-ring hover:bg-primary/20"
+            className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-brand ring-1 ring-inset ring-primary/25 transition-colors focus-ring hover:bg-primary/20"
           >
             {w.name}
           </button>
         ) : (
-          <Badge key={w.id} className="bg-primary/10 text-primary ring-1 ring-inset ring-primary/25">
+          <Badge key={w.id} className="bg-primary/10 text-brand ring-1 ring-inset ring-primary/25">
             {w.name}
           </Badge>
         ),

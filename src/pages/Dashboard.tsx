@@ -99,7 +99,7 @@ const ROLE_LABEL: Record<UserRole, string> = {
 }
 
 const ROLE_CHIP: Record<UserRole, string> = {
-  admin: 'bg-primary/10 text-primary ring-1 ring-inset ring-primary/20',
+  admin: 'bg-primary/10 text-brand ring-1 ring-inset ring-primary/20',
   host: 'bg-status-progress/12 text-status-progress ring-1 ring-inset ring-status-progress/25',
   operator: 'bg-muted text-muted-foreground ring-1 ring-inset ring-border',
 }
@@ -153,7 +153,7 @@ function SectionHeader({
     <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
       <div className="min-w-0 space-y-1">
         <CardTitle className="flex items-center gap-2">
-          <Icon className="size-4 shrink-0 text-primary" />
+          <Icon className="size-4 shrink-0 text-brand" />
           {title}
         </CardTitle>
         {description && <CardDescription>{description}</CardDescription>}
@@ -860,7 +860,7 @@ export default function Dashboard() {
                         <Td className="text-right font-semibold tabular-nums">
                           {fmtEur(budget.totals.requests > 0 ? budget.totals.total / budget.totals.requests : 0)}
                         </Td>
-                        <Td className="text-right font-display text-base font-extrabold tabular-nums text-primary">
+                        <Td className="text-right font-display text-base font-extrabold tabular-nums text-brand">
                           {fmtEur(budget.totals.total)}
                         </Td>
                       </tr>

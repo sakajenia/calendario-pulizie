@@ -11,7 +11,7 @@ const BTN_VARIANTS = {
   outline: 'border border-input bg-background hover:bg-muted hover:text-foreground',
   ghost: 'hover:bg-muted hover:text-foreground',
   destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
-  link: 'text-primary underline-offset-4 hover:underline',
+  link: 'text-brand underline-offset-4 hover:underline',
 } as const
 
 const BTN_SIZES = {
@@ -247,7 +247,7 @@ export function Dialog({
         {(title || description) && (
           <div className="flex items-start justify-between gap-4 border-b border-border p-5">
             <div className="space-y-1">
-              {title && <h2 className="font-display text-lg font-bold tracking-tight text-primary">{title}</h2>}
+              {title && <h2 className="font-display text-lg font-bold tracking-tight text-brand">{title}</h2>}
               {description && <p className="text-sm text-muted-foreground">{description}</p>}
             </div>
             <Button variant="ghost" size="icon" onClick={onClose} aria-label="Chiudi">

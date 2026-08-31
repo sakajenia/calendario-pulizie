@@ -22,7 +22,7 @@ function Section({ title, icon: Icon, children }: {
 }) {
   return (
     <section className="pt-5 first:pt-0">
-      <h3 className="mb-1.5 flex items-center gap-2 font-display text-sm font-bold uppercase tracking-wide text-primary">
+      <h3 className="mb-1.5 flex items-center gap-2 font-display text-sm font-bold uppercase tracking-wide text-brand">
         {Icon && <Icon className="size-4" />}
         {title}
       </h3>
@@ -147,7 +147,7 @@ export function RequestDetail({
 
           {bedTotals.length > 0 && (
             <>
-              <h4 className="pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-primary">
+              <h4 className="pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-brand">
                 Totale extra dei letti
               </h4>
               <ExtraTable lines={bedTotals} />
@@ -186,7 +186,7 @@ export function RequestCard({
 
       <div className="mt-3 space-y-1.5">
         <p className="flex items-center gap-2 text-sm font-medium">
-          <MapPin className="size-4 shrink-0 text-primary" />
+          <MapPin className="size-4 shrink-0 text-brand" />
           <span className="truncate">{ap ? `${ap.address}, ${ap.district} - ${ap.city}` : request.spotApartmentName}</span>
         </p>
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -196,9 +196,9 @@ export function RequestCard({
       </div>
 
       <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 border-t border-border/60 pt-3 text-sm">
-        <dt className="font-medium text-primary">Check-out</dt>
+        <dt className="font-medium text-brand">Check-out</dt>
         <dd className="text-right tabular-nums">{fmtDateTime(request.checkOutAt)}</dd>
-        <dt className="font-medium text-primary">Check-in</dt>
+        <dt className="font-medium text-brand">Check-in</dt>
         <dd className="text-right tabular-nums">{fmtDateTime(request.checkInAt)}</dd>
         <dt className="flex items-center gap-1.5 text-muted-foreground"><Users className="size-3.5" /> Ospiti</dt>
         <dd className="text-right tabular-nums">{request.checkInPeople}</dd>

@@ -68,7 +68,7 @@ function ProviderBadge({ provider, listingId }: { provider: ListingProvider; lis
         className={cn(
           'ring-1 ring-inset',
           provider === 'guesty'
-            ? 'bg-primary/10 text-primary ring-primary/20'
+            ? 'bg-primary/10 text-brand ring-primary/20'
             : 'bg-muted text-foreground ring-border',
         )}
       >
@@ -207,7 +207,7 @@ function ApartmentDetail({
                   key={b.id}
                   className="flex items-center gap-2.5 rounded-md border border-border bg-muted/30 px-3 py-1.5 text-sm"
                 >
-                  <span className="grid size-5 shrink-0 place-items-center rounded bg-primary/10 text-[11px] font-bold tabular-nums text-primary">
+                  <span className="grid size-5 shrink-0 place-items-center rounded bg-primary/10 text-[11px] font-bold tabular-nums text-brand">
                     {i + 1}
                   </span>
                   <span className="font-medium">{b.type}</span>

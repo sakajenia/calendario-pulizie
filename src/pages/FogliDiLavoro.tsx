@@ -224,7 +224,7 @@ function WorkSheetForm({
                     key={task.id}
                     className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-2.5 py-2"
                   >
-                    <span className="grid size-5 shrink-0 place-items-center rounded-full bg-primary/10 text-[11px] font-semibold tabular-nums text-primary">
+                    <span className="grid size-5 shrink-0 place-items-center rounded-full bg-primary/10 text-[11px] font-semibold tabular-nums text-brand">
                       {i + 1}
                     </span>
                     <span className="min-w-0 flex-1">
@@ -316,7 +316,7 @@ function WorkSheetForm({
                       onClick={() => addTask(task.id)}
                       className="flex w-full items-center gap-2 rounded-lg border border-border px-2.5 py-2 text-left transition-colors focus-ring hover:border-primary/40 hover:bg-muted"
                     >
-                      <Plus className="size-4 shrink-0 text-primary" />
+                      <Plus className="size-4 shrink-0 text-brand" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">{task.name}</span>
                         <span className="block truncate text-xs text-muted-foreground">
@@ -386,7 +386,7 @@ function SheetCard({
             <ListChecks className="size-3.5" />
             {plural(row.tasks.length, 'task', 'task')}
           </Badge>
-          <Badge className="bg-primary/10 text-primary">
+          <Badge className="bg-primary/10 text-brand">
             <Clock className="size-3.5" />
             {fmtDuration(row.minutes)}
           </Badge>
@@ -712,7 +712,7 @@ export default function FogliDiLavoro() {
             action={<Button variant="outline" onClick={clearFilters}>Cancella filtri</Button>}
           />
         ) : (
-          <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+          <div className="stagger divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
             {filtered.map((row) => (
               <SheetCard
                 key={row.sheet.id}

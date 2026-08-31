@@ -867,7 +867,7 @@ export default function Extra() {
                   )}
                 </Td>
                 <Td className="text-right">
-                  <span className="block font-semibold tabular-nums text-primary">{fmtEur(shownValue)}</span>
+                  <span className="block font-semibold tabular-nums text-brand">{fmtEur(shownValue)}</span>
                   {hasFilters && (
                     <span className="block text-xs text-muted-foreground">di {fmtEur(tabValue)}</span>
                   )}

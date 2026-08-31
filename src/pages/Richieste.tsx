@@ -9,7 +9,7 @@ import {
   EmptyState, Field, Input, Select, Table, TableScroller, Td, Th, Tooltip,
 } from '@/components/ui'
 import { StatusChip, StatusDot } from '@/components/StatusChip'
-import { RequestDetail } from '@/components/requests/RequestDetail'
+import { RequestCard, RequestDetail } from '@/components/requests/RequestDetail'
 import { RequestForm } from '@/components/requests/RequestForm'
 import { scopeApartments, scopeRequests, useCurrentUser, useStore } from '@/data/store'
 import { asDate, downloadFile, fmtDate, fmtDateTime, fmtNum, norm, plural, toCsv } from '@/lib/format'
@@ -158,7 +158,7 @@ function FiltersDrawer({ open, onClose }: { open: boolean; onClose: () => void }
         className="absolute inset-y-0 right-0 flex w-80 max-w-full flex-col border-l border-border bg-card shadow-2xl animate-slide-up"
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-4">
-          <h2 className="font-display text-lg font-bold tracking-tight text-primary">Filtri</h2>
+          <h2 className="font-display text-lg font-bold tracking-tight text-brand">Filtri</h2>
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Chiudi filtri"><X /></Button>
         </div>
 
@@ -489,40 +489,40 @@ export default function Richieste() {
         }
         actions={
           <>
-            <Button variant="outline" onClick={() => setFiltersOpen(true)}>
+            <Button variant="outline" onClick={() => setFiltersOpen(true)} aria-label="Filtri">
               <SlidersHorizontal />
-              Filtri
+              <span className="hidden sm:inline">Filtri</span>
               {activeCount > 0 && (
                 <span className="grid min-w-[18px] place-items-center rounded-full bg-primary px-1 text-[10px] font-bold leading-4 text-primary-foreground">
                   {activeCount}
                 </span>
               )}
             </Button>
-            <Button variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
+            <Button variant="outline" onClick={exportCsv} disabled={filtered.length === 0} aria-label="Esporta CSV">
               <Download />
-              Esporta CSV
+              <span className="hidden sm:inline">Esporta CSV</span>
             </Button>
             <Button onClick={() => { setEditingId(null); setFormOpen(true) }}>
               <Plus />
-              Nuova richiesta
+              Nuova <span className="hidden sm:inline">richiesta</span>
             </Button>
           </>
         }
       />
 
-      <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border bg-card px-5 py-2.5">
+      <div className="no-scrollbar flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border bg-card px-5 py-2.5 md:flex-wrap md:overflow-visible">
         <button
           type="button"
           onClick={() => setFilters({ status: 'all' })}
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors focus-ring',
+            'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium transition-colors focus-ring',
             filters.status === 'all'
-              ? 'border-primary/40 bg-primary/10 text-primary'
+              ? 'border-primary/40 bg-primary/10 text-brand'
               : 'border-border text-muted-foreground hover:text-foreground',
           )}
         >
           Tutte
-          <span className="tabular-nums opacity-70">{fmtNum(baseRows.length)}</span>
+          <span className="tabular-nums font-semibold">{fmtNum(baseRows.length)}</span>
         </button>
 
         {REQUEST_STATUSES.map((s) => (
@@ -531,16 +531,16 @@ export default function Richieste() {
             type="button"
             onClick={() => setFilters({ status: filters.status === s ? 'all' : s })}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors focus-ring',
+              'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium transition-colors focus-ring',
               filters.status === s
-                ? 'border-primary/40 bg-primary/10 text-primary'
+                ? 'border-primary/40 bg-primary/10 text-brand'
                 : 'border-border text-muted-foreground hover:text-foreground',
               statusCounts[s] === 0 && filters.status !== s && 'opacity-50',
             )}
           >
             <StatusDot status={s} />
             {STATUS_META[s].label}
-            <span className="tabular-nums opacity-70">{fmtNum(statusCounts[s])}</span>
+            <span className="tabular-nums font-semibold">{fmtNum(statusCounts[s])}</span>
           </button>
         ))}
       </div>
@@ -605,7 +605,19 @@ export default function Richieste() {
         </div>
       )}
 
-      <TableScroller className="flex-1" innerClassName="min-h-0 flex-1">
+      {pageRows.length > 0 && (
+        <div className="stagger min-h-0 flex-1 space-y-3 overflow-y-auto p-4 md:hidden">
+          {pageRows.map((r) => (
+            <RequestCard
+              key={r.req.id}
+              request={r.req}
+              onClick={() => setDetailId(r.req.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      <TableScroller className={cn('flex-1', pageRows.length > 0 && 'hidden md:flex')} innerClassName="min-h-0 flex-1">
         {pageRows.length === 0 ? (
           <EmptyState
             icon={ClipboardList}

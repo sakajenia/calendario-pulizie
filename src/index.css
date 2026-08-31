@@ -28,6 +28,9 @@
 
     --primary: 346 72% 31%;
     --primary-foreground: 346 60% 99.6%;
+    /* Bordeaux come colore del testo su una superficie chiara o scura.
+       Distinto da --primary, che e' un riempimento e porta il bianco sopra. */
+    --brand-text: 346 72% 31%;
 
     --secondary: 345 22% 95.5%;
     --secondary-foreground: 345 28% 12%;
@@ -59,7 +62,7 @@
     /* Gli stati restano distinguibili anche in scala di grigi grazie alla
        differenza di luminosita', non solo di tinta. */
     --status-pending: 32 88% 42%;
-    --status-accepted: 162 72% 30%;
+    --status-accepted: 162 76% 26%;
     --status-progress: 214 82% 47%;
     --status-verify: 268 62% 52%;
     --status-done: 346 72% 31%;
@@ -85,6 +88,7 @@
 
     --primary: 346 56% 49%;
     --primary-foreground: 345 30% 98%;
+    --brand-text: 346 76% 70%;
 
     --secondary: 345 16% 15%;
     --secondary-foreground: 345 14% 95%;
@@ -164,6 +168,23 @@
   }
 
   .data-row { @apply border-b border-border/70 transition-colors hover:bg-muted/60; }
+
+  /*
+   * Ingresso in cascata per gli elenchi: montare tutto insieme fa "sbattere"
+   * la pagina, un ritardo progressivo la fa comporre. Il ritardo si azzera
+   * dopo i primi elementi, altrimenti in fondo alla lista si aspetta troppo.
+   */
+  @media (prefers-reduced-motion: no-preference) {
+    .stagger > * { animation: slide-up 260ms var(--ease-out-expo) both; }
+    .stagger > *:nth-child(1) { animation-delay: 0ms; }
+    .stagger > *:nth-child(2) { animation-delay: 35ms; }
+    .stagger > *:nth-child(3) { animation-delay: 70ms; }
+    .stagger > *:nth-child(4) { animation-delay: 105ms; }
+    .stagger > *:nth-child(5) { animation-delay: 140ms; }
+    .stagger > *:nth-child(6) { animation-delay: 175ms; }
+    .stagger > *:nth-child(7) { animation-delay: 210ms; }
+    .stagger > *:nth-child(n + 8) { animation-delay: 240ms; }
+  }
 
   /* Etichetta di sezione: piccola, spaziata, mai urlata. */
   .eyebrow {

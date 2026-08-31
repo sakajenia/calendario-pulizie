@@ -53,7 +53,7 @@ function NavItem({ entry, onNavigate }: { entry: NavEntry; onNavigate?: () => vo
           <span
             className={cn(
               'relative flex size-5 items-center justify-center transition-colors duration-200 ease-out-expo',
-              isActive ? 'text-primary' : 'text-sidebar-foreground/55 group-hover:text-sidebar-foreground',
+              isActive ? 'text-brand' : 'text-sidebar-foreground/55 group-hover:text-sidebar-foreground',
             )}
           >
             <Icon className="size-[18px]" strokeWidth={isActive ? 2.1 : 1.75} />

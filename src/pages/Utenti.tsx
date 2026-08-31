@@ -30,7 +30,7 @@ const ROLE_PLURAL: Record<UserRole, string> = {
 }
 
 const ROLE_CHIP: Record<UserRole, string> = {
-  admin: 'bg-primary/10 text-primary ring-1 ring-inset ring-primary/25',
+  admin: 'bg-primary/10 text-brand ring-1 ring-inset ring-primary/25',
   host: 'bg-status-progress/12 text-status-progress ring-1 ring-inset ring-status-progress/25',
   operator: 'bg-status-verify/12 text-status-verify ring-1 ring-inset ring-status-verify/25',
 }

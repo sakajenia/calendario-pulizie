@@ -703,7 +703,7 @@ export default function Calendario() {
             )}
           </Card>
 
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-24 lg:pr-1">
+          <div className="stagger min-h-0 flex-1 space-y-3 overflow-y-auto pb-24 lg:pr-1">
             {visible.length === 0 ? (
               <Card>
                 {filtersOn ? (

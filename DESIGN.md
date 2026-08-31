@@ -18,7 +18,8 @@ Strategia **restrained**: neutri più un accento.
 
 | Ruolo | Light | Dark |
 |---|---|---|
-| `--primary` | `346 72% 31%` (#881631) | `346 56% 49%` |
+| `--primary` (riempimento) | `346 72% 31%` (#881631) | `346 56% 49%` |
+| `--brand-text` (testo) | `346 72% 31%` | `346 76% 70%` |
 | `--background` | `345 30% 98.5%` | `345 24% 6.5%` |
 | `--card` | `346 60% 99.6%` | `345 22% 9%` |
 | `--foreground` | `345 28% 9%` | `345 14% 95%` |
@@ -30,9 +31,18 @@ assoluti sono esclusi. Un grigio neutro legge come non scelto; un grigio tinto
 tiene insieme l'interfaccia col bordeaux invece di farlo stonare su una base
 bluastra.
 
+Il bordeaux ha **due ruoli separati**: `--primary` è un riempimento e porta il
+bianco sopra, quindi resta scuro; `--brand-text` è il colore del testo su una
+superficie e in tema scuro deve schiarire fino a `70%` per reggere il 4.5:1.
+Confonderli è ciò che rendeva illeggibili le etichette in tema scuro.
+
 Gli stati (`--status-*`) variano per luminosità oltre che per tinta, quindi
 restano distinguibili anche in scala di grigi, e sono sempre accompagnati da
 un'etichetta testuale.
+
+Il contrasto è verificato, non stimato: `npm run check:contrast` percorre sei
+pagine in entrambi i temi, compone gli sfondi traslucidi su ciò che sta sotto
+ed esce con errore sotto la soglia AA.
 
 ## 3. Tipografia
 
@@ -62,13 +72,23 @@ si ferma a 65 caratteri.
 - **Ombre** — tinte sulla base calda. Un'ombra neutra su un fondo caldo legge
   come sporco.
 
-## 5. Movimento
+## 5. Adattamento
+
+Sotto `md` le tabelle dense cedono il posto alle card: su un telefono la
+tabella richieste mostrava solo l'indirizzo, e stato, date e ospiti restavano
+fuori schermo. I filtri di stato scorrono su una riga sola invece di occuparne
+quattro, e le azioni secondarie restano icona sola. Il body non scorre mai in
+orizzontale: lo scorrimento vive dentro il contenitore della tabella.
+
+## 6. Movimento
 
 Curve di uscita esponenziali (`cubic-bezier(0.16, 1, 0.3, 1)`), 140–280 ms,
 solo `transform` e `opacity`. Nessun rimbalzo, nessun elastico.
-`prefers-reduced-motion` azzera tutto.
+`prefers-reduced-motion` azzera tutto. Gli elenchi entrano in cascata con 35 ms
+di scarto per elemento, azzerato dopo i primi sette: in fondo a una lista lunga
+aspettare non ha senso.
 
-## 6. Vietato
+## 7. Vietato
 
 Bianco e nero puri. Grigi neutri non tinti. Emoji al posto delle icone.
 Testo in gradiente. Vetro smerigliato decorativo. Il modulo "numerone più

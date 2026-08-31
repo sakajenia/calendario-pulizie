@@ -23,7 +23,7 @@ const SCOPE_LABEL: Record<ExtraScope, string> = {
 }
 
 const SCOPE_CHIP: Record<ExtraScope, string> = {
-  apartment: 'bg-primary/10 text-primary ring-1 ring-inset ring-primary/25',
+  apartment: 'bg-primary/10 text-brand ring-1 ring-inset ring-primary/25',
   bed: 'bg-status-progress/12 text-status-progress ring-1 ring-inset ring-status-progress/25',
   person: 'bg-status-verify/12 text-status-verify ring-1 ring-inset ring-status-verify/25',
 }
@@ -87,7 +87,7 @@ function SummaryTile({
   return (
     <div className="min-w-0 bg-card px-5 py-3.5">
       <p className="eyebrow flex items-center gap-1.5">
-        <Icon className={cn('size-3.5 shrink-0', tone === 'warn' ? 'text-status-pending' : 'text-primary')} />
+        <Icon className={cn('size-3.5 shrink-0', tone === 'warn' ? 'text-status-pending' : 'text-brand')} />
         <span className="truncate">{label}</span>
       </p>
       <p className="mt-1.5 font-display text-xl font-bold leading-none tabular-nums">{value}</p>
@@ -680,7 +680,7 @@ export default function Magazzini() {
               action={<Button variant="outline" onClick={() => setText('')}>Cancella ricerca</Button>}
             />
           ) : (
-            <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+            <div className="stagger divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
               {cards.map((r) => {
                 const w = r.warehouse
                 const isSelected = selected.has(w.id)
@@ -873,7 +873,7 @@ export default function Magazzini() {
                               type="button"
                               onClick={() => setWhFilter(r.warehouse ? r.warehouse.id : 'all')}
                               title={`Mostra solo gli articoli di ${r.warehouse.name}`}
-                              className="block max-w-full truncate rounded text-left font-medium transition-colors focus-ring hover:text-primary"
+                              className="block max-w-full truncate rounded text-left font-medium transition-colors focus-ring hover:text-brand"
                             >
                               {r.warehouse.name}
                             </button>
