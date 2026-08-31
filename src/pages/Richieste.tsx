@@ -6,7 +6,7 @@ import {
 import { PageHeader } from '@/components/layout/AppShell'
 import {
   Badge, Button, Checkbox, Dialog, Dropdown, DropdownItem, DropdownSeparator,
-  EmptyState, Field, Input, Select, Table, Td, Th, Tooltip,
+  EmptyState, Field, Input, Select, Table, TableScroller, Td, Th, Tooltip,
 } from '@/components/ui'
 import { StatusChip, StatusDot } from '@/components/StatusChip'
 import { RequestDetail } from '@/components/requests/RequestDetail'
@@ -256,8 +256,8 @@ export default function Richieste() {
   const setRequestStatus = useStore((s) => s.setRequestStatus)
   const deleteRequests = useStore((s) => s.deleteRequests)
 
-  const [sortKey, setSortKey] = React.useState<SortKey>('checkOutAt')
-  const [sortDir, setSortDir] = React.useState<SortDir>('asc')
+  const [sortKey, setSortKey] = React.useState<SortKey>('createdAt')
+  const [sortDir, setSortDir] = React.useState<SortDir>('desc')
   const [page, setPage] = React.useState(1)
   const [selected, setSelected] = React.useState<Set<string>>(() => new Set())
   const [filtersOpen, setFiltersOpen] = React.useState(false)
@@ -576,7 +576,7 @@ export default function Richieste() {
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <TableScroller className="flex-1" innerClassName="min-h-0 flex-1">
         {pageRows.length === 0 ? (
           <EmptyState
             icon={ClipboardList}
@@ -617,7 +617,7 @@ export default function Richieste() {
                   onSort={sortBy} className="text-right"
                 />
                 <Th className="text-right">Letti da preparare</Th>
-                <Th className="min-w-[240px]">Note</Th>
+                <Th className="w-[260px] min-w-[200px]">Note</Th>
               </tr>
             </thead>
             <tbody>
@@ -652,7 +652,9 @@ export default function Richieste() {
 
                     <Td className="max-w-[260px]">
                       <div className="truncate font-medium">{r.address}</div>
-                      <div className="truncate text-xs text-muted-foreground">{r.name}</div>
+                      {r.name !== r.address && (
+                        <div className="truncate text-xs text-muted-foreground">{r.name}</div>
+                      )}
                     </Td>
 
                     <Td className="whitespace-nowrap text-muted-foreground">{r.district}</Td>
@@ -692,7 +694,7 @@ export default function Richieste() {
             </tbody>
           </Table>
         )}
-      </div>
+      </TableScroller>
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3">
         <div className="flex items-center gap-2">

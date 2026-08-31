@@ -321,7 +321,9 @@ export const DropdownSeparator = () => <div className="my-1 h-px bg-border" />
  * mostra una sfumatura sul bordo finche' c'e' altro contenuto, cosi' l'ultima
  * colonna non sembra tagliata.
  */
-export function TableScroller({ className, children }: { className?: string; children: React.ReactNode }) {
+export function TableScroller({
+  className, innerClassName, children,
+}: { className?: string; innerClassName?: string; children: React.ReactNode }) {
   const ref = React.useRef<HTMLDivElement>(null)
   const [edges, setEdges] = React.useState({ left: false, right: false })
 
@@ -342,15 +344,15 @@ export function TableScroller({ className, children }: { className?: string; chi
   }, [update, children])
 
   return (
-    <div className={cn('relative min-w-0', className)}>
-      <div ref={ref} onScroll={update} className="overflow-x-auto">
+    <div className={cn('relative flex min-h-0 min-w-0 flex-col', className)}>
+      <div ref={ref} onScroll={update} className={cn('overflow-auto', innerClassName)}>
         {children}
       </div>
       {edges.left && (
-        <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-background to-transparent" />
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 z-20 w-8 bg-gradient-to-r from-background to-transparent" />
       )}
       {edges.right && (
-        <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent" />
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 z-20 w-8 bg-gradient-to-l from-background to-transparent" />
       )}
     </div>
   )
