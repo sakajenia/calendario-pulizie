@@ -316,6 +316,46 @@ export const DropdownSeparator = () => <div className="my-1 h-px bg-border" />
 
 /* ------------------------------------------------------------------- Table */
 
+/**
+ * Contenitore per tabelle piu' larghe dello schermo: scrolla in orizzontale e
+ * mostra una sfumatura sul bordo finche' c'e' altro contenuto, cosi' l'ultima
+ * colonna non sembra tagliata.
+ */
+export function TableScroller({ className, children }: { className?: string; children: React.ReactNode }) {
+  const ref = React.useRef<HTMLDivElement>(null)
+  const [edges, setEdges] = React.useState({ left: false, right: false })
+
+  const update = React.useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    const max = el.scrollWidth - el.clientWidth
+    setEdges({ left: el.scrollLeft > 2, right: el.scrollLeft < max - 2 })
+  }, [])
+
+  React.useEffect(() => {
+    update()
+    const el = ref.current
+    if (!el) return
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [update, children])
+
+  return (
+    <div className={cn('relative min-w-0', className)}>
+      <div ref={ref} onScroll={update} className="overflow-x-auto">
+        {children}
+      </div>
+      {edges.left && (
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-background to-transparent" />
+      )}
+      {edges.right && (
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent" />
+      )}
+    </div>
+  )
+}
+
 export const Table = ({ className, ...p }: React.TableHTMLAttributes<HTMLTableElement>) => (
   <table className={cn('w-full caption-bottom text-sm', className)} {...p} />
 )

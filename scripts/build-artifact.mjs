@@ -15,12 +15,17 @@ const read = (u) => fs.readFileSync(path.join(DIST, u.replace(/^\//, '')), 'utf8
 let css = cssFiles.map((m) => read(m[1])).join('\n')
 const js = jsFiles.map((m) => read(m[1])).join('\n')
 
-// Le @import di Google Fonts devono uscire dallo <style> inline: le promuoviamo a <link>.
-const fontImports = [...css.matchAll(/@import url\((['"]?)(https:\/\/fonts\.googleapis\.com[^'")]+)\1\);?/g)]
-css = css.replace(/@import url\((['"]?)https:\/\/fonts\.googleapis\.com[^'")]+\1\);?/g, '')
+/*
+ * Le @import di Google Fonts devono uscire dallo <style> inline, altrimenti il
+ * browser le ignora (una @import deve stare in cima al foglio di stile).
+ * Vite minifica sia `@import url("...")` sia `@import "..."`: gestiamo entrambe.
+ */
+const IMPORT_RE = /@import\s*(?:url\()?\s*(['"]?)(https:\/\/fonts\.googleapis\.com[^'")\s]+)\1\s*\)?\s*;?/g
+const fontImports = [...css.matchAll(IMPORT_RE)].map((m) => m[2])
+css = css.replace(IMPORT_RE, '')
 
 const links = fontImports
-  .map((m) => `<link rel="stylesheet" href="${m[2]}">`)
+  .map((href) => `<link rel="stylesheet" href="${href}">`)
   .join('\n')
 
 const out = `<title>ProProManager</title>
