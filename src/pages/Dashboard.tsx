@@ -379,7 +379,7 @@ export default function Dashboard() {
       .map(([id, v]) => ({
         id,
         name: v.name,
-        short: v.name.length > 26 ? `${v.name.slice(0, 25)}…` : v.name,
+        short: v.name.length > 22 ? `${v.name.slice(0, 21)}…` : v.name,
         value: v.value,
       }))
       .sort((a, b) => b.value - a.value)
@@ -500,6 +500,17 @@ export default function Dashboard() {
   const donePct = kpi.cur.total > 0 ? Math.round((kpi.cur.done / kpi.cur.total) * 100) : 0
   const bedsPerRequest = kpi.cur.total > 0 ? kpi.cur.beds / kpi.cur.total : 0
   const tickStyle = { fill: tone(palette.muted), fontSize: 11 }
+
+  /** Tick dell'asse su una riga sola: niente a capo, troncatura con ellissi. */
+  const SingleLineTick = ({ x, y, payload }: { x?: number; y?: number; payload?: { value?: string } }) => (
+    <text
+      x={x} y={y} dy={4} textAnchor="end"
+      fill={tone(palette.muted)} fontSize={11}
+      style={{ pointerEvents: 'none' }}
+    >
+      {payload?.value ?? ''}
+    </text>
+  )
   const gridStroke = tone(palette.border)
   const xInterval = Math.max(0, Math.ceil(trend.length / 10) - 1)
 
@@ -732,7 +743,7 @@ export default function Dashboard() {
                         <YAxis
                           type="category"
                           dataKey="short"
-                          tick={tickStyle}
+                          tick={<SingleLineTick />}
                           tickLine={false}
                           axisLine={false}
                           width={168}

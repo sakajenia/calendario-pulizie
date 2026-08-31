@@ -366,7 +366,7 @@ export default function Calendario() {
         }
       />
 
-      <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,55fr)_minmax(0,45fr)] lg:content-stretch lg:overflow-hidden">
+      <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-4 pb-24 lg:grid-cols-[minmax(0,55fr)_minmax(0,45fr)] lg:content-stretch lg:overflow-hidden lg:pb-4">
         {/* ---------------------------------------------------- calendario */}
         <Card className="flex min-w-0 flex-col lg:min-h-0 lg:overflow-hidden">
           <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
