@@ -7,6 +7,7 @@ import {
 import { Logo, LogoMark } from '@/components/brand/Logo'
 import { Button, Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui'
 import { useCurrentUser, useStore } from '@/data/store'
+import { useTheme } from '@/hooks/useTheme'
 import { cn } from '@/lib/utils'
 
 interface NavEntry {
@@ -30,17 +31,6 @@ const ADMIN: NavEntry[] = [
   { to: '/extra', label: 'Extra', icon: PackageOpen, adminOnly: true },
   { to: '/magazzini', label: 'Magazzini', icon: Boxes, adminOnly: true },
 ]
-
-function useTheme() {
-  const [dark, setDark] = React.useState(
-    () => localStorage.getItem('ppm-theme') === 'dark',
-  )
-  React.useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark)
-    localStorage.setItem('ppm-theme', dark ? 'dark' : 'light')
-  }, [dark])
-  return { dark, toggle: () => setDark((v) => !v) }
-}
 
 function NavItem({ entry, onNavigate }: { entry: NavEntry; onNavigate?: () => void }) {
   const Icon = entry.icon

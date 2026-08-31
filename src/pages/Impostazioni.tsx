@@ -12,12 +12,12 @@ import { StatusChip } from '@/components/StatusChip'
 import { scopeApartments, scopeRequests, useCurrentUser, useStore } from '@/data/store'
 import { downloadFile, fmtDate, fmtNum, plural } from '@/lib/format'
 import { REQUEST_STATUSES, STATUS_META, type RequestStatus } from '@/types'
+import { useTheme } from '@/hooks/useTheme'
 import { cn } from '@/lib/utils'
 
 const APP_NAME = 'ProProManager'
 const APP_VERSION = '1.0.0'
 const LEGACY_APP = 'ComfyHost 1.6.5'
-const THEME_KEY = 'ppm-theme'
 
 const ROLE_LABEL = { admin: 'Amministratore', host: 'Host', operator: 'Operatore' } as const
 
@@ -87,14 +87,7 @@ export default function Impostazioni() {
     setErrors({})
   }, [user?.id, user?.name, user?.phone])
 
-  const [dark, setDark] = React.useState(
-    () => document.documentElement.classList.contains('dark'),
-  )
-  const applyTheme = (next: boolean) => {
-    setDark(next)
-    document.documentElement.classList.toggle('dark', next)
-    localStorage.setItem(THEME_KEY, next ? 'dark' : 'light')
-  }
+  const { dark, apply: applyTheme } = useTheme()
 
   const myRequests = React.useMemo(() => scopeRequests(requests, user), [requests, user])
   const myApartments = React.useMemo(() => scopeApartments(apartments, user), [apartments, user])

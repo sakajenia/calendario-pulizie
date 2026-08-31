@@ -13,7 +13,7 @@ import { RequestDetail } from '@/components/requests/RequestDetail'
 import { RequestForm } from '@/components/requests/RequestForm'
 import { scopeApartments, scopeRequests, useCurrentUser, useStore } from '@/data/store'
 import { asDate, downloadFile, fmtDate, fmtDateTime, fmtNum, norm, plural, toCsv } from '@/lib/format'
-import { REQUEST_STATUSES, STATUS_META, type Apartment, type CleaningRequest, type RequestStatus } from '@/types'
+import { REQUEST_STATUSES, STATUS_META, type CleaningRequest, type RequestStatus } from '@/types'
 import { cn } from '@/lib/utils'
 
 const PAGE_SIZE = 25
@@ -31,7 +31,6 @@ const DATE_FIELD_LABEL: Record<DateField, string> = {
 /** Riga della tabella: la richiesta più i campi dell'appartamento usati per filtri e ordinamento. */
 interface Row {
   req: CleaningRequest
-  apartment?: Apartment
   name: string
   address: string
   district: string
@@ -269,21 +268,21 @@ export default function Richieste() {
   const closeFilters = React.useCallback(() => setFiltersOpen(false), [])
 
   const scoped = React.useMemo(() => scopeRequests(allRequests, user), [allRequests, user])
+  const apartments = React.useMemo(() => scopeApartments(allApartments, user), [allApartments, user])
 
   const rows = React.useMemo<Row[]>(() => {
-    const byId = new Map(allApartments.map((a) => [a.id, a]))
+    const byId = new Map(apartments.map((a) => [a.id, a]))
     return scoped.map((req) => {
       const apartment = byId.get(req.apartmentId)
       return {
         req,
-        apartment,
         name: apartment?.name ?? req.spotApartmentName ?? 'Appartamento spot',
         address: apartment?.address ?? req.spotApartmentName ?? '—',
         district: apartment?.district ?? '—',
         city: apartment?.city ?? '—',
       }
     })
-  }, [scoped, allApartments])
+  }, [scoped, apartments])
 
   /** Tutti i filtri tranne lo stato: serve anche per i conteggi delle pillole. */
   const baseRows = React.useMemo(() => {
