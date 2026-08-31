@@ -22,9 +22,14 @@ export const fmtNum = (n: number) => new Intl.NumberFormat('it-IT').format(n)
 /** "3 richieste" / "1 richiesta" */
 export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 
-/** Normalizza per ricerche case/accent-insensitive. */
+/**
+ * Normalizza per ricerche insensibili a maiuscole e accenti.
+ * L'intervallo dei segni diacritici va scritto con escape Unicode: i caratteri
+ * combinanti letterali nel sorgente diventano una regex non valida appena il
+ * file viene servito o incorporato senza charset UTF-8.
+ */
 export const norm = (s: string) =>
-  s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
 export function toCsv(rows: Record<string, unknown>[], headers?: string[]): string {
   if (!rows.length) return ''

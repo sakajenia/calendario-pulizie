@@ -376,7 +376,7 @@ export default function Richieste() {
     activeChips.push({ key: 'text', label: `Indirizzo: ${filters.text.trim()}`, clear: () => setFilters({ text: '' }) })
   }
   if (filters.apartmentId !== 'all') {
-    const apt = allApartments.find((a) => a.id === filters.apartmentId)
+    const apt = apartments.find((a) => a.id === filters.apartmentId)
     activeChips.push({
       key: 'apt',
       label: `Appartamento: ${apt?.name ?? filters.apartmentId}`,
@@ -735,7 +735,7 @@ export default function Richieste() {
       <Dialog
         open={pendingDelete !== null}
         onClose={() => setPendingDelete(null)}
-        title="Elimina richieste"
+        title={pendingDelete?.length === 1 ? 'Elimina richiesta' : 'Elimina richieste'}
         size="sm"
         footer={
           <>

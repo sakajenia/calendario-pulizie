@@ -15,7 +15,7 @@ import {
 import { StatusDot } from '@/components/StatusChip'
 import { RequestCard, RequestDetail } from '@/components/requests/RequestDetail'
 import { RequestForm } from '@/components/requests/RequestForm'
-import { scopeRequests, useCurrentUser, useStore } from '@/data/store'
+import { scopeApartments, scopeRequests, useCurrentUser, useStore } from '@/data/store'
 import { TODAY } from '@/data/seed'
 import { asDate, fmtDayLong, fmtMonthYear, fmtTime, norm, plural } from '@/lib/format'
 import { REQUEST_STATUSES, STATUS_META, type CleaningRequest, type RequestStatus } from '@/types'
@@ -153,8 +153,7 @@ function MonthPicker({ value, onChange }: { value: Date; onChange: (d: Date) => 
 export default function Calendario() {
   const user = useCurrentUser()
   const allRequests = useStore((s) => s.requests)
-  const apartments = useStore((s) => s.apartments)
-  const resetData = useStore((s) => s.resetData)
+  const allApartments = useStore((s) => s.apartments)
   const setRequestStatus = useStore((s) => s.setRequestStatus)
   const deleteRequests = useStore((s) => s.deleteRequests)
 
@@ -177,6 +176,7 @@ export default function Calendario() {
 
   React.useEffect(() => () => window.clearTimeout(reloadTimer.current), [])
 
+  const apartments = React.useMemo(() => scopeApartments(allApartments, user), [allApartments, user])
   const apartmentById = React.useMemo(() => new Map(apartments.map((a) => [a.id, a])), [apartments])
 
   const labelOf = React.useCallback(
@@ -273,6 +273,9 @@ export default function Calendario() {
     [visible, checkedIds],
   )
 
+  const allChecked = visible.length > 0 && checked.length === visible.length
+  const toggleAll = () => setCheckedIds(allChecked ? [] : visible.map((r) => r.id))
+
   const totalBeds = visible.reduce((n, r) => n + r.beds.length, 0)
   const totalGuests = visible.reduce((n, r) => n + r.checkInPeople, 0)
   const todayCount = byDay.get(dayKey(TODAY))?.length ?? 0
@@ -289,11 +292,13 @@ export default function Calendario() {
   const goToday = () => {
     setCursor(TODAY)
     setSelectedDay(TODAY)
+    setCheckedIds([])
   }
 
   const changeView = (v: CalView) => {
     setView(v)
     if (selectedDay) setCursor(selectedDay)
+    setCheckedIds([])
   }
 
   const pickDay = (d: Date) => {
@@ -320,8 +325,9 @@ export default function Calendario() {
     setFormOpen(true)
   }
 
+  /* Il refresh riallinea solo la vista: il ripristino del dataset vive in Impostazioni,
+     dietro conferma, e qui cancellerebbe senza preavviso le richieste create dall'utente. */
   const reload = () => {
-    resetData()
     setCheckedIds([])
     setSelectionMode(false)
     setReloading(true)
@@ -509,7 +515,7 @@ export default function Calendario() {
                             <p className="mt-1 truncate text-xs font-medium">{labelOf(r)}</p>
                             <p className="truncate text-[11px] text-muted-foreground">{addressOf(r)}</p>
                             <p className="mt-1 text-[11px] text-muted-foreground">
-                              Letti: {r.beds.length} · Ospiti: {r.checkInPeople}
+                              Da rifare: {r.beds.length} · Ospiti: {r.checkInPeople}
                             </p>
                           </button>
                         ))}
@@ -609,7 +615,7 @@ export default function Calendario() {
 
               {selectedDay && (
                 <Button variant="ghost" size="sm" className="shrink-0" onClick={() => setSelectedDay(null)}>
-                  <X /> Tutte {periodLabel}
+                  <X /> Tutte le richieste
                 </Button>
               )}
             </div>
@@ -636,14 +642,14 @@ export default function Calendario() {
               {selectionMode && visible.length > 0 && (
                 <span className="ml-1 inline-flex items-center gap-2 text-xs text-muted-foreground">
                   <Checkbox
-                    checked={checked.length === visible.length}
-                    indeterminate={checked.length > 0 && checked.length < visible.length}
-                    onChange={(v) => setCheckedIds(v ? visible.map((r) => r.id) : [])}
+                    checked={allChecked}
+                    indeterminate={checked.length > 0 && !allChecked}
+                    onChange={toggleAll}
                     label="Seleziona tutte le richieste elencate"
                   />
                   <button
                     type="button"
-                    onClick={() => setCheckedIds(checked.length === visible.length ? [] : visible.map((r) => r.id))}
+                    onClick={toggleAll}
                     className="rounded transition-colors hover:text-foreground focus-ring"
                   >
                     Seleziona tutte
@@ -764,8 +770,8 @@ export default function Calendario() {
           variant="outline"
           size="icon"
           onClick={reload}
-          title="Ricarica i dati"
-          aria-label="Ricarica i dati"
+          title="Aggiorna la vista"
+          aria-label="Aggiorna la vista"
           className="h-12 w-12 rounded-full bg-card shadow-raised"
         >
           <RotateCw className={cn(reloading && 'animate-spin')} />
