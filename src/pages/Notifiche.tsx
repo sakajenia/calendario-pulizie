@@ -414,7 +414,7 @@ export default function Notifiche() {
         {notifications.length === 0 ? (
           <EmptyState
             icon={Bell}
-            title="Non hai ancora nessuna notifica."
+            title="Non hai ancora nessuna notifica"
             description="Qui compaiono le nuove richieste di pulizia, le modifiche, le cancellazioni e gli avvisi di sistema."
           />
         ) : rows.length === 0 ? (

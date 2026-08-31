@@ -366,9 +366,9 @@ export default function Calendario() {
         }
       />
 
-      <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,55fr)_minmax(0,45fr)] lg:overflow-hidden">
+      <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,55fr)_minmax(0,45fr)] lg:content-stretch lg:overflow-hidden">
         {/* ---------------------------------------------------- calendario */}
-        <Card className="flex min-h-0 flex-col overflow-hidden">
+        <Card className="flex min-w-0 flex-col lg:min-h-0 lg:overflow-hidden">
           <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
             <div className="flex items-center gap-0.5">
               <Button variant="ghost" size="icon" onClick={() => move(-1)} aria-label="Periodo precedente">
@@ -403,7 +403,7 @@ export default function Calendario() {
           </div>
 
           {view === 'mese' ? (
-            <div className="flex min-h-0 flex-1 flex-col p-2">
+            <div className="flex flex-col p-2 lg:min-h-0 lg:flex-1">
               <div className="grid grid-cols-7 pb-1">
                 {WEEKDAYS.map((w) => (
                   <div key={w} className="py-1 text-center text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
@@ -412,7 +412,7 @@ export default function Calendario() {
                 ))}
               </div>
 
-              <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-7 gap-1">
+              <div className="grid auto-rows-[minmax(58px,auto)] grid-cols-7 gap-1 lg:min-h-0 lg:flex-1 lg:auto-rows-fr">
                 {gridDays.map((d) => {
                   const list = byDay.get(dayKey(d)) ?? []
                   const outside = !isSameMonth(d, cursor)

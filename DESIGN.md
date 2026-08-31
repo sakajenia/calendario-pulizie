@@ -83,6 +83,14 @@ il complemento. I filtri di stato scorrono su una riga sola invece di occuparne
 quattro, e le azioni secondarie restano icona sola. Il body non scorre mai in
 orizzontale: lo scorrimento vive dentro il contenitore della tabella.
 
+Il calendario si dimensiona sul proprio contenuto sotto `lg` invece di
+contendersi un'altezza che non c'è. Tre trappole CSS lo rendevano illeggibile
+su telefono, tutte invisibili su schermo largo: `auto-rows-fr` fa collassare le
+righe sotto la loro altezza minima; `overflow: hidden` azzera l'altezza minima
+automatica di un contenitore flex, così il grid gli assegna meno spazio del
+contenuto; e senza `min-w-0` la larghezza minima del contenuto allarga
+l'elemento oltre lo schermo.
+
 ## 6. Tastiera
 
 Il primo `Tab` di ogni pagina è "Salta al contenuto": senza, si attraversa
