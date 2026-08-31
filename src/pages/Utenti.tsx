@@ -22,6 +22,13 @@ const ROLE_LABEL: Record<UserRole, string> = {
   operator: 'Operatore',
 }
 
+/** Forma plurale minuscola per i conteggi nel sottotitolo. */
+const ROLE_PLURAL: Record<UserRole, string> = {
+  admin: 'amministratori',
+  host: 'host',
+  operator: 'operatori',
+}
+
 const ROLE_CHIP: Record<UserRole, string> = {
   admin: 'bg-primary/10 text-primary ring-1 ring-inset ring-primary/25',
   host: 'bg-status-progress/12 text-status-progress ring-1 ring-inset ring-status-progress/25',
@@ -41,7 +48,7 @@ const SORT_LABEL: Record<SortKey, string> = {
   email: 'Email',
   role: 'Ruolo',
   status: 'Stato',
-  requests: 'Richieste assegnate',
+  requests: 'Richieste collegate',
   createdAt: 'Data di creazione',
 }
 
@@ -161,7 +168,7 @@ function UserForm({
     if (!name) next.name = 'Inserisci un nome'
     if (!EMAIL_RE.test(email)) next.email = 'Inserire un indirizzo email valido'
     else if (users.some((u) => u.id !== initial?.id && u.email.toLowerCase() === email)) {
-      next.email = 'Nome già in uso'
+      next.email = 'Email già in uso'
     }
 
     setErrors(next)
@@ -495,7 +502,9 @@ export default function Utenti() {
             <span>{fmtNum(activeCount)} attivi · {fmtNum(users.length - activeCount)} non attivi</span>
             <span aria-hidden className="text-border">|</span>
             <span>
-              {roleCounts.map((r) => `${fmtNum(r.n)} ${ROLE_LABEL[r.role].toLowerCase()}`).join(' · ')}
+              {roleCounts
+                .map((r) => plural(r.n, ROLE_LABEL[r.role].toLowerCase(), ROLE_PLURAL[r.role]))
+                .join(' · ')}
             </span>
           </span>
         }
@@ -578,12 +587,12 @@ export default function Utenti() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Cambia il tipo degli utenti selezionati</span>
+            <span className="text-xs text-muted-foreground">Cambia il ruolo degli utenti selezionati</span>
             <div className="w-44">
               <Select
                 value=""
                 disabled={bulkIds.length === 0}
-                aria-label="Cambia il tipo degli utenti selezionati"
+                aria-label="Cambia il ruolo degli utenti selezionati"
                 className="h-8 text-xs"
                 onChange={(e) => {
                   if (e.target.value) bulkSetRole(e.target.value as UserRole)
@@ -644,7 +653,7 @@ export default function Utenti() {
                 <SortHeader label="Stato" sortKey="status" current={sortKey} dir={sortDir} onSort={sortBy} />
                 <Th>Host di riferimento</Th>
                 <SortHeader
-                  label="Richieste assegnate" sortKey="requests" current={sortKey} dir={sortDir}
+                  label="Richieste collegate" sortKey="requests" current={sortKey} dir={sortDir}
                   onSort={sortBy} className="text-right"
                 />
                 <SortHeader label="Creato il" sortKey="createdAt" current={sortKey} dir={sortDir} onSort={sortBy} />
@@ -793,7 +802,13 @@ export default function Utenti() {
                     <Field label="Da host">
                       <Select
                         value={migrateFrom}
-                        onChange={(e) => { setMigrateFrom(e.target.value); setMigrationNote('') }}
+                        onChange={(e) => {
+                          const id = e.target.value
+                          setMigrateFrom(id)
+                          // la destinazione non e' piu' fra le opzioni se coincide con la partenza
+                          setMigrateTo((to) => (to === id ? '' : to))
+                          setMigrationNote('')
+                        }}
                         aria-label="Host di partenza"
                         className="h-9"
                         options={[

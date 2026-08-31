@@ -367,7 +367,7 @@ function ApartmentForm({
     const min = toNum(d.min)
     const max = toNum(d.max)
     if (!d.base.trim() || !Number.isFinite(base) || base < 0) e.base = 'Inserisci un prezzo base valido'
-    if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < 0) {
+    if (!d.min.trim() || !d.max.trim() || !Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < 0) {
       e.range = 'Inserisci prezzi minimo e massimo validi'
     } else if (min > max) {
       e.range = 'Il prezzo minimo non può superare il massimo'
@@ -906,7 +906,7 @@ export default function Appartamenti() {
                           </Button>
                         }
                       >
-                        <DropdownItem onClick={() => setDetailId(r.apt.id)}><Eye /> Dettaglio</DropdownItem>
+                        <DropdownItem onClick={() => setDetailId(r.apt.id)}><Eye /> Visualizza</DropdownItem>
                         <DropdownItem onClick={() => openEdit(r.apt)}><Pencil /> Modifica</DropdownItem>
                         <DropdownSeparator />
                         <DropdownItem danger onClick={() => setPendingDelete([r.apt.id])}><Trash2 /> Elimina</DropdownItem>
@@ -996,7 +996,7 @@ export default function Appartamenti() {
       <Dialog
         open={pendingDelete !== null}
         onClose={() => setPendingDelete(null)}
-        title="Elimina appartamenti"
+        title={pendingDelete?.length === 1 ? 'Elimina appartamento' : 'Elimina appartamenti'}
         size="sm"
         footer={
           <>

@@ -41,8 +41,27 @@ export function toCsv(rows: Record<string, unknown>[], headers?: string[]): stri
   return [cols.join(';'), ...rows.map((r) => cols.map((c) => esc(r[c])).join(';'))].join('\n')
 }
 
-export function downloadFile(name: string, content: string, mime = 'text/csv;charset=utf-8') {
-  const blob = new Blob([`﻿${content}`], { type: mime })
+/*
+ * Dentro il viewer di un Artifact i download via <a download> sono inerti: il
+ * file va consegnato con la capability `downloads`, che chiede conferma a chi
+ * guarda. Fuori da quel contesto resta il salvataggio via blob. La capability
+ * si risolve in modo asincrono e una sola volta.
+ */
+type DownloadsApi = { save: (r: { filename: string; data: string }) => Promise<unknown> }
+
+const downloadsApi: Promise<DownloadsApi | null> = (() => {
+  const claude = (window as unknown as { claude?: { use?: (n: string) => Promise<unknown> } }).claude
+  if (!claude?.use) return Promise.resolve(null)
+  return claude.use('downloads').then((v) => (v as DownloadsApi | null) ?? null).catch(() => null)
+})()
+
+/* Il BOM va scritto come escape: un U+FEFF letterale nel sorgente e' invisibile
+   e si perde al primo passaggio di encoding. Serve a Excel per riconoscere
+   l'UTF-8 nei CSV. */
+const BOM = '\uFEFF'
+
+function saveViaAnchor(name: string, content: string, mime: string) {
+  const blob = new Blob([content], { type: mime })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -51,4 +70,15 @@ export function downloadFile(name: string, content: string, mime = 'text/csv;cha
   a.click()
   a.remove()
   setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
+export async function downloadFile(name: string, content: string, mime = 'text/csv;charset=utf-8') {
+  const payload = mime.startsWith('text/csv') ? BOM + content : content
+  const api = await downloadsApi
+  if (!api) return saveViaAnchor(name, payload, mime)
+  try {
+    await api.save({ filename: name, data: payload })
+  } catch {
+    /* rifiuto di chi guarda, o capability non disponibile: nessuna azione */
+  }
 }
