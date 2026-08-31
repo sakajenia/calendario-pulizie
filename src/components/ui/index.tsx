@@ -1,0 +1,399 @@
+import * as React from 'react'
+import { cn } from '@/lib/utils'
+import { Check, ChevronDown, Loader2, X } from 'lucide-react'
+
+/* ------------------------------------------------------------------ Button */
+
+const BTN_VARIANTS = {
+  default: 'bg-primary text-primary-foreground shadow-brand hover:bg-primary/90 active:translate-y-px',
+  secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+  outline: 'border border-input bg-background hover:bg-muted hover:text-foreground',
+  ghost: 'hover:bg-muted hover:text-foreground',
+  destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+  link: 'text-primary underline-offset-4 hover:underline',
+} as const
+
+const BTN_SIZES = {
+  sm: 'h-8 rounded-md px-3 text-xs',
+  md: 'h-10 rounded-md px-4 text-sm',
+  lg: 'h-11 rounded-lg px-6 text-sm',
+  icon: 'h-9 w-9 rounded-md',
+  pill: 'h-11 rounded-full px-7 text-sm',
+} as const
+
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: keyof typeof BTN_VARIANTS
+  size?: keyof typeof BTN_SIZES
+  loading?: boolean
+}
+
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant = 'default', size = 'md', loading, children, disabled, ...props }, ref) => (
+    <button
+      ref={ref}
+      disabled={disabled || loading}
+      className={cn(
+        'inline-flex select-none items-center justify-center gap-2 whitespace-nowrap font-medium transition-all focus-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0',
+        BTN_VARIANTS[variant], BTN_SIZES[size], className,
+      )}
+      {...props}
+    >
+      {loading && <Loader2 className="animate-spin" />}
+      {children}
+    </button>
+  ),
+)
+Button.displayName = 'Button'
+
+/* -------------------------------------------------------------------- Card */
+
+export const Card = ({ className, ...p }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('rounded-xl border border-border bg-card text-card-foreground shadow-card', className)} {...p} />
+)
+export const CardHeader = ({ className, ...p }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('flex flex-col space-y-1 p-5', className)} {...p} />
+)
+export const CardTitle = ({ className, ...p }: React.HTMLAttributes<HTMLHeadingElement>) => (
+  <h3 className={cn('text-base font-semibold leading-none', className)} {...p} />
+)
+export const CardDescription = ({ className, ...p }: React.HTMLAttributes<HTMLParagraphElement>) => (
+  <p className={cn('text-sm text-muted-foreground', className)} {...p} />
+)
+export const CardContent = ({ className, ...p }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('p-5 pt-0', className)} {...p} />
+)
+export const CardFooter = ({ className, ...p }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('flex items-center p-5 pt-0', className)} {...p} />
+)
+
+/* ------------------------------------------------------------------- Input */
+
+export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
+  ({ className, ...props }, ref) => (
+    <input
+      ref={ref}
+      className={cn(
+        'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm transition-colors',
+        'placeholder:text-muted-foreground focus-ring disabled:cursor-not-allowed disabled:opacity-50',
+        className,
+      )}
+      {...props}
+    />
+  ),
+)
+Input.displayName = 'Input'
+
+export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
+  ({ className, ...props }, ref) => (
+    <textarea
+      ref={ref}
+      className={cn(
+        'flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm',
+        'placeholder:text-muted-foreground focus-ring disabled:cursor-not-allowed disabled:opacity-50',
+        className,
+      )}
+      {...props}
+    />
+  ),
+)
+Textarea.displayName = 'Textarea'
+
+export const Label = ({ className, ...p }: React.LabelHTMLAttributes<HTMLLabelElement>) => (
+  <label className={cn('text-xs font-medium text-muted-foreground', className)} {...p} />
+)
+
+export function Field({
+  label, hint, error, children, className,
+}: { label: string; hint?: string; error?: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn('space-y-1.5', className)}>
+      <Label>{label}</Label>
+      {children}
+      {error ? (
+        <p className="text-xs text-destructive">{error}</p>
+      ) : hint ? (
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      ) : null}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ Select */
+
+export interface SelectOption { value: string; label: string }
+
+export const Select = React.forwardRef<
+  HTMLSelectElement,
+  React.SelectHTMLAttributes<HTMLSelectElement> & { options: SelectOption[] }
+>(({ className, options, ...props }, ref) => (
+  <div className="relative">
+    <select
+      ref={ref}
+      className={cn(
+        'flex h-10 w-full appearance-none rounded-md border border-input bg-background px-3 pr-9 text-sm',
+        'focus-ring disabled:cursor-not-allowed disabled:opacity-50',
+        className,
+      )}
+      {...props}
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>{o.label}</option>
+      ))}
+    </select>
+    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+  </div>
+))
+Select.displayName = 'Select'
+
+/* ------------------------------------------------------------------- Badge */
+
+export const Badge = ({ className, ...p }: React.HTMLAttributes<HTMLSpanElement>) => (
+  <span
+    className={cn(
+      'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
+      className,
+    )}
+    {...p}
+  />
+)
+
+/* ---------------------------------------------------------------- Checkbox */
+
+export function Checkbox({
+  checked, indeterminate, onChange, className, label, disabled,
+}: {
+  checked: boolean; indeterminate?: boolean; onChange: (v: boolean) => void
+  className?: string; label?: string; disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={indeterminate ? 'mixed' : checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={(e) => { e.stopPropagation(); onChange(!checked) }}
+      className={cn(
+        'grid size-4 shrink-0 place-items-center rounded border transition-colors focus-ring disabled:opacity-40',
+        checked || indeterminate ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background hover:border-primary/50',
+        className,
+      )}
+    >
+      {indeterminate ? <span className="h-0.5 w-2 rounded bg-current" /> : checked ? <Check className="size-3" strokeWidth={3} /> : null}
+    </button>
+  )
+}
+
+/* ------------------------------------------------------------------ Switch */
+
+export function Switch({
+  checked, onChange, label, disabled,
+}: { checked: boolean; onChange: (v: boolean) => void; label?: string; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-ring disabled:opacity-40',
+        checked ? 'bg-primary' : 'bg-input',
+      )}
+    >
+      <span
+        className={cn(
+          'inline-block size-4 transform rounded-full bg-white shadow transition-transform',
+          checked ? 'translate-x-[18px]' : 'translate-x-0.5',
+        )}
+      />
+    </button>
+  )
+}
+
+/* ------------------------------------------------------------------ Dialog */
+
+export function Dialog({
+  open, onClose, title, description, children, footer, size = 'md',
+}: {
+  open: boolean; onClose: () => void; title?: React.ReactNode; description?: string
+  children: React.ReactNode; footer?: React.ReactNode; size?: 'sm' | 'md' | 'lg' | 'xl'
+}) {
+  React.useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev }
+  }, [open, onClose])
+
+  if (!open) return null
+  const width = { sm: 'max-w-md', md: 'max-w-xl', lg: 'max-w-3xl', xl: 'max-w-5xl' }[size]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:p-8">
+      <div className="fixed inset-0 bg-foreground/45 backdrop-blur-[2px] animate-fade-in" onClick={onClose} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        className={cn(
+          'relative z-10 my-auto w-full rounded-xl border border-border bg-card shadow-2xl animate-scale-in',
+          width,
+        )}
+      >
+        {(title || description) && (
+          <div className="flex items-start justify-between gap-4 border-b border-border p-5">
+            <div className="space-y-1">
+              {title && <h2 className="font-display text-lg font-bold tracking-tight text-primary">{title}</h2>}
+              {description && <p className="text-sm text-muted-foreground">{description}</p>}
+            </div>
+            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Chiudi">
+              <X />
+            </Button>
+          </div>
+        )}
+        <div className="max-h-[70vh] overflow-y-auto p-5">{children}</div>
+        {footer && <div className="flex items-center justify-end gap-2 border-t border-border p-4">{footer}</div>}
+      </div>
+    </div>
+  )
+}
+
+/* ----------------------------------------------------------------- Dropdown */
+
+export function Dropdown({
+  trigger, children, align = 'end', className,
+}: { trigger: React.ReactNode; children: React.ReactNode; align?: 'start' | 'end'; className?: string }) {
+  const [open, setOpen] = React.useState(false)
+  const ref = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey) }
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative">
+      <div onClick={() => setOpen((v) => !v)}>{trigger}</div>
+      {open && (
+        <div
+          onClick={() => setOpen(false)}
+          className={cn(
+            'absolute z-40 mt-1 min-w-[200px] overflow-hidden rounded-lg border border-border bg-popover p-1 shadow-raised animate-scale-in',
+            align === 'end' ? 'right-0' : 'left-0',
+            className,
+          )}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function DropdownItem({
+  className, danger, ...p
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { danger?: boolean }) {
+  return (
+    <button
+      className={cn(
+        'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted [&_svg]:size-4 [&_svg]:text-muted-foreground',
+        danger && 'text-destructive hover:bg-destructive/10 [&_svg]:text-destructive',
+        className,
+      )}
+      {...p}
+    />
+  )
+}
+
+export const DropdownSeparator = () => <div className="my-1 h-px bg-border" />
+
+/* ------------------------------------------------------------------- Table */
+
+export const Table = ({ className, ...p }: React.TableHTMLAttributes<HTMLTableElement>) => (
+  <table className={cn('w-full caption-bottom text-sm', className)} {...p} />
+)
+export const Th = ({ className, ...p }: React.ThHTMLAttributes<HTMLTableCellElement>) => (
+  <th
+    className={cn(
+      'sticky top-0 z-10 whitespace-nowrap border-b border-border bg-muted/60 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground backdrop-blur',
+      className,
+    )}
+    {...p}
+  />
+)
+export const Td = ({ className, ...p }: React.TdHTMLAttributes<HTMLTableCellElement>) => (
+  <td className={cn('px-3 py-2.5 align-middle', className)} {...p} />
+)
+
+/* ------------------------------------------------------------------- Tabs */
+
+export function Tabs<T extends string>({
+  value, onChange, items, className,
+}: { value: T; onChange: (v: T) => void; items: { value: T; label: string; count?: number }[]; className?: string }) {
+  return (
+    <div className={cn('inline-flex items-center gap-1 rounded-lg bg-muted p-1', className)}>
+      {items.map((it) => (
+        <button
+          key={it.value}
+          onClick={() => onChange(it.value)}
+          className={cn(
+            'rounded-md px-3 py-1.5 text-sm font-medium transition-all focus-ring',
+            value === it.value ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          {it.label}
+          {it.count !== undefined && (
+            <span className="ml-1.5 text-xs text-muted-foreground">{it.count}</span>
+          )}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------- Empty state */
+
+export function EmptyState({
+  icon: Icon, title, description, action,
+}: { icon?: React.ComponentType<{ className?: string }>; title: string; description?: string; action?: React.ReactNode }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+      {Icon && (
+        <div className="grid size-12 place-items-center rounded-full bg-muted">
+          <Icon className="size-6 text-muted-foreground" />
+        </div>
+      )}
+      <div className="space-y-1">
+        <p className="font-medium">{title}</p>
+        {description && <p className="max-w-sm text-sm text-muted-foreground">{description}</p>}
+      </div>
+      {action}
+    </div>
+  )
+}
+
+/* ---------------------------------------------------------------- Skeleton */
+
+export const Skeleton = ({ className }: { className?: string }) => (
+  <div className={cn('animate-pulse rounded-md bg-muted', className)} />
+)
+
+/* ----------------------------------------------------------------- Tooltip */
+
+export function Tooltip({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <span className="group/tt relative inline-flex">
+      {children}
+      <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs text-background group-hover/tt:block">
+        {label}
+      </span>
+    </span>
+  )
+}
