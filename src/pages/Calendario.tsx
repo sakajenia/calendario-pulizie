@@ -169,6 +169,7 @@ export default function Calendario() {
   const [selectionMode, setSelectionMode] = React.useState(false)
   const [checkedIds, setCheckedIds] = React.useState<string[]>([])
   const [confirmOpen, setConfirmOpen] = React.useState(false)
+  const [dayDialogOpen, setDayDialogOpen] = React.useState(false)
 
   const [detail, setDetail] = React.useState<CleaningRequest | null>(null)
   const [formOpen, setFormOpen] = React.useState(false)
@@ -196,14 +197,6 @@ export default function Calendario() {
     (r: CleaningRequest) => {
       const ap = apartmentById.get(r.apartmentId)
       return ap?.name ?? r.spotApartmentName ?? 'Appartamento non disponibile'
-    },
-    [apartmentById],
-  )
-
-  const addressOf = React.useCallback(
-    (r: CleaningRequest) => {
-      const ap = apartmentById.get(r.apartmentId)
-      return ap ? `${ap.address}, ${ap.district} - ${ap.city}` : '—'
     },
     [apartmentById],
   )
@@ -281,6 +274,17 @@ export default function Calendario() {
     return sortRequests(list, sort)
   }, [selectedDay, byDay, periodRequests, sort])
 
+  const dayRequests = React.useMemo(
+    () => (selectedDay ? sortRequests(byDay.get(dayKey(selectedDay)) ?? [], sort) : []),
+    [selectedDay, byDay, sort],
+  )
+
+  const dayDialogTitle = React.useMemo(() => {
+    if (!selectedDay) return ''
+    const s = format(selectedDay, 'EEEE d MMMM', { locale: it })
+    return s.charAt(0).toUpperCase() + s.slice(1)
+  }, [selectedDay])
+
   const checked = React.useMemo(
     () => visible.filter((r) => checkedIds.includes(r.id)),
     [visible, checkedIds],
@@ -314,10 +318,18 @@ export default function Calendario() {
     setCheckedIds([])
   }
 
+  /* Nella vista mese il tocco su un giorno apre il riepilogo in una finestra:
+     su mobile la lista sottostante era fuori schermo. Nella settimana resta il
+     comportamento a interruttore, perche' la colonna e' gia' visibile. */
   const pickDay = (d: Date) => {
     setCheckedIds([])
-    setSelectedDay((cur) => (cur && isSameDay(cur, d) ? null : d))
     if (!isSameMonth(d, cursor)) setCursor(d)
+    if (view === 'mese') {
+      setSelectedDay(d)
+      setDayDialogOpen(true)
+      return
+    }
+    setSelectedDay((cur) => (cur && isSameDay(cur, d) ? null : d))
   }
 
   const toggleStatus = (s: RequestStatus) => {
@@ -326,6 +338,13 @@ export default function Calendario() {
   }
 
   const openDetail = (r: CleaningRequest) => setDetail(r)
+
+  /* I dialog non si sovrappongono: chiudiamo il riepilogo del giorno prima di
+     aprire il dettaglio o il modulo. */
+  const openDetailFromDay = (r: CleaningRequest) => {
+    setDayDialogOpen(false)
+    setDetail(r)
+  }
 
   const openNew = () => {
     setEditing(null)
@@ -487,7 +506,7 @@ export default function Calendario() {
                     <div
                       key={d.toISOString()}
                       className={cn(
-                        'flex min-h-[240px] flex-col rounded-lg border p-1.5',
+                        'flex min-h-[240px] min-w-0 flex-col rounded-lg border p-1.5',
                         isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border bg-muted/30',
                       )}
                     >
@@ -512,26 +531,28 @@ export default function Calendario() {
                         </span>
                       </button>
 
-                      <div className="space-y-1.5">
+                      <div className="min-w-0 space-y-1.5">
                         {list.map((r) => (
                           <button
                             key={r.id}
                             type="button"
                             onClick={() => openDetail(r)}
-                            className="w-full rounded-md border border-border bg-card p-2 text-left shadow-card transition-shadow hover:shadow-raised focus-ring"
+                            title={`${labelOf(r)} · ${STATUS_META[r.status].label}`}
+                            aria-label={`${labelOf(r)} · ${fmtTime(r.checkOutAt)} · ${STATUS_META[r.status].label}`}
+                            className="flex w-full min-w-0 flex-col gap-0.5 overflow-hidden rounded-md border border-border bg-card p-2 text-left shadow-card transition-shadow hover:shadow-raised focus-ring"
                           >
-                            <span className="flex items-center gap-1.5">
-                              <StatusDot status={r.status} className="size-2" />
-                              <span className="text-[11px] font-semibold tabular-nums">{fmtTime(r.checkOutAt)}</span>
-                              <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">
-                                {STATUS_META[r.status].label}
+                            {/* Nelle celle strette lo stato e' solo un pallino: l'etichetta testuale
+                                sbordava dalla card. Il testo completo resta in title/aria-label. */}
+                            <span className="flex w-full min-w-0 items-center gap-1.5">
+                              <StatusDot status={r.status} className="size-2 shrink-0" />
+                              <span className="min-w-0 flex-1 truncate text-[11px] font-semibold tabular-nums">
+                                {fmtTime(r.checkOutAt)}
                               </span>
                             </span>
-                            <p className="mt-1 truncate text-xs font-medium">{labelOf(r)}</p>
-                            <p className="truncate text-[11px] text-muted-foreground">{addressOf(r)}</p>
-                            <p className="mt-1 text-[11px] text-muted-foreground">
+                            <span className="block w-full min-w-0 truncate text-xs font-medium">{labelOf(r)}</span>
+                            <span className="block w-full min-w-0 truncate text-[11px] text-muted-foreground">
                               Da rifare: {r.beds.length} · Ospiti: {r.checkInPeople}
-                            </p>
+                            </span>
                           </button>
                         ))}
                         {list.length === 0 && (
@@ -718,7 +739,9 @@ export default function Calendario() {
             )}
           </Card>
 
-          <div className="stagger min-h-0 flex-1 space-y-3 overflow-y-auto pb-24 lg:pr-1">
+          {/* Sotto lg scorre solo il contenitore esterno: qui niente altezza ne'
+              overflow, altrimenti si annidano due aree di scorrimento. */}
+          <div className="stagger space-y-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pb-24 lg:pr-1">
             {visible.length === 0 ? (
               <Card>
                 {filtersOn ? (
@@ -801,6 +824,43 @@ export default function Calendario() {
           <Plus className="size-5" />
         </Button>
       </div>
+
+      <Dialog
+        open={dayDialogOpen && selectedDay !== null}
+        onClose={() => setDayDialogOpen(false)}
+        title={dayDialogTitle}
+        description={plural(dayRequests.length, 'richiesta', 'richieste')}
+        size="md"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setDayDialogOpen(false)}>
+              Chiudi
+            </Button>
+            <Button
+              onClick={() => {
+                setDayDialogOpen(false)
+                openNew()
+              }}
+            >
+              <Plus /> Nuova richiesta
+            </Button>
+          </>
+        }
+      >
+        {dayRequests.length === 0 ? (
+          <EmptyState
+            icon={CalendarDays}
+            title="Nessuna richiesta in questa data"
+            description={selectedDay ? `Non ci sono pulizie programmate per ${fmtDayLong(selectedDay)}.` : ''}
+          />
+        ) : (
+          <div className="space-y-3">
+            {dayRequests.map((r) => (
+              <RequestCard key={r.id} request={r} onClick={() => openDetailFromDay(r)} />
+            ))}
+          </div>
+        )}
+      </Dialog>
 
       <RequestDetail request={detail} open={detail !== null} onClose={() => setDetail(null)} onEdit={openEdit} />
 
