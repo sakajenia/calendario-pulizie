@@ -176,9 +176,13 @@ function bedsFor(ap: Apartment, count: number): RequestBed[] {
 
 function buildRequests(): CleaningRequest[] {
   const out: CleaningRequest[] = []
-  // Da 20 giorni fa a 25 giorni avanti: copre passato (completate) e futuro (in attesa).
-  for (let offset = -20; offset <= 25; offset++) {
-    const count = offset < 0 ? int(0, 2) : int(0, 3)
+  /*
+   * Da 120 giorni fa a 25 avanti: lo storico profondo serve alla dashboard, che
+   * confronta il periodo selezionato con quello precedente. Con una finestra
+   * corta ogni confronto risulterebbe "da zero".
+   */
+  for (let offset = -120; offset <= 25; offset++) {
+    const count = offset < -30 ? int(0, 2) : offset < 0 ? int(0, 2) : int(0, 3)
     for (let k = 0; k < count; k++) {
       const ap = pick(apartments)
       const guests = int(1, Math.max(2, ap.beds.length * 2))
