@@ -2,6 +2,7 @@ import * as React from 'react'
 import { BedDouble, Home, MapPin, StickyNote, Users } from 'lucide-react'
 import { Dialog, Button, Select } from '@/components/ui'
 import { StatusChip } from '@/components/StatusChip'
+import { HelpTip } from '@/components/HelpTip'
 import { useStore } from '@/data/store'
 import { fmtDateTime } from '@/lib/format'
 import { REQUEST_STATUSES, STATUS_META, type CleaningRequest, type ExtraLine, type RequestStatus } from '@/types'
@@ -17,14 +18,19 @@ function Row({ label, children, className }: { label: string; children: React.Re
   )
 }
 
-function Section({ title, icon: Icon, children }: {
-  title: string; icon?: React.ComponentType<{ className?: string }>; children: React.ReactNode
+function Section({ title, icon: Icon, term, children }: {
+  title: string
+  icon?: React.ComponentType<{ className?: string }>
+  /** Voce del glossario, quando il titolo usa un termine di mestiere. */
+  term?: string
+  children: React.ReactNode
 }) {
   return (
     <section className="pt-5 first:pt-0">
       <h3 className="mb-1.5 flex items-center gap-2 font-display text-sm font-bold uppercase tracking-wide text-brand">
         {Icon && <Icon className="size-4" />}
         {title}
+        {term && <HelpTip term={term} />}
       </h3>
       {children}
     </section>
@@ -104,7 +110,7 @@ export function RequestDetail({
           <Row label="Ospiti in arrivo">{request.checkInPeople}</Row>
         </Section>
 
-        <Section title="Letti da preparare" icon={BedDouble}>
+        <Section title="Letti da preparare" icon={BedDouble} term="letti da rifare">
           {request.beds.length ? (
             request.beds.map((b, i) => <Row key={b.bedId} label={`${i + 1}:`}>{b.type}</Row>)
           ) : (
@@ -125,7 +131,7 @@ export function RequestDetail({
           </Row>
         </Section>
 
-        <Section title="Extra">
+        <Section title="Extra" term="extra">
           <h4 className="pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Extra per persona ({request.checkInPeople} ospiti)
           </h4>

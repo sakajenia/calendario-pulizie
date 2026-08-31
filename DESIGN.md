@@ -91,7 +91,23 @@ automatica di un contenitore flex, così il grid gli assegna meno spazio del
 contenuto; e senza `min-w-0` la larghezza minima del contenuto allarga
 l'elemento oltre lo schermo.
 
-## 6. Tastiera
+## 6. Comprensibilità e operabilità
+
+Ogni azione che cambia i dati produce un riscontro: senza, un'azione riuscita e
+una fallita sono indistinguibili. Le azioni distruttive e di massa portano
+l'annullamento nella notifica stessa, tenendo da parte lo stato precedente.
+
+Il vocabolario di questo mestiere — foglio di lavoro, extra, letti da rifare —
+non si riscrive con parole generiche, che lo renderebbero impreciso: resta
+com'è e porta con sé la spiegazione, dietro un punto interrogativo che si apre
+col mouse e col focus da tastiera. Una guida di primo avvio spiega i tre
+concetti che reggono tutto il resto, si chiude e non torna.
+
+`Ctrl/Cmd+K` apre la palette comandi: navigazione, azioni rapide e cambio
+profilo, filtrabili scrivendo. In testata c'è anche l'innesco visibile, perché
+una scorciatoia che non si vede non esiste.
+
+## 7. Tastiera
 
 Il primo `Tab` di ogni pagina è "Salta al contenuto": senza, si attraversa
 tutta la navigazione a ogni cambio di pagina. Nei dialog il focus entra,
@@ -99,7 +115,7 @@ resta confinato finché sono aperti e torna al pulsante che li ha aperti alla
 chiusura. Ogni elemento raggiungibile ha un anello di focus visibile,
 verificato su tutti gli stop delle pagine più fitte.
 
-## 7. Movimento
+## 8. Movimento
 
 Curve di uscita esponenziali (`cubic-bezier(0.16, 1, 0.3, 1)`), 140–280 ms,
 solo `transform` e `opacity`. Nessun rimbalzo, nessun elastico.
@@ -107,7 +123,7 @@ solo `transform` e `opacity`. Nessun rimbalzo, nessun elastico.
 di scarto per elemento, azzerato dopo i primi sette: in fondo a una lista lunga
 aspettare non ha senso.
 
-## 8. Vietato
+## 9. Vietato
 
 Bianco e nero puri. Grigi neutri non tinti. Emoji al posto delle icone.
 Testo in gradiente. Vetro smerigliato decorativo. Il modulo "numerone più

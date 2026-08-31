@@ -4,6 +4,7 @@ import {
   MoreVertical, Pencil, Plus, Search, ShieldAlert, Timer, Trash2,
 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/AppShell'
+import { HelpTip } from '@/components/HelpTip'
 import {
   Badge, Button, Checkbox, Dialog, Dropdown, DropdownItem, DropdownSeparator, EmptyState,
   Field, Input, MobileRecord, Select, Table, Td, Textarea, Th,
@@ -461,7 +462,7 @@ export default function CatalogoTask() {
   return (
     <div className="flex h-full flex-col">
       <PageHeader
-        title="Catalogo Task"
+        title={<span className="inline-flex items-center gap-1.5">Catalogo Task<HelpTip term="task" /></span>}
         subtitle="Definisci i singoli task che potranno essere inseriti nei fogli di lavoro"
         actions={
           <>

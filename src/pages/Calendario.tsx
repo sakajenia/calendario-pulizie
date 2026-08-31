@@ -10,6 +10,7 @@ import {
   ChevronRight, Plus, RotateCw, Search, SearchX, Trash2, Users, X,
 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/AppShell'
+import { FirstRunGuide } from '@/components/FirstRunGuide'
 import {
   Button, Card, Checkbox, Dialog, Dropdown, DropdownItem, EmptyState, Input, Select, Tabs,
 } from '@/components/ui'
@@ -377,6 +378,8 @@ export default function Calendario() {
           </span>
         }
       />
+
+      <FirstRunGuide />
 
       <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-4 pb-24 lg:grid-cols-[minmax(0,55fr)_minmax(0,45fr)] lg:content-stretch lg:overflow-hidden lg:pb-4">
         {/* ---------------------------------------------------- calendario */}

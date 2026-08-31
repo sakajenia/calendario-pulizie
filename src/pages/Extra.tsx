@@ -4,6 +4,7 @@ import {
   PackageOpen, Pencil, Plus, Search, ShieldAlert, Trash2, Users, Warehouse as WarehouseIcon,
 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/AppShell'
+import { HelpTip } from '@/components/HelpTip'
 import {
   Badge, Button, Checkbox, Dialog, Dropdown, DropdownItem, DropdownSeparator, EmptyState,
   Field, Input, MobileRecord, Select, Table, Tabs, Td, Th,
@@ -590,7 +591,7 @@ export default function Extra() {
   return (
     <div className="flex h-full flex-col">
       <PageHeader
-        title="Extra"
+        title={<span className="inline-flex items-center gap-1.5">Extra<HelpTip term="extra" /></span>}
         subtitle={
           <span className="block space-y-0.5">
             <span className="block">{PAGE_SUBTITLE}</span>

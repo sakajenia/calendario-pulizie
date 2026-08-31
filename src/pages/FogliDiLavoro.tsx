@@ -4,6 +4,7 @@ import {
   MoreVertical, Pencil, Plus, Search, ShieldAlert, Trash2, X,
 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/AppShell'
+import { HelpTip } from '@/components/HelpTip'
 import {
   Badge, Button, Dialog, Dropdown,
   DropdownItem, DropdownSeparator, EmptyState, Field, Input, Select, Textarea,
@@ -603,7 +604,7 @@ export default function FogliDiLavoro() {
   return (
     <div className="flex h-full flex-col">
       <PageHeader
-        title="Fogli di Lavoro"
+        title={<span className="inline-flex items-center gap-1.5">Fogli di Lavoro<HelpTip term="foglio di lavoro" /></span>}
         subtitle={
           <span className="block space-y-0.5">
             <span className="block">{PAGE_SUBTITLE}</span>

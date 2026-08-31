@@ -200,7 +200,7 @@ export function AppShell() {
 /** Intestazione standard di pagina. */
 export function PageHeader({
   title, subtitle, actions, className,
-}: { title: string; subtitle?: React.ReactNode; actions?: React.ReactNode; className?: string }) {
+}: { title: React.ReactNode; subtitle?: React.ReactNode; actions?: React.ReactNode; className?: string }) {
   return (
     <div className={cn('flex flex-wrap items-start justify-between gap-3 border-b border-border bg-card px-5 py-4', className)}>
       <div className="min-w-0">

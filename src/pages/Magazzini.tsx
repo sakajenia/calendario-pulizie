@@ -4,6 +4,7 @@ import {
   MoreVertical, PackageOpen, Pencil, Plus, Search, ShieldAlert, Trash2, Wallet,
 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/AppShell'
+import { HelpTip } from '@/components/HelpTip'
 import {
   Badge, Button, Checkbox, Dialog,
   Dropdown, DropdownItem, DropdownSeparator, EmptyState, Field, Input, Select, Switch,
@@ -526,7 +527,7 @@ export default function Magazzini() {
   return (
     <div className="flex h-full flex-col">
       <PageHeader
-        title="Magazzini"
+        title={<span className="inline-flex items-center gap-1.5">Magazzini<HelpTip term="magazzino" /></span>}
         subtitle="Crea, modifica ed elimina i magazzini"
         actions={
           <>
