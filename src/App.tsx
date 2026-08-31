@@ -1,4 +1,4 @@
-import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom'
+import { HashRouter, Navigate, Route, BrowserRouter, Routes } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { useCurrentUser } from '@/data/store'
 
@@ -14,6 +14,9 @@ import Extra from '@/pages/Extra'
 import Magazzini from '@/pages/Magazzini'
 import Notifiche from '@/pages/Notifiche'
 import Impostazioni from '@/pages/Impostazioni'
+
+/* La build per l'artifact gira su file statico: li' serve il routing ad hash. */
+const Router = import.meta.env.VITE_ROUTER === 'hash' ? HashRouter : BrowserRouter
 
 function Protected({ children, adminOnly }: { children: JSX.Element; adminOnly?: boolean }) {
   const user = useCurrentUser()
