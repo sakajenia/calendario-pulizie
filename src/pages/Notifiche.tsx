@@ -127,9 +127,14 @@ function NotificationRow({
                 <ChevronRight className="size-3" />
               </span>
             ) : (
-              <span>Nessuna richiesta collegata</span>
+              <span>{notification.requestId ? 'Richiesta non disponibile' : 'Nessuna richiesta collegata'}</span>
             )}
-            {unread && <span className="font-medium text-primary">Da leggere</span>}
+            {unread && (
+              <>
+                <span aria-hidden className="text-border">|</span>
+                <span className="font-medium text-primary">Da leggere</span>
+              </>
+            )}
           </span>
         </span>
       </button>
@@ -352,7 +357,7 @@ export default function Notifiche() {
           />
         </div>
 
-        <div className="w-[180px]">
+        <div className="w-[200px]">
           <Select
             value={dir}
             onChange={(e) => setDir(e.target.value as SortDir)}
@@ -477,7 +482,11 @@ export default function Notifiche() {
             <p className="text-sm text-muted-foreground">{orphan.body}</p>
             <div className="flex items-start gap-2.5 rounded-lg bg-muted px-3 py-2.5 text-sm">
               <AlertCircle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-              <span>Nessuna richiesta di pulizia associata a questa notifica.</span>
+              <span>
+                {orphan.requestId
+                  ? 'La richiesta di pulizia collegata non è più disponibile.'
+                  : 'Nessuna richiesta di pulizia associata a questa notifica.'}
+              </span>
             </div>
             <p className="text-xs text-muted-foreground">Ricevuta il {fmtDateTime(orphan.createdAt)}</p>
           </div>

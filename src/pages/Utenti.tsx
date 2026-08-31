@@ -660,10 +660,9 @@ export default function Utenti() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r, i) => {
+              {filtered.map((r) => {
                 const isSelected = selected.has(r.user.id)
                 const isSelf = r.user.id === currentUser.id
-                const openUp = filtered.length > 6 && i >= filtered.length - 4
                 return (
                   <tr
                     key={r.user.id}
@@ -685,7 +684,7 @@ export default function Utenti() {
                     <Td onClick={(e) => e.stopPropagation()}>
                       <Dropdown
                         align="start"
-                        className={cn('w-[200px]', openUp && 'bottom-full mb-1 mt-0')}
+                        className="w-[200px]"
                         trigger={
                           <Button variant="ghost" size="icon" className="size-7" aria-label={`Azioni ${r.user.name}`}>
                             <MoreVertical />

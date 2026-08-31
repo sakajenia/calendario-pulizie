@@ -13,7 +13,7 @@ import { asDate, downloadFile, fmtDate, fmtNum, norm, plural, toCsv } from '@/li
 import { cn } from '@/lib/utils'
 import type { TaskCatalogItem, WorkSheet } from '@/types'
 
-const PAGE_SUBTITLE = 'Crea dei modelli di schede di lavoro predefiniti da assegnare agli interventi'
+const PAGE_SUBTITLE = 'Crea modelli di fogli di lavoro predefiniti da assegnare agli interventi'
 
 type SortKey = 'name' | 'tasks' | 'duration' | 'usage'
 type UsageFilter = 'all' | 'used' | 'unused'
@@ -155,7 +155,7 @@ function WorkSheetForm({
       open={open}
       onClose={onClose}
       size="lg"
-      title={initial ? 'Modifica scheda di lavoro' : 'Nuova scheda di Lavoro'}
+      title={initial ? 'Modifica foglio di lavoro' : 'Nuovo foglio di lavoro'}
       description={
         initial
           ? 'Le modifiche valgono per le richieste a cui assegnerai il foglio da adesso in poi.'
@@ -175,7 +175,7 @@ function WorkSheetForm({
       }
     >
       <form id="worksheet-form" onSubmit={submit} className="space-y-4" noValidate>
-        <Field label="Nome Foglio (es. Pulizia Standard)" error={errors.name}>
+        <Field label="Nome foglio (es. Pulizia Standard)" error={errors.name}>
           <Input
             value={draft.name}
             placeholder="Pulizia Standard"
@@ -419,7 +419,7 @@ function SheetCard({
       <CardFooter className="mt-auto flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-border p-5 pt-3">
         <span className="text-xs text-muted-foreground">
           {row.usage === 0 ? (
-            'Nessuna richiesta usa questa scheda'
+            'Nessuna richiesta usa questo foglio'
           ) : (
             <>
               Usata da{' '}
@@ -574,7 +574,7 @@ export default function FogliDiLavoro() {
         <EmptyState
           icon={ShieldAlert}
           title="Area riservata agli amministratori"
-          description="I modelli di scheda di lavoro sono gestiti solo dagli account con ruolo Amministratore."
+          description="I modelli di foglio di lavoro sono gestiti solo dagli account con ruolo Amministratore."
         />
       </div>
     )
@@ -604,7 +604,7 @@ export default function FogliDiLavoro() {
             </Button>
             <Button onClick={openNew}>
               <Plus />
-              Nuova scheda di Lavoro
+              Nuovo foglio di lavoro
             </Button>
           </>
         }
@@ -676,11 +676,11 @@ export default function FogliDiLavoro() {
           <EmptyState
             icon={ClipboardList}
             title="Nessun foglio di lavoro"
-            description="Crea dei modelli di schede di lavoro predefiniti: un elenco ordinato di task da assegnare agli interventi in un clic."
+            description="Crea modelli di fogli di lavoro predefiniti: un elenco ordinato di task da assegnare agli interventi in un clic."
             action={
               <Button onClick={openNew}>
                 <Plus />
-                Nuova scheda di Lavoro
+                Nuovo foglio di lavoro
               </Button>
             }
           />

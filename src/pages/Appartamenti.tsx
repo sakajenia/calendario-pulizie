@@ -876,9 +876,8 @@ export default function Appartamenti() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r, i) => {
+              {filtered.map((r) => {
                 const isSelected = selected.has(r.apt.id)
-                const openUp = filtered.length > 6 && i >= filtered.length - 4
                 return (
                   <tr
                     key={r.apt.id}
@@ -899,7 +898,7 @@ export default function Appartamenti() {
                     <Td onClick={(e) => e.stopPropagation()}>
                       <Dropdown
                         align="start"
-                        className={cn('w-[200px]', openUp && 'bottom-full mb-1 mt-0')}
+                        className="w-[200px]"
                         trigger={
                           <Button variant="ghost" size="icon" className="size-7" aria-label={`Azioni ${r.apt.name}`}>
                             <MoreVertical />

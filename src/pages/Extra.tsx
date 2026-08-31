@@ -31,6 +31,8 @@ const SCOPES: ExtraScope[] = ['apartment', 'bed', 'person']
 interface ScopeMeta {
   tab: string
   singular: string
+  /** Usato nel nome del file CSV: il resto dell'app nomina gli export in italiano. */
+  slug: string
   icon: React.ComponentType<{ className?: string }>
   emptyTitle: string
   emptyText: string
@@ -41,6 +43,7 @@ const SCOPE_META: Record<ExtraScope, ScopeMeta> = {
   apartment: {
     tab: 'Extra di appartamento',
     singular: 'Extra di appartamento',
+    slug: 'appartamento',
     icon: Building2,
     emptyTitle: 'Nessun extra di appartamento',
     emptyText: 'Sono i materiali forniti una volta per intervento: carta igienica, detersivi, sacchi.',
@@ -49,6 +52,7 @@ const SCOPE_META: Record<ExtraScope, ScopeMeta> = {
   bed: {
     tab: 'Extra dei letti',
     singular: 'Extra dei letti',
+    slug: 'letti',
     icon: BedDouble,
     emptyTitle: 'Nessun extra dei letti',
     emptyText: 'Sono i materiali legati al rifacimento: lenzuola, federe, amenities per tipologia di letto.',
@@ -57,6 +61,7 @@ const SCOPE_META: Record<ExtraScope, ScopeMeta> = {
   person: {
     tab: 'Extra per persona',
     singular: 'Extra per persona',
+    slug: 'persona',
     icon: Users,
     emptyTitle: 'Nessun extra per persona',
     emptyText: 'Sono i materiali moltiplicati per gli ospiti in arrivo: asciugamani, cialde, cortesie.',
@@ -66,6 +71,8 @@ const SCOPE_META: Record<ExtraScope, ScopeMeta> = {
 
 /** Le richieste ancora da chiudere: sono quelle che impegnano davvero il magazzino. */
 const OPEN_STATUSES = new Set<RequestStatus>(['in_attesa', 'accettata', 'in_corso', 'da_verificare'])
+
+const CANCELLED_STATUSES = new Set<RequestStatus>(['cancellata', 'cancellata_guesty'])
 
 type Basis = 'open' | 'last30' | 'all'
 
@@ -189,6 +196,9 @@ function ExtraForm({
 
   const preview = usage.get(norm(draft.name.trim()))
   const amount = parseAmount(draft.unitCost)
+  /* La valorizzazione ha senso solo con un importo gia' valido: altrimenti l'anteprima
+     mostrerebbe NaN o un valore negativo mentre si sta ancora digitando. */
+  const showValue = draft.unitCost.trim() !== '' && Number.isFinite(amount) && amount >= 0
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -317,7 +327,7 @@ function ExtraForm({
             hint={
               warehouses.length === 0
                 ? 'Nessun magazzino in anagrafica: creane uno nella sezione Magazzini.'
-                : 'Dove l’operatore preleva questo materiale.'
+                : "Dove l'operatore preleva questo materiale."
             }
           >
             <Select
@@ -341,10 +351,7 @@ function ExtraForm({
               Su {BASIS_LABEL[basis]} questo nome risulta impegnato per{' '}
               <span className="font-medium text-foreground">{fmtNum(preview.qty)} unità</span> in{' '}
               {plural(preview.requests, 'richiesta', 'richieste')}
-              {Number.isFinite(amount) && amount >= 0 && draft.unitCost.trim() !== '' && (
-                <> — valore {fmtEur(preview.qty * amount)}.</>
-              )}
-              {(!Number.isFinite(amount) || draft.unitCost.trim() === '') && '.'}
+              {showValue ? <> — valore {fmtEur(preview.qty * amount)}.</> : '.'}
             </>
           ) : (
             <>
@@ -390,6 +397,8 @@ export default function Extra() {
     for (const r of scoped) {
       if (basis === 'open' && !OPEN_STATUSES.has(r.status)) continue
       if (basis === 'last30') {
+        // Una richiesta cancellata non e' un intervento: non ha impegnato materiale.
+        if (CANCELLED_STATUSES.has(r.status)) continue
         const t = asDate(r.checkOutAt).getTime()
         if (t < floor || t > now) continue
       }
@@ -557,7 +566,7 @@ export default function Extra() {
       Valore: row.value.toFixed(2).replace('.', ','),
       'Base di calcolo': BASIS_LABEL[basis],
     }))
-    downloadFile(`extra-${scope}-${fmtDate(new Date())}.csv`, toCsv(data))
+    downloadFile(`extra-${meta.slug}-${fmtDate(new Date())}.csv`, toCsv(data))
   }
 
   const deleteRows = pendingDelete
@@ -930,19 +939,24 @@ export default function Extra() {
               </ul>
             )}
 
+            {/* Le quantita' si sommano tra extra diversi; i conteggi di richieste no
+                (la stessa richiesta puo' usarne piu' d'uno), quindi qui si mostrano le unita'. */}
             <p className="rounded-md bg-muted px-3 py-2 text-muted-foreground">
-              {deleteRows.some((r) => r.requests > 0) ? (
+              {deleteRows.some((r) => r.qty > 0) ? (
                 <>
-                  {plural(
-                    deleteRows.reduce((sum, r) => sum + r.requests, 0),
-                    'richiesta usa questi materiali',
-                    'richieste usano questi materiali',
-                  )}{' '}
-                  su {BASIS_LABEL[basis]}: le righe già inserite restano invariate, ma l'extra non sarà più
-                  selezionabile né valorizzato.
+                  Su {BASIS_LABEL[basis]} sono impegnate{' '}
+                  {fmtNum(deleteRows.reduce((sum, r) => sum + r.qty, 0))} unità in totale: le righe già
+                  inserite restano invariate, ma{' '}
+                  {deleteRows.length === 1
+                    ? "l'extra non sarà più selezionabile né valorizzato"
+                    : 'gli extra non saranno più selezionabili né valorizzati'}
+                  .
                 </>
               ) : (
-                <>Nessuna richiesta su {BASIS_LABEL[basis]} impegna questi materiali.</>
+                <>
+                  Nessuna richiesta su {BASIS_LABEL[basis]} impegna{' '}
+                  {deleteRows.length === 1 ? 'questo extra' : 'questi extra'}.
+                </>
               )}
             </p>
           </div>

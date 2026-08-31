@@ -35,7 +35,7 @@ type Basis = 'active' | 'open' | 'all'
 
 const BASIS_LABEL: Record<Basis, string> = {
   active: 'richieste non cancellate',
-  open: 'sole richieste da evadere',
+  open: 'richieste aperte',
   all: 'tutte le richieste',
 }
 
@@ -478,9 +478,11 @@ export default function Magazzini() {
     setFormOpen(true)
   }
 
+  /* Azzera anche il filtro sugli impegnati: altrimenti "mostra articoli" puo' portare a una tabella vuota. */
   const showItemsOf = (id: string) => {
     setWhFilter(id)
     setScopeFilter('all')
+    setOnlyCommitted(false)
     tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
@@ -502,11 +504,11 @@ export default function Magazzini() {
   }
 
   const exportCsv = () => {
-    const headers = ['Magazzino', 'Articolo', 'Scope', 'Costo unitario', 'Impegnato', 'Valore']
+    const headers = ['Magazzino', 'Articolo', 'Tipo', 'Costo unitario', 'Impegnato', 'Valore']
     const rows = tableRows.map((r) => ({
       Magazzino: r.warehouse?.name ?? 'Non assegnato',
       Articolo: r.extra.name,
-      Scope: SCOPE_LABEL[r.extra.scope],
+      Tipo: SCOPE_LABEL[r.extra.scope],
       'Costo unitario': r.extra.unitCost === undefined ? '' : csvNum(r.extra.unitCost),
       Impegnato: String(r.qty),
       Valore: csvNum(r.value),
@@ -539,8 +541,8 @@ export default function Magazzini() {
               <Input
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="Cerca per nome, indirizzo o codice"
-                aria-label="Cerca per nome, indirizzo o codice"
+                placeholder="Cerca per nome, indirizzo, codice o note"
+                aria-label="Cerca per nome, indirizzo, codice o note"
                 className="h-10 pl-9"
               />
             </div>
@@ -768,7 +770,7 @@ export default function Magazzini() {
                         </p>
                       </div>
                       <div className="min-w-0 text-right">
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Consumo stimato</p>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Valore impegnato</p>
                         <p className="font-display text-base font-bold tabular-nums">{fmtEur(r.value)}</p>
                         <p className="truncate text-xs text-muted-foreground">{BASIS_LABEL[basis]}</p>
                       </div>
@@ -806,10 +808,10 @@ export default function Magazzini() {
                   <Select
                     value={scopeFilter}
                     onChange={(e) => setScopeFilter(e.target.value)}
-                    aria-label="Filtra per scope"
+                    aria-label="Filtra per tipo di extra"
                     className="h-9"
                     options={[
-                      { value: 'all', label: 'Tutti gli scope' },
+                      { value: 'all', label: 'Tutti i tipi' },
                       { value: 'apartment', label: SCOPE_LABEL.apartment },
                       { value: 'bed', label: SCOPE_LABEL.bed },
                       { value: 'person', label: SCOPE_LABEL.person },
@@ -843,7 +845,7 @@ export default function Magazzini() {
                 description={
                   extras.length === 0
                     ? 'Gli articoli si creano dalla sezione Extra: da lì si assegnano ai magazzini.'
-                    : 'Prova a cambiare magazzino o scope, oppure a disattivare il filtro sugli articoli impegnati.'
+                    : 'Prova a cambiare magazzino o tipo, oppure a disattivare il filtro sugli articoli impegnati.'
                 }
                 action={
                   hasTableFilters ? (
@@ -863,7 +865,7 @@ export default function Magazzini() {
                     <tr>
                       <SortHeader label="Magazzino" sortKey="warehouse" current={sortKey} dir={sortDir} onSort={sortBy} />
                       <SortHeader label="Articolo" sortKey="item" current={sortKey} dir={sortDir} onSort={sortBy} />
-                      <SortHeader label="Scope" sortKey="scope" current={sortKey} dir={sortDir} onSort={sortBy} />
+                      <SortHeader label="Tipo" sortKey="scope" current={sortKey} dir={sortDir} onSort={sortBy} />
                       <SortHeader label="Costo unitario" sortKey="unit" current={sortKey} dir={sortDir} onSort={sortBy} className="text-right" />
                       <SortHeader label="Impegnato" sortKey="qty" current={sortKey} dir={sortDir} onSort={sortBy} className="text-right" />
                       <SortHeader label="Valore" sortKey="value" current={sortKey} dir={sortDir} onSort={sortBy} className="text-right" />

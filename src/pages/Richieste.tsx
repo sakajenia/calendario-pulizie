@@ -74,9 +74,8 @@ function SortHeader({
 /* -------------------------------------------------------------- menu di riga */
 
 function RowMenu({
-  openUp, onView, onEdit, onStatus, onDelete,
+  onView, onEdit, onStatus, onDelete,
 }: {
-  openUp: boolean
   onView: () => void
   onEdit: () => void
   onStatus: (s: RequestStatus) => void
@@ -87,7 +86,7 @@ function RowMenu({
   return (
     <Dropdown
       align="start"
-      className={cn('w-[220px]', openUp && 'bottom-full mb-1 mt-0')}
+      className="w-[220px]"
       trigger={
         <Button variant="ghost" size="icon" className="size-7" aria-label="Azioni richiesta" onClick={() => setStatusOpen(false)}>
           <MoreVertical />
@@ -128,9 +127,13 @@ function RowMenu({
 function FiltersDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const user = useCurrentUser()
   const allApartments = useStore((s) => s.apartments)
+  const allUsers = useStore((s) => s.users)
   const filters = useStore((s) => s.filters)
   const setFilters = useStore((s) => s.setFilters)
   const resetFilters = useStore((s) => s.resetFilters)
+
+  const isAdmin = user?.role === 'admin'
+  const hosts = React.useMemo(() => allUsers.filter((u) => u.role === 'host'), [allUsers])
 
   React.useEffect(() => {
     if (!open) return
@@ -231,6 +234,20 @@ function FiltersDrawer({ open, onClose }: { open: boolean; onClose: () => void }
                 ]}
               />
             </Field>
+            {/* Un host vede gia' solo le proprie richieste: il filtro ha senso
+                unicamente per chi ne governa piu' di uno. */}
+            {isAdmin && (
+              <Field label="Host">
+                <Select
+                  value={filters.hostId}
+                  onChange={(e) => setFilters({ hostId: e.target.value })}
+                  options={[
+                    { value: 'all', label: 'Tutti gli host' },
+                    ...hosts.map((h) => ({ value: h.id, label: h.name })),
+                  ]}
+                />
+              </Field>
+            )}
           </section>
         </div>
 
@@ -249,11 +266,14 @@ export default function Richieste() {
   const user = useCurrentUser()
   const allRequests = useStore((s) => s.requests)
   const allApartments = useStore((s) => s.apartments)
+  const allUsers = useStore((s) => s.users)
   const filters = useStore((s) => s.filters)
   const setFilters = useStore((s) => s.setFilters)
   const resetFilters = useStore((s) => s.resetFilters)
   const setRequestStatus = useStore((s) => s.setRequestStatus)
   const deleteRequests = useStore((s) => s.deleteRequests)
+
+  const hosts = React.useMemo(() => allUsers.filter((u) => u.role === 'host'), [allUsers])
 
   const [sortKey, setSortKey] = React.useState<SortKey>('createdAt')
   const [sortDir, setSortDir] = React.useState<SortDir>('desc')
@@ -291,6 +311,7 @@ export default function Richieste() {
     const to = ts(filters.to)
     return rows.filter((r) => {
       if (filters.apartmentId !== 'all' && r.req.apartmentId !== filters.apartmentId) return false
+      if (filters.hostId !== 'all' && r.req.hostId !== filters.hostId) return false
       if (q && !norm(`${r.address} ${r.district} ${r.city} ${r.name}`).includes(q)) return false
       if (from !== null || to !== null) {
         const t = asDate(r.req[filters.dateField]).getTime()
@@ -299,7 +320,7 @@ export default function Richieste() {
       }
       return true
     })
-  }, [rows, filters.text, filters.apartmentId, filters.dateField, filters.from, filters.to])
+  }, [rows, filters.text, filters.apartmentId, filters.hostId, filters.dateField, filters.from, filters.to])
 
   const statusCounts = React.useMemo(() => {
     const acc = {} as Record<RequestStatus, number>
@@ -381,6 +402,14 @@ export default function Richieste() {
       key: 'apt',
       label: `Appartamento: ${apt?.name ?? filters.apartmentId}`,
       clear: () => setFilters({ apartmentId: 'all' }),
+    })
+  }
+  if (filters.hostId !== 'all') {
+    const h = hosts.find((u) => u.id === filters.hostId)
+    activeChips.push({
+      key: 'host',
+      label: `Host: ${h?.name ?? filters.hostId}`,
+      clear: () => setFilters({ hostId: 'all' }),
     })
   }
   if (filters.from) {
@@ -620,7 +649,7 @@ export default function Richieste() {
               </tr>
             </thead>
             <tbody>
-              {pageRows.map((r, i) => {
+              {pageRows.map((r) => {
                 const isSelected = selected.has(r.req.id)
                 return (
                   <tr
@@ -641,7 +670,6 @@ export default function Richieste() {
 
                     <Td onClick={(e) => e.stopPropagation()}>
                       <RowMenu
-                        openUp={pageRows.length > 6 && i >= pageRows.length - 4}
                         onView={() => setDetailId(r.req.id)}
                         onEdit={() => openEdit(r.req)}
                         onStatus={(s) => setRequestStatus([r.req.id], s)}

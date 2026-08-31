@@ -167,10 +167,15 @@ export function RequestCard({
   const ap = apartments.find((a) => a.id === request.apartmentId)
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.() }
+      }}
       className={cn(
-        'w-full rounded-xl border bg-card p-4 text-left shadow-card transition-all hover:shadow-raised focus-ring',
+        'w-full cursor-pointer rounded-xl border bg-card p-4 text-left shadow-card transition-all hover:shadow-raised focus-ring',
         active ? 'border-primary ring-1 ring-primary' : 'border-border',
       )}
     >
@@ -205,6 +210,6 @@ export function RequestCard({
           <span className="line-clamp-2 whitespace-pre-line">{request.notes}</span>
         </p>
       )}
-    </button>
+    </div>
   )
 }

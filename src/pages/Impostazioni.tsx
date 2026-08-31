@@ -63,6 +63,7 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default function Impostazioni() {
   const user = useCurrentUser()
+  const isAdmin = user?.role === 'admin'
 
   const users = useStore((s) => s.users)
   const apartments = useStore((s) => s.apartments)
@@ -104,12 +105,14 @@ export default function Impostazioni() {
   const completion = total ? Math.round((done / total) * 100) : 0
   const activeStatuses = REQUEST_STATUSES.filter((s) => byStatus[s] > 0)
 
+  // Appartamenti e richieste restano filtrati per ruolo anche nel conteggio e
+  // nell'export: un host non deve vedere il dataset degli altri host.
   const dataset = [
     { label: 'Utenti', value: users.length },
-    { label: 'Appartamenti', value: apartments.length },
-    { label: 'Richieste', value: requests.length },
-    { label: 'Task', value: taskCatalog.length },
-    { label: 'Fogli di lavoro', value: workSheets.length },
+    { label: 'Appartamenti', value: myApartments.length },
+    { label: 'Richieste', value: myRequests.length },
+    { label: 'Catalogo Task', value: taskCatalog.length },
+    { label: 'Fogli di Lavoro', value: workSheets.length },
     { label: 'Extra', value: extraCatalog.length },
     { label: 'Magazzini', value: warehouses.length },
     { label: 'Notifiche', value: notifications.length },
@@ -135,14 +138,22 @@ export default function Impostazioni() {
     flashProfile('Profilo aggiornato')
   }
 
-  const exportAll = () => {
+  const exportAll = async () => {
     const snapshot = {
       app: APP_NAME,
       version: APP_VERSION,
       exportedAt: new Date().toISOString(),
-      data: { users, apartments, requests, taskCatalog, workSheets, extraCatalog, warehouses, notifications },
+      data: {
+        // La rubrica del team esce solo per l'amministratore.
+        users: isAdmin ? users : user ? [user] : [],
+        apartments: myApartments,
+        requests: myRequests,
+        taskCatalog, workSheets, extraCatalog, warehouses, notifications,
+      },
     }
-    downloadFile(
+    // downloadFile e' asincrona: senza await il messaggio comparirebbe anche
+    // quando chi guarda rifiuta il salvataggio.
+    await downloadFile(
       `propromanager-dati-${fmtDate(new Date())}.json`,
       JSON.stringify(snapshot, null, 2),
       'application/json;charset=utf-8',
@@ -151,6 +162,7 @@ export default function Impostazioni() {
   }
 
   const confirmResetData = () => {
+    if (!isAdmin) return
     resetData()
     setConfirmReset(false)
     flashData('Dataset riportato allo stato iniziale')
@@ -399,9 +411,9 @@ export default function Impostazioni() {
               <div className="space-y-1">
                 <CardTitle>Dati dimostrativi</CardTitle>
                 <CardDescription>
-                  L'applicazione gira su un dataset locale ricostruito dai dati reali di {LEGACY_APP}:
+                  L'applicazione gira su un dataset dimostrativo ricostruito dal modello di {LEGACY_APP}:
                   vive nel tuo browser, non viene inviato ad alcun server e ogni modifica che fai resta
-                  solo su questo dispositivo.
+                  solo su questo dispositivo. L'export contiene i dati visibili al tuo ruolo.
                 </CardDescription>
               </div>
             </CardHeader>
@@ -417,11 +429,15 @@ export default function Impostazioni() {
 
               <div className="flex flex-wrap items-center gap-3">
                 <Button variant="outline" onClick={exportAll}>
-                  <Download /> Esporta tutti i dati
+                  <Download /> Esporta i dati
                 </Button>
-                <Button variant="outline" onClick={() => setConfirmReset(true)}>
-                  <RotateCcw /> Ripristina dati iniziali
-                </Button>
+                {/* Il ripristino azzera il dataset condiviso, non solo la
+                    porzione di chi lo esegue: resta agli amministratori. */}
+                {isAdmin && (
+                  <Button variant="outline" onClick={() => setConfirmReset(true)}>
+                    <RotateCcw /> Ripristina dati iniziali
+                  </Button>
+                )}
                 {dataMsg && (
                   <span className="inline-flex items-center gap-1.5 text-sm font-medium text-status-accepted">
                     <CheckCircle2 className="size-4" /> {dataMsg}
@@ -463,7 +479,7 @@ export default function Impostazioni() {
             </p>
             <p className="text-muted-foreground">
               Coinvolge {fmtNum(records)} record. Se vuoi conservarli, chiudi questa finestra ed esegui
-              prima "Esporta tutti i dati".
+              prima "Esporta i dati".
             </p>
           </div>
         </div>

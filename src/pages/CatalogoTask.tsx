@@ -228,7 +228,7 @@ function TaskForm({
       }
     >
       <form id="task-form" onSubmit={submit} className="space-y-4" noValidate>
-        <Field label="Descrizione Task" error={errors.name}>
+        <Field label="Nome task" error={errors.name}>
           <Input
             value={draft.name}
             placeholder="Es. Pulizia bagno completa"
@@ -237,7 +237,7 @@ function TaskForm({
         </Field>
 
         <Field
-          label="Descrizione estesa"
+          label="Descrizione"
           error={errors.description}
           hint="Le istruzioni che l'operatore legge sul campo: sii specifico su cosa controllare."
         >
@@ -503,7 +503,7 @@ export default function CatalogoTask() {
           icon={ListChecks}
           label="Tempo totale catalogo"
           value={fmtDuration(totalMinutes)}
-          hint={`Somma delle stime · ${plural(workSheets.length, 'foglio di lavoro', 'fogli di lavoro')}`}
+          hint={`Somma delle stime · ${plural(withEstimate.length, 'task conteggiato', 'task conteggiati')}`}
         />
         <SummaryTile
           icon={AlertTriangle}
@@ -631,9 +631,8 @@ export default function CatalogoTask() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r, i) => {
+              {filtered.map((r) => {
                 const isSelected = selected.has(r.task.id)
-                const openUp = filtered.length > 6 && i >= filtered.length - 4
                 return (
                   <tr
                     key={r.task.id}
@@ -654,7 +653,7 @@ export default function CatalogoTask() {
                     <Td onClick={(e) => e.stopPropagation()}>
                       <Dropdown
                         align="start"
-                        className={cn('w-[200px]', openUp && 'bottom-full mb-1 mt-0')}
+                        className="w-[200px]"
                         trigger={
                           <Button variant="ghost" size="icon" className="size-7" aria-label={`Azioni ${r.task.name}`}>
                             <MoreVertical />

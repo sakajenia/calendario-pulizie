@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 import { Check, ChevronDown, Loader2, X } from 'lucide-react'
 
@@ -33,7 +34,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       ref={ref}
       disabled={disabled || loading}
       className={cn(
-        'inline-flex select-none items-center justify-center gap-2 whitespace-nowrap font-medium transition-all focus-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0',
+        'inline-flex select-none items-center justify-center gap-2 whitespace-nowrap font-medium transition-all focus-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:shrink-0 [&_svg:not([class*=size-])]:size-4',
         BTN_VARIANTS[variant], BTN_SIZES[size], className,
       )}
       {...props}
@@ -263,35 +264,75 @@ export function Dialog({
 
 /* ----------------------------------------------------------------- Dropdown */
 
+/**
+ * Il menu e' reso in un portal con posizione fissa, calcolata dal trigger.
+ * Renderlo in linea lo faceva ritagliare dai contenitori con `overflow: auto`
+ * (tabelle e liste scrollabili) proprio sulle ultime righe, dove serve di piu'.
+ * Si ribalta verso l'alto quando sotto non c'e' spazio.
+ */
 export function Dropdown({
   trigger, children, align = 'end', className,
 }: { trigger: React.ReactNode; children: React.ReactNode; align?: 'start' | 'end'; className?: string }) {
   const [open, setOpen] = React.useState(false)
-  const ref = React.useRef<HTMLDivElement>(null)
+  const [pos, setPos] = React.useState<{ top: number; left: number; up: boolean } | null>(null)
+  const anchorRef = React.useRef<HTMLDivElement>(null)
+  const menuRef = React.useRef<HTMLDivElement>(null)
+
+  const place = React.useCallback(() => {
+    const el = anchorRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const h = menuRef.current?.offsetHeight ?? 220
+    const w = menuRef.current?.offsetWidth ?? 200
+    const up = r.bottom + h + 8 > window.innerHeight && r.top - h - 8 > 0
+    const left = align === 'end' ? r.right - w : r.left
+    setPos({
+      top: up ? r.top - h - 4 : r.bottom + 4,
+      left: Math.max(8, Math.min(left, window.innerWidth - w - 8)),
+      up,
+    })
+  }, [align])
+
+  React.useLayoutEffect(() => { if (open) place() }, [open, place])
 
   React.useEffect(() => {
     if (!open) return
-    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (!anchorRef.current?.contains(t) && !menuRef.current?.contains(t)) setOpen(false)
+    }
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    // Il menu e' ancorato a coordinate di viewport: se la pagina scorre va richiuso.
+    const onScroll = () => setOpen(false)
     document.addEventListener('mousedown', onDoc)
     document.addEventListener('keydown', onKey)
-    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey) }
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', onScroll)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', onScroll)
+    }
   }, [open])
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={anchorRef} className="relative">
       <div onClick={() => setOpen((v) => !v)}>{trigger}</div>
-      {open && (
+      {open && createPortal(
         <div
+          ref={menuRef}
           onClick={() => setOpen(false)}
+          style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999 }}
           className={cn(
-            'absolute z-40 mt-1 min-w-[200px] overflow-hidden rounded-lg border border-border bg-popover p-1 shadow-raised animate-scale-in',
-            align === 'end' ? 'right-0' : 'left-0',
+            'fixed z-50 min-w-[200px] overflow-hidden rounded-lg border border-border bg-popover p-1 shadow-raised animate-scale-in',
+            pos ? 'visible' : 'invisible',
             className,
           )}
         >
           {children}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
