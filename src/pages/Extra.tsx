@@ -577,7 +577,7 @@ export default function Extra() {
 
   if (currentUser?.role !== 'admin') {
     return (
-      <div className="flex h-full flex-col">
+      <div className="flex flex-col lg:h-full">
         <PageHeader title="Extra" />
         <EmptyState
           icon={ShieldAlert}
@@ -713,7 +713,7 @@ export default function Extra() {
         </div>
       )}
 
-      <div className="lg:min-h-0 lg:flex-1 lg:overflow-auto">
+      <div className="overflow-x-auto lg:min-h-0 lg:flex-1 lg:overflow-auto">
         {extraCatalog.length === 0 ? (
           <EmptyState
             icon={PackageOpen}

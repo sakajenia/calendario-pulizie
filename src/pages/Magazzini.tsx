@@ -513,7 +513,7 @@ export default function Magazzini() {
 
   if (!isAdmin) {
     return (
-      <div className="flex h-full flex-col">
+      <div className="flex flex-col lg:h-full">
         <PageHeader title="Magazzini" />
         <EmptyState
           icon={ShieldAlert}

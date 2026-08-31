@@ -590,7 +590,7 @@ export default function FogliDiLavoro() {
 
   if (currentUser?.role !== 'admin') {
     return (
-      <div className="flex h-full flex-col">
+      <div className="flex flex-col lg:h-full">
         <PageHeader title="Fogli di Lavoro" />
         <EmptyState
           icon={ShieldAlert}

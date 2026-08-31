@@ -637,7 +637,7 @@ export default function Richieste() {
         </div>
       )}
 
-      <TableScroller className={cn('lg:flex-1', pageRows.length > 0 && 'hidden md:flex')} innerClassName="lg:min-h-0 lg:flex-1">
+      <TableScroller className={cn('lg:flex-1', pageRows.length > 0 && 'hidden md:flex')} innerClassName="overflow-x-auto lg:overflow-auto lg:min-h-0 lg:flex-1">
         {pageRows.length === 0 ? (
           <EmptyState
             icon={ClipboardList}

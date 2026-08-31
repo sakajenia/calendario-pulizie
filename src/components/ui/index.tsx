@@ -222,6 +222,7 @@ export function Dialog({
   children: React.ReactNode; footer?: React.ReactNode; size?: 'sm' | 'md' | 'lg' | 'xl'
 }) {
   const panelRef = React.useRef<HTMLDivElement>(null)
+  const titleId = React.useId()
 
   React.useEffect(() => {
     if (!open) return
@@ -251,13 +252,19 @@ export function Dialog({
     }
 
     document.addEventListener('keydown', onKey)
+    // Lo scroller vero e' <main id="contenuto"> (AppShell): bloccare solo il
+    // body lascerebbe la pagina di sfondo scorrevole sotto al dialog.
+    const main = document.getElementById('contenuto')
     const prev = document.body.style.overflow
+    const prevMain = main?.style.overflow
     document.body.style.overflow = 'hidden'
+    if (main) main.style.overflow = 'hidden'
     const t = window.setTimeout(() => focusables()[0]?.focus(), 0)
 
     return () => {
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = prev
+      if (main) main.style.overflow = prevMain ?? ''
       window.clearTimeout(t)
       returnTo?.focus?.()
     }
@@ -273,6 +280,7 @@ export function Dialog({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
+        {...(title ? { 'aria-labelledby': titleId } : { 'aria-label': 'Finestra di dialogo' })}
         className={cn(
           'relative z-10 my-auto w-full rounded-xl border border-border bg-card shadow-2xl animate-scale-in',
           width,
@@ -281,7 +289,7 @@ export function Dialog({
         {(title || description) && (
           <div className="flex items-start justify-between gap-4 border-b border-border p-5">
             <div className="space-y-1">
-              {title && <h2 className="font-display text-lg font-bold tracking-tight text-brand">{title}</h2>}
+              {title && <h2 id={titleId} className="font-display text-lg font-bold tracking-tight text-brand">{title}</h2>}
               {description && <p className="text-sm text-muted-foreground">{description}</p>}
             </div>
             <Button variant="ghost" size="icon" onClick={onClose} aria-label="Chiudi">
@@ -420,7 +428,14 @@ export function TableScroller({
 
   return (
     <div className={cn('relative flex min-h-0 min-w-0 flex-col', className)}>
-      <div ref={ref} onScroll={update} className={cn('overflow-auto', innerClassName)}>
+      <div
+        ref={ref}
+        onScroll={update}
+        // `overflow-auto` e' solo il default: se chi usa il componente indica
+        // gia' un overflow (magari legato a un breakpoint) non va sovrascritto,
+        // perche' twMerge non tratta `overflow-x-*` come conflitto di `overflow-*`.
+        className={cn(!/(?:^|[\s:])overflow-/.test(innerClassName ?? '') && 'overflow-auto', innerClassName)}
+      >
         {children}
       </div>
       {edges.left && (

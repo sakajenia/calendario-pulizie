@@ -17,6 +17,7 @@ import {
 import { StatusDot } from '@/components/StatusChip'
 import { RequestCard, RequestDetail } from '@/components/requests/RequestDetail'
 import { RequestForm } from '@/components/requests/RequestForm'
+import { useIsDesktop } from '@/hooks/useMediaQuery'
 import { scopeApartments, scopeRequests, useCurrentUser, useStore } from '@/data/store'
 import { TODAY } from '@/data/seed'
 import { asDate, fmtDayLong, fmtMonthYear, fmtTime, norm, plural } from '@/lib/format'
@@ -174,6 +175,7 @@ export default function Calendario() {
   const [detail, setDetail] = React.useState<CleaningRequest | null>(null)
   const [formOpen, setFormOpen] = React.useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
+  const isDesktop = useIsDesktop()
 
   /* La palette comandi apre il modulo passando da qui: consumiamo il parametro
      subito, cosi' un ricaricamento non riapre il modulo a sorpresa. */
@@ -274,17 +276,6 @@ export default function Calendario() {
     return sortRequests(list, sort)
   }, [selectedDay, byDay, periodRequests, sort])
 
-  const dayRequests = React.useMemo(
-    () => (selectedDay ? sortRequests(byDay.get(dayKey(selectedDay)) ?? [], sort) : []),
-    [selectedDay, byDay, sort],
-  )
-
-  const dayDialogTitle = React.useMemo(() => {
-    if (!selectedDay) return ''
-    const s = format(selectedDay, 'EEEE d MMMM', { locale: it })
-    return s.charAt(0).toUpperCase() + s.slice(1)
-  }, [selectedDay])
-
   const checked = React.useMemo(
     () => visible.filter((r) => checkedIds.includes(r.id)),
     [visible, checkedIds],
@@ -319,12 +310,14 @@ export default function Calendario() {
   }
 
   /* Nella vista mese il tocco su un giorno apre il riepilogo in una finestra:
-     su mobile la lista sottostante era fuori schermo. Nella settimana resta il
-     comportamento a interruttore, perche' la colonna e' gia' visibile. */
+     sotto `lg` la lista sottostante e' fuori schermo. Da `lg` in su la colonna
+     laterale e' gia' visibile, quindi la finestra duplicherebbe il contenuto e
+     ruberebbe il focus a ogni clic: resta il comportamento a interruttore,
+     come nella vista settimana. */
   const pickDay = (d: Date) => {
     setCheckedIds([])
     if (!isSameMonth(d, cursor)) setCursor(d)
-    if (view === 'mese') {
+    if (view === 'mese' && !isDesktop) {
       setSelectedDay(d)
       setDayDialogOpen(true)
       return
@@ -459,6 +452,7 @@ export default function Calendario() {
                       type="button"
                       onClick={() => pickDay(d)}
                       aria-pressed={isSelected}
+                      aria-haspopup="dialog"
                       aria-label={`${fmtDayLong(d)} · ${plural(list.length, 'richiesta', 'richieste')}`}
                       className={cn(
                         'flex min-h-[52px] flex-col items-start gap-1.5 rounded-lg border border-transparent p-1.5 text-left transition-colors focus-ring',
@@ -826,10 +820,10 @@ export default function Calendario() {
       </div>
 
       <Dialog
-        open={dayDialogOpen && selectedDay !== null}
+        open={dayDialogOpen && selectedDay !== null && !isDesktop}
         onClose={() => setDayDialogOpen(false)}
-        title={dayDialogTitle}
-        description={plural(dayRequests.length, 'richiesta', 'richieste')}
+        title={selectedDay ? fmtDayLong(selectedDay) : ''}
+        description={plural(visible.length, 'richiesta', 'richieste')}
         size="md"
         footer={
           <>
@@ -847,7 +841,7 @@ export default function Calendario() {
           </>
         }
       >
-        {dayRequests.length === 0 ? (
+        {visible.length === 0 ? (
           <EmptyState
             icon={CalendarDays}
             title="Nessuna richiesta in questa data"
@@ -855,7 +849,7 @@ export default function Calendario() {
           />
         ) : (
           <div className="space-y-3">
-            {dayRequests.map((r) => (
+            {visible.map((r) => (
               <RequestCard key={r.id} request={r} onClick={() => openDetailFromDay(r)} />
             ))}
           </div>

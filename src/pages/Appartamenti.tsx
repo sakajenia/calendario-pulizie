@@ -846,7 +846,7 @@ export default function Appartamenti() {
         </div>
       )}
 
-      <div className="lg:min-h-0 lg:flex-1 lg:overflow-auto">
+      <div className="overflow-x-auto lg:min-h-0 lg:flex-1 lg:overflow-auto">
         {filtered.length === 0 ? (
           <EmptyState
             icon={Building2}
