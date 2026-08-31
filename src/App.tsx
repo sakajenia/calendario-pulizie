@@ -1,5 +1,6 @@
 import { HashRouter, Navigate, Route, BrowserRouter, Routes } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
+import { ToastProvider } from '@/components/feedback/Toast'
 import { useCurrentUser } from '@/data/store'
 
 import Login from '@/pages/Login'
@@ -28,6 +29,7 @@ function Protected({ children, adminOnly }: { children: JSX.Element; adminOnly?:
 export default function App() {
   return (
     <Router>
+      <ToastProvider>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route
@@ -52,6 +54,7 @@ export default function App() {
         </Route>
         <Route path="*" element={<Navigate to="/calendario" replace />} />
       </Routes>
+      </ToastProvider>
     </Router>
   )
 }

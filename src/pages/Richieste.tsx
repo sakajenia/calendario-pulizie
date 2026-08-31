@@ -11,6 +11,7 @@ import {
 import { StatusChip, StatusDot } from '@/components/StatusChip'
 import { RequestCard, RequestDetail } from '@/components/requests/RequestDetail'
 import { RequestForm } from '@/components/requests/RequestForm'
+import { useToast } from '@/components/feedback/Toast'
 import { scopeApartments, scopeRequests, useCurrentUser, useStore } from '@/data/store'
 import { asDate, downloadFile, fmtDate, fmtDateTime, fmtNum, norm, plural, toCsv } from '@/lib/format'
 import { REQUEST_STATUSES, STATUS_META, type CleaningRequest, type RequestStatus } from '@/types'
@@ -273,6 +274,8 @@ export default function Richieste() {
   const resetFilters = useStore((s) => s.resetFilters)
   const setRequestStatus = useStore((s) => s.setRequestStatus)
   const deleteRequests = useStore((s) => s.deleteRequests)
+  const upsertRequest = useStore((s) => s.upsertRequest)
+  const toast = useToast()
 
   const hosts = React.useMemo(() => allUsers.filter((u) => u.role === 'host'), [allUsers])
 
@@ -466,7 +469,13 @@ export default function Richieste() {
 
   const confirmDelete = () => {
     if (!pendingDelete) return
+    const removed = allRequests.filter((r) => pendingDelete.includes(r.id))
     deleteRequests(pendingDelete)
+    toast({
+      title: `${plural(removed.length, 'richiesta eliminata', 'richieste eliminate')}`,
+      description: 'Puoi rimetterle come erano finche\u2019 questa notifica resta a schermo.',
+      action: { label: 'Annulla', onClick: () => removed.forEach(upsertRequest) },
+    })
     setSelected((prev) => {
       const next = new Set(prev)
       for (const id of pendingDelete) next.delete(id)
@@ -574,7 +583,18 @@ export default function Richieste() {
               aria-label="Cambia stato delle richieste selezionate"
               onChange={(e) => {
                 const v = e.target.value
-                if (v) setRequestStatus(selectedIds, v as RequestStatus)
+                if (!v) return
+                const before = allRequests
+                  .filter((r) => selectedIds.includes(r.id))
+                  .map((r) => ({ id: r.id, status: r.status }))
+                setRequestStatus(selectedIds, v as RequestStatus)
+                toast({
+                  title: `${plural(before.length, 'richiesta aggiornata', 'richieste aggiornate')} a \u201c${STATUS_META[v as RequestStatus].label}\u201d`,
+                  action: {
+                    label: 'Annulla',
+                    onClick: () => before.forEach((b) => setRequestStatus([b.id], b.status)),
+                  },
+                })
               }}
               className="h-9"
               options={[
@@ -685,7 +705,15 @@ export default function Richieste() {
                       <RowMenu
                         onView={() => setDetailId(r.req.id)}
                         onEdit={() => openEdit(r.req)}
-                        onStatus={(s) => setRequestStatus([r.req.id], s)}
+                        onStatus={(next) => {
+                          const before = r.req.status
+                          setRequestStatus([r.req.id], next)
+                          toast({
+                            title: `Stato aggiornato a \u201c${STATUS_META[next].label}\u201d`,
+                            description: r.address,
+                            action: { label: 'Annulla', onClick: () => setRequestStatus([r.req.id], before) },
+                          })
+                        }}
                         onDelete={() => setPendingDelete([r.req.id])}
                       />
                     </Td>

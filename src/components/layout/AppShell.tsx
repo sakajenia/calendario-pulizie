@@ -3,9 +3,10 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import {
   Bell, Boxes, Building2, CalendarDays, ClipboardList, LayoutDashboard, ListChecks,
-  LogOut, Moon, PackageOpen, Settings, Sun, Users, Menu, X,
+  LogOut, Moon, PackageOpen, Search, Settings, Sun, Users, Menu, X,
 } from 'lucide-react'
 import { Logo, LogoMark } from '@/components/brand/Logo'
+import { CommandPalette } from '@/components/CommandPalette'
 import { Button, Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui'
 import { useCurrentUser, useStore } from '@/data/store'
 import { useTheme } from '@/hooks/useTheme'
@@ -107,6 +108,7 @@ export function AppShell() {
 
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-background">
+      <CommandPalette />
       {/* Senza questo, da tastiera si attraversa tutta la navigazione a ogni pagina. */}
       <a
         href="#contenuto"
@@ -131,6 +133,16 @@ export function AppShell() {
           <LogoMark className="size-7 lg:hidden" />
 
           <div className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => document.dispatchEvent(new CustomEvent('ppm:command-palette'))}
+              className="mr-1 hidden items-center gap-2 rounded-lg border border-border bg-background/60 py-1.5 pl-2.5 pr-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-ring sm:flex"
+            >
+              <Search className="size-4" />
+              <span className="pr-6">Cerca o vai a…</span>
+              <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">⌘K</kbd>
+            </button>
+
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Cambia tema">
               {dark ? <Sun /> : <Moon />}
             </Button>

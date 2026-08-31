@@ -16,6 +16,7 @@ import {
 import type {
   Apartment, ApartmentVisibility, Bed, BedType, CleaningRequest, ListingProvider, User,
 } from '@/types'
+import { useToast } from '@/components/feedback/Toast'
 import { cn } from '@/lib/utils'
 
 const BED_TYPES: BedType[] = [
@@ -603,6 +604,8 @@ export default function Appartamenti() {
   const allRequests = useStore((s) => s.requests)
   const users = useStore((s) => s.users)
   const deleteApartment = useStore((s) => s.deleteApartment)
+  const restoreApartment = useStore((s) => s.upsertApartment)
+  const toast = useToast()
 
   const [text, setText] = React.useState('')
   const [ownerFilter, setOwnerFilter] = React.useState('all')
@@ -737,7 +740,13 @@ export default function Appartamenti() {
 
   const confirmDelete = () => {
     if (!pendingDelete) return
+    const removed = allApartments.filter((a) => pendingDelete.includes(a.id))
     for (const id of pendingDelete) deleteApartment(id)
+    toast({
+      title: plural(removed.length, 'appartamento eliminato', 'appartamenti eliminati'),
+      description: removed.map((a) => a.name).join(', ').slice(0, 90),
+      action: { label: 'Annulla', onClick: () => removed.forEach(restoreApartment) },
+    })
     setSelected((prev) => {
       const next = new Set(prev)
       for (const id of pendingDelete) next.delete(id)

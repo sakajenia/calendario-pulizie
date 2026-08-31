@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom'
 import * as React from 'react'
 import {
   addDays, addMonths, addWeeks, eachDayOfInterval, endOfMonth, endOfWeek, format,
@@ -170,6 +171,17 @@ export default function Calendario() {
 
   const [detail, setDetail] = React.useState<CleaningRequest | null>(null)
   const [formOpen, setFormOpen] = React.useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  /* La palette comandi apre il modulo passando da qui: consumiamo il parametro
+     subito, cosi' un ricaricamento non riapre il modulo a sorpresa. */
+  React.useEffect(() => {
+    if (searchParams.get('nuova') !== '1') return
+    setFormOpen(true)
+    const next = new URLSearchParams(searchParams)
+    next.delete('nuova')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
   const [editing, setEditing] = React.useState<CleaningRequest | null>(null)
   const [reloading, setReloading] = React.useState(false)
   const reloadTimer = React.useRef<number>()
