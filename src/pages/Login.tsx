@@ -12,7 +12,7 @@ const DEMO_PASSWORD = '123456'
 /** Le due tipologie di account, con l'utente di prova che le rappresenta. */
 const DEMO_ACCOUNTS: { role: UserRole; name: string; email: string; icon: typeof ShieldCheck }[] = [
   { role: 'admin', name: 'Aurea Consulting', email: 'aurea.consulting.marketing@gmail.com', icon: ShieldCheck },
-  { role: 'operator', name: 'Elena Marchetti', email: 'elena.marchetti@pulizie.it', icon: Sparkles },
+  { role: 'operator', name: 'Pulizie ProProManager', email: 'pulizie@propromanager.it', icon: Sparkles },
 ]
 
 export default function Login() {

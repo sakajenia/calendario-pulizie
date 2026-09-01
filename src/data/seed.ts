@@ -31,10 +31,8 @@ export const users: User[] = [
   { id: 'u-admin', name: 'Gianluca Biondi', email: 'aurea.consulting.marketing@gmail.com', phone: '+39 340 118 2277', role: 'admin', active: true, createdAt: iso(day(-420)) },
   { id: 'u-host-1', name: 'ProProManager Roma Centro', email: 'centro@propromanager.com', phone: '+39 06 4522 1180', role: 'host', active: true, createdAt: iso(day(-380)) },
   { id: 'u-host-2', name: 'ProProManager Prati', email: 'prati@propromanager.com', phone: '+39 06 3751 9040', role: 'host', active: true, createdAt: iso(day(-330)) },
-  { id: 'u-op-1', name: 'Elena Marchetti', email: 'elena.marchetti@pulizie.it', phone: '+39 349 772 1188', role: 'operator', active: true, refHostId: 'u-host-1', createdAt: iso(day(-260)) },
-  { id: 'u-op-2', name: 'Andrei Popescu', email: 'andrei.popescu@pulizie.it', phone: '+39 351 220 9034', role: 'operator', active: true, refHostId: 'u-host-1', createdAt: iso(day(-210)) },
-  { id: 'u-op-3', name: 'Sara Conti', email: 'sara.conti@pulizie.it', phone: '+39 333 615 4471', role: 'operator', active: true, refHostId: 'u-host-2', createdAt: iso(day(-140)) },
-  { id: 'u-op-4', name: 'Miriam Okafor', email: 'miriam.okafor@pulizie.it', phone: '+39 327 884 0192', role: 'operator', active: false, refHostId: 'u-host-2', createdAt: iso(day(-90)) },
+  /* Un solo account per le pulizie: e' la squadra che opera sul campo. */
+  { id: 'u-pulizie', name: 'Pulizie ProProManager', email: 'pulizie@propromanager.it', phone: '+39 349 772 1188', role: 'operator', active: true, createdAt: iso(day(-260)) },
 ]
 
 const MATR: BedType = 'Letto Matrimoniale'
@@ -174,15 +172,9 @@ function bedsFor(ap: Apartment, count: number): RequestBed[] {
   }))
 }
 
-/**
- * Chi esegue la pulizia. Con `demo` il turno va all'addetto di prova, ma
- * l'estrazione viene fatta lo stesso: il PRNG resta allineato e il seed
- * continua a produrre sempre gli stessi dati.
- */
-function pickAssignee(status: RequestStatus, demo: boolean): string | undefined {
-  if (status === 'in_attesa') return undefined
-  const assignee = pick(['u-op-1', 'u-op-2', 'u-op-3'] as const)
-  return demo ? 'u-op-1' : assignee
+/** C'e' un solo account pulizie: ogni turno preso in carico va a lui. */
+function pickAssignee(status: RequestStatus): string | undefined {
+  return status === 'in_attesa' ? undefined : 'u-pulizie'
 }
 
 function buildRequests(): CleaningRequest[] {
@@ -210,11 +202,9 @@ function buildRequests(): CleaningRequest[] {
       else if (offset <= 3) status = pick(['accettata', 'accettata', 'in_attesa'] as const)
       else status = rnd() < 0.15 ? 'accettata' : 'in_attesa'
 
-      /* La prima pulizia dei giorni intorno a oggi va all'addetto di prova
-         (u-op-1) ed e' gia' accettata: l'account "pulizie" deve sempre trovare
-         qualcosa da completare, non solo turni gia' chiusi. */
-      const demo = offset >= -3 && offset <= 3 && k === 0
-      if (demo && status === 'in_attesa') status = 'accettata'
+      /* Intorno a oggi la prima pulizia del giorno e' gia' presa in carico:
+         l'account pulizie deve sempre trovare qualcosa da completare. */
+      if (offset >= -3 && offset <= 3 && k === 0 && status === 'in_attesa') status = 'accettata'
 
       out.push({
         id: `req-${offset + 40}-${k}`,
@@ -238,7 +228,7 @@ function buildRequests(): CleaningRequest[] {
         ],
         notes: pick(REQUEST_NOTES),
         workSheetId: rnd() < 0.75 ? 'ws-standard' : pick(['ws-rapida', 'ws-profonda'] as const),
-        assigneeId: pickAssignee(status, demo),
+        assigneeId: pickAssignee(status),
       })
     }
   }
