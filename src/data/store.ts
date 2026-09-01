@@ -170,7 +170,9 @@ export const useStore = create<State>()(
     }),
     {
       name: 'propromanager-state',
-      version: 1,
+      /** Alzata quando cambiano forma dei dati o assegnazioni del seed: i dati locali ripartono puliti. */
+      version: 2,
+      migrate: () => ({ ...baseData(), filters: emptyFilters, currentUserId: null }),
       partialize: (s) => ({
         currentUserId: s.currentUserId,
         users: s.users,

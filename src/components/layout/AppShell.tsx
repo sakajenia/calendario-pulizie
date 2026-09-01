@@ -9,6 +9,8 @@ import { Logo, LogoMark } from '@/components/brand/Logo'
 import { CommandPalette } from '@/components/CommandPalette'
 import { Button, Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui'
 import { useCurrentUser, useStore } from '@/data/store'
+import { isManager } from '@/lib/permissions'
+import { ROLE_META } from '@/types'
 import { useTheme } from '@/hooks/useTheme'
 import { cn } from '@/lib/utils'
 
@@ -16,13 +18,16 @@ interface NavEntry {
   to: string
   label: string
   icon: LucideIcon
+  /** Solo per il manager amministratore. */
   adminOnly?: boolean
+  /** Nascosta agli account "pulizie": l'addetto vede solo il proprio lavoro. */
+  managerOnly?: boolean
 }
 
 const PRIMARY: NavEntry[] = [
   { to: '/calendario', label: 'Calendario', icon: CalendarDays },
   { to: '/richieste', label: 'Richieste', icon: ClipboardList },
-  { to: '/appartamenti', label: 'Appartamenti', icon: Building2 },
+  { to: '/appartamenti', label: 'Appartamenti', icon: Building2, managerOnly: true },
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: true },
 ]
 
@@ -78,8 +83,10 @@ export function AppShell() {
 
   const unread = notifications.filter((n) => !n.read).length
   const isAdmin = user?.role === 'admin'
-  const primary = PRIMARY.filter((e) => !e.adminOnly || isAdmin)
-  const admin = isAdmin ? ADMIN : []
+  const manager = isManager(user)
+  const allowed = (e: NavEntry) => (!e.adminOnly || isAdmin) && (!e.managerOnly || manager)
+  const primary = PRIMARY.filter(allowed)
+  const admin = ADMIN.filter(allowed)
 
   const sidebar = (
     <div className="flex h-full flex-col bg-sidebar">
@@ -157,6 +164,7 @@ export function AppShell() {
             </Button>
 
             <Dropdown
+              className="max-w-[calc(100vw-1rem)]"
               trigger={
                 <button className="ml-1 flex items-center gap-2 rounded-full py-1 pl-1 pr-3 transition-colors hover:bg-muted focus-ring">
                   <span className="grid size-8 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
@@ -165,7 +173,7 @@ export function AppShell() {
                   <span className="hidden text-left sm:block">
                     <span className="block text-xs font-medium leading-tight">{user?.name}</span>
                     <span className="block text-[11px] leading-tight text-muted-foreground">
-                      {user?.role === 'admin' ? 'Amministratore' : user?.role === 'host' ? 'Host' : 'Operatore'}
+                      {user ? ROLE_META[user.role].label : ''}
                     </span>
                   </span>
                 </button>
@@ -178,7 +186,7 @@ export function AppShell() {
                 <DropdownItem key={u.id} onClick={() => { switchUser(u.id); navigate('/calendario') }}>
                   <span className={cn('size-1.5 rounded-full', u.id === user?.id ? 'bg-primary' : 'bg-border')} />
                   <span className="flex-1 truncate">{u.name}</span>
-                  <span className="text-[10px] uppercase text-muted-foreground">{u.role}</span>
+                  <span className="shrink-0 text-[10px] text-muted-foreground">{ROLE_META[u.role].label}</span>
                 </DropdownItem>
               ))}
               <DropdownSeparator />

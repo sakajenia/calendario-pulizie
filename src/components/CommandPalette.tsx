@@ -6,6 +6,8 @@ import {
   ListChecks, Moon, PackageOpen, Search, Settings, Sun, UserRound, Users,
 } from 'lucide-react'
 import { useCurrentUser, useStore } from '@/data/store'
+import { canCreateRequest, isManager } from '@/lib/permissions'
+import { ROLE_META } from '@/types'
 import { useTheme } from '@/hooks/useTheme'
 import { norm } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -17,7 +19,10 @@ interface Command {
   group: string
   icon: React.ComponentType<{ className?: string }>
   run: () => void
+  /** Solo per il manager amministratore. */
   adminOnly?: boolean
+  /** Nascosto agli account "pulizie". */
+  managerOnly?: boolean
 }
 
 /**
@@ -39,13 +44,15 @@ export function CommandPalette() {
   const listRef = React.useRef<HTMLDivElement>(null)
 
   const isAdmin = user?.role === 'admin'
+  const manager = isManager(user)
+  const canCreate = canCreateRequest(user)
 
   const commands = React.useMemo<Command[]>(() => {
     const go = (to: string) => () => navigate(to)
     const nav: Command[] = [
       { id: 'n-cal', label: 'Calendario', hint: 'Vista mese e settimana', group: 'Vai a', icon: CalendarDays, run: go('/calendario') },
       { id: 'n-req', label: 'Richieste', hint: 'Tabella, filtri, export', group: 'Vai a', icon: ClipboardList, run: go('/richieste') },
-      { id: 'n-apt', label: 'Appartamenti', hint: 'Anagrafica, letti, prezzi', group: 'Vai a', icon: Building2, run: go('/appartamenti') },
+      { id: 'n-apt', label: 'Appartamenti', hint: 'Anagrafica, letti, prezzi', group: 'Vai a', icon: Building2, run: go('/appartamenti'), managerOnly: true },
       { id: 'n-dash', label: 'Dashboard', hint: 'Andamento e budget', group: 'Vai a', icon: LayoutDashboard, run: go('/dashboard'), adminOnly: true },
       { id: 'n-usr', label: 'Utenti', group: 'Vai a', icon: Users, run: go('/utenti'), adminOnly: true },
       { id: 'n-ws', label: 'Fogli di Lavoro', group: 'Vai a', icon: ListChecks, run: go('/fogli-di-lavoro'), adminOnly: true },
@@ -57,11 +64,14 @@ export function CommandPalette() {
     ]
 
     const actions: Command[] = [
-      {
-        id: 'a-new', label: 'Nuova richiesta di pulizia', hint: 'Apre il calendario e il modulo',
-        group: 'Azioni', icon: ClipboardList,
-        run: () => navigate('/calendario?nuova=1'),
-      },
+      // L'addetto alle pulizie non crea richieste: la voce sparisce, non si limita a fallire.
+      ...(canCreate
+        ? [{
+          id: 'a-new', label: 'Nuova richiesta di pulizia', hint: 'Apre il calendario e il modulo',
+          group: 'Azioni', icon: ClipboardList,
+          run: () => navigate('/calendario?nuova=1'),
+        } as Command]
+        : []),
       {
         id: 'a-theme', label: dark ? 'Passa al tema chiaro' : 'Passa al tema scuro',
         group: 'Azioni', icon: dark ? Sun : Moon, run: () => apply(!dark),
@@ -74,14 +84,15 @@ export function CommandPalette() {
       .map((u) => ({
         id: `p-${u.id}`,
         label: u.name,
-        hint: u.role === 'admin' ? 'Amministratore' : u.role === 'host' ? 'Host' : 'Operatore',
+        hint: ROLE_META[u.role].label,
         group: 'Cambia profilo',
         icon: UserRound,
         run: () => { switchUser(u.id); navigate('/calendario') },
       }))
 
-    return [...nav, ...actions, ...profiles].filter((c) => !c.adminOnly || isAdmin)
-  }, [navigate, users, user?.id, switchUser, logout, dark, apply, isAdmin])
+    return [...nav, ...actions, ...profiles]
+      .filter((c) => (!c.adminOnly || isAdmin) && (!c.managerOnly || manager))
+  }, [navigate, users, user?.id, switchUser, logout, dark, apply, isAdmin, manager, canCreate])
 
   const results = React.useMemo(() => {
     const q = norm(query.trim())

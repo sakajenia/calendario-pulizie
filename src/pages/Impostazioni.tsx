@@ -11,7 +11,7 @@ import {
 import { StatusChip } from '@/components/StatusChip'
 import { scopeApartments, scopeRequests, useCurrentUser, useStore } from '@/data/store'
 import { downloadFile, fmtDate, fmtNum, plural } from '@/lib/format'
-import { REQUEST_STATUSES, STATUS_META, type RequestStatus } from '@/types'
+import { REQUEST_STATUSES, ROLE_META, STATUS_META, type RequestStatus } from '@/types'
 import { useTheme } from '@/hooks/useTheme'
 import { cn } from '@/lib/utils'
 
@@ -19,7 +19,6 @@ const APP_NAME = 'ProProManager'
 const APP_VERSION = '1.0.0'
 const LEGACY_APP = 'ComfyHost 1.6.5'
 
-const ROLE_LABEL = { admin: 'Amministratore', host: 'Host', operator: 'Operatore' } as const
 
 /** Messaggio inline che si spegne da solo dopo qualche secondo. */
 function useFlash(): [string | null, (text: string) => void] {
@@ -206,7 +205,7 @@ export default function Impostazioni() {
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge className="bg-primary/10 text-brand ring-1 ring-inset ring-primary/25">
-                        {ROLE_LABEL[user.role]}
+                        {ROLE_META[user.role].label}
                       </Badge>
                       <Badge
                         className={cn(
@@ -255,8 +254,8 @@ export default function Impostazioni() {
                     </div>
                   </Field>
 
-                  <Field label="Ruolo" hint="Assegnato dall'amministratore.">
-                    <Input value={ROLE_LABEL[user.role]} readOnly disabled />
+                  <Field label="Ruolo" hint={ROLE_META[user.role].hint}>
+                    <Input value={ROLE_META[user.role].label} readOnly disabled />
                   </Field>
                 </div>
 
@@ -352,7 +351,7 @@ export default function Impostazioni() {
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {plural(total, 'richiesta visibile', 'richieste visibili')} con il profilo{' '}
-                {ROLE_LABEL[user.role].toLowerCase()} di {user.name}.
+                {ROLE_META[user.role].label.toLowerCase()} di {user.name}.
               </p>
             </div>
             <div className="space-y-5">

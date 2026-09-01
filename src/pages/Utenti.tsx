@@ -12,21 +12,18 @@ import {
 import { useCurrentUser, useStore } from '@/data/store'
 import { asDate, downloadFile, fmtDate, fmtNum, fmtRelative, norm, plural, toCsv } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import type { User, UserRole } from '@/types'
+import { ROLE_META, type User, type UserRole } from '@/types'
 
 const ROLES: UserRole[] = ['admin', 'host', 'operator']
 
-const ROLE_LABEL: Record<UserRole, string> = {
-  admin: 'Amministratore',
-  host: 'Host',
-  operator: 'Operatore',
-}
+/* Le etichette mostrate all'utente vengono da ROLE_META: i tre ruoli restano nel
+   modello dati, ma l'app parla sempre di "Manager" e "Addetto alle pulizie". */
 
-/** Forma plurale minuscola per i conteggi nel sottotitolo. */
-const ROLE_PLURAL: Record<UserRole, string> = {
-  admin: 'amministratori',
-  host: 'host',
-  operator: 'operatori',
+/** Singolare e plurale minuscoli per i conteggi nel sottotitolo. */
+const ROLE_COUNT: Record<UserRole, [string, string]> = {
+  admin: ['manager amministratore', 'manager amministratori'],
+  host: ['manager', 'manager'],
+  operator: ['addetto alle pulizie', 'addetti alle pulizie'],
 }
 
 const ROLE_CHIP: Record<UserRole, string> = {
@@ -70,7 +67,7 @@ const initials = (name: string) =>
 /* ------------------------------------------------------------------- chip */
 
 function RoleBadge({ role }: { role: UserRole }) {
-  return <Badge className={ROLE_CHIP[role]}>{ROLE_LABEL[role]}</Badge>
+  return <Badge className={ROLE_CHIP[role]}>{ROLE_META[role].label}</Badge>
 }
 
 function ActiveBadge({ active }: { active: boolean }) {
@@ -232,19 +229,19 @@ function UserForm({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Ruolo">
+          <Field label="Ruolo" hint={ROLE_META[draft.role].hint}>
             <Select
               value={draft.role}
               onChange={(e) => {
                 const role = e.target.value as UserRole
                 setDraft((d) => ({ ...d, role, refHostId: role === 'operator' ? d.refHostId : '' }))
               }}
-              options={ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] }))}
+              options={ROLES.map((r) => ({ value: r, label: ROLE_META[r].label }))}
             />
           </Field>
 
           {draft.role === 'operator' && (
-            <Field label="Host di riferimento" hint="Determina quali richieste vede l'operatore.">
+            <Field label="Host di riferimento" hint="Determina quali richieste vede l'addetto.">
               <Select
                 value={draft.refHostId}
                 onChange={(e) => setDraft((d) => ({ ...d, refHostId: e.target.value }))}
@@ -440,7 +437,7 @@ export default function Utenti() {
       Nome: r.user.name,
       Email: r.user.email,
       Telefono: r.user.phone ?? '',
-      Ruolo: ROLE_LABEL[r.user.role],
+      Ruolo: ROLE_META[r.user.role].label,
       Stato: r.user.active ? 'Attivo' : 'Non attivo',
       'Host di riferimento': r.refHostName,
       'Richieste come host': r.hostRequests,
@@ -486,7 +483,7 @@ export default function Utenti() {
         <EmptyState
           icon={ShieldAlert}
           title="Area riservata agli amministratori"
-          description="La gestione degli utenti è disponibile solo per gli account con ruolo Amministratore."
+          description={`La gestione degli utenti è disponibile solo per gli account “${ROLE_META.admin.label}”.`}
         />
       </div>
     )
@@ -504,7 +501,7 @@ export default function Utenti() {
             <span aria-hidden className="text-border">|</span>
             <span>
               {roleCounts
-                .map((r) => plural(r.n, ROLE_LABEL[r.role].toLowerCase(), ROLE_PLURAL[r.role]))
+                .map((r) => plural(r.n, ...ROLE_COUNT[r.role]))
                 .join(' · ')}
             </span>
           </span>
@@ -543,7 +540,7 @@ export default function Utenti() {
             className="h-9"
             options={[
               { value: 'all', label: 'Tutti i ruoli' },
-              ...ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] })),
+              ...ROLES.map((r) => ({ value: r, label: ROLE_META[r].label })),
             ]}
           />
         </div>
@@ -600,7 +597,7 @@ export default function Utenti() {
                 }}
                 options={[
                   { value: '', label: 'Seleziona un ruolo…' },
-                  ...ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] })),
+                  ...ROLES.map((r) => ({ value: r, label: ROLE_META[r].label })),
                 ]}
               />
             </div>
@@ -646,7 +643,7 @@ export default function Utenti() {
                   onClick={() => openEdit(r.user)}
                   badge={<ActiveBadge active={r.user.active} />}
                   fields={[
-                    { label: 'Ruolo', value: ROLE_LABEL[r.user.role] },
+                    { label: 'Ruolo', value: ROLE_META[r.user.role].label },
                     { label: 'Telefono', value: r.user.phone ?? '—' },
                     { label: 'Richieste', value: fmtNum(r.requestCount) },
                     { label: 'Creato il', value: fmtDate(r.user.createdAt) },

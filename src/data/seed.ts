@@ -174,6 +174,17 @@ function bedsFor(ap: Apartment, count: number): RequestBed[] {
   }))
 }
 
+/**
+ * Chi esegue la pulizia. Con `demo` il turno va all'addetto di prova, ma
+ * l'estrazione viene fatta lo stesso: il PRNG resta allineato e il seed
+ * continua a produrre sempre gli stessi dati.
+ */
+function pickAssignee(status: RequestStatus, demo: boolean): string | undefined {
+  if (status === 'in_attesa') return undefined
+  const assignee = pick(['u-op-1', 'u-op-2', 'u-op-3'] as const)
+  return demo ? 'u-op-1' : assignee
+}
+
 function buildRequests(): CleaningRequest[] {
   const out: CleaningRequest[] = []
   /*
@@ -199,6 +210,12 @@ function buildRequests(): CleaningRequest[] {
       else if (offset <= 3) status = pick(['accettata', 'accettata', 'in_attesa'] as const)
       else status = rnd() < 0.15 ? 'accettata' : 'in_attesa'
 
+      /* La prima pulizia dei giorni intorno a oggi va all'addetto di prova
+         (u-op-1) ed e' gia' accettata: l'account "pulizie" deve sempre trovare
+         qualcosa da completare, non solo turni gia' chiusi. */
+      const demo = offset >= -3 && offset <= 3 && k === 0
+      if (demo && status === 'in_attesa') status = 'accettata'
+
       out.push({
         id: `req-${offset + 40}-${k}`,
         apartmentId: ap.id,
@@ -221,7 +238,7 @@ function buildRequests(): CleaningRequest[] {
         ],
         notes: pick(REQUEST_NOTES),
         workSheetId: rnd() < 0.75 ? 'ws-standard' : pick(['ws-rapida', 'ws-profonda'] as const),
-        assigneeId: status === 'in_attesa' ? undefined : pick(['u-op-1', 'u-op-2', 'u-op-3'] as const),
+        assigneeId: pickAssignee(status, demo),
       })
     }
   }
