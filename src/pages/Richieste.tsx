@@ -1,6 +1,6 @@
 import * as React from 'react'
 import {
-  ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsUpDown, ClipboardList,
+  Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsUpDown, ClipboardList,
   Download, Eye, MoreVertical, Pencil, Plus, RefreshCw, SlidersHorizontal, Trash2, X,
 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/AppShell'
@@ -13,6 +13,9 @@ import { RequestCard, RequestDetail } from '@/components/requests/RequestDetail'
 import { RequestForm } from '@/components/requests/RequestForm'
 import { useToast } from '@/components/feedback/Toast'
 import { scopeApartments, scopeRequests, useCurrentUser, useStore } from '@/data/store'
+import {
+  canChangeStatus, canCompleteRequest, canCreateRequest, canDeleteRequest, canEditRequest, isManager,
+} from '@/lib/permissions'
 import { asDate, downloadFile, fmtDate, fmtDateTime, fmtNum, norm, plural, toCsv } from '@/lib/format'
 import { REQUEST_STATUSES, STATUS_META, type CleaningRequest, type RequestStatus } from '@/types'
 import { cn } from '@/lib/utils'
@@ -76,12 +79,19 @@ function SortHeader({
 /* -------------------------------------------------------------- menu di riga */
 
 function RowMenu({
-  onView, onEdit, onStatus, onDelete,
+  onView, onEdit, onStatus, onDelete, onComplete,
+  mayEdit, mayDelete, mayChangeStatus, mayComplete,
 }: {
   onView: () => void
   onEdit: () => void
   onStatus: (s: RequestStatus) => void
   onDelete: () => void
+  onComplete: () => void
+  /** L'addetto vede solo cio' che puo' davvero fare: visualizzare e completare. */
+  mayEdit: boolean
+  mayDelete: boolean
+  mayChangeStatus: boolean
+  mayComplete: boolean
 }) {
   const [statusOpen, setStatusOpen] = React.useState(false)
 
@@ -96,30 +106,40 @@ function RowMenu({
       }
     >
       <DropdownItem onClick={onView}><Eye /> Visualizza</DropdownItem>
-      <DropdownItem onClick={onEdit}><Pencil /> Modifica</DropdownItem>
-      <DropdownSeparator />
+      {mayComplete && <DropdownItem onClick={onComplete}><Check /> Segna come completata</DropdownItem>}
+      {mayEdit && <DropdownItem onClick={onEdit}><Pencil /> Modifica</DropdownItem>}
 
-      {/* Lo stop qui tiene aperto il menu mentre si espande il sotto-menu stati. */}
-      <div onClick={(e) => e.stopPropagation()}>
-        <DropdownItem onClick={() => setStatusOpen((v) => !v)}>
-          <RefreshCw /> Cambia stato
-          <ChevronRight className={cn('ml-auto transition-transform', statusOpen && 'rotate-90')} />
-        </DropdownItem>
-      </div>
+      {mayChangeStatus && (
+        <>
+          <DropdownSeparator />
 
-      {statusOpen && (
-        <div className="ml-3 border-l border-border pl-1">
-          {REQUEST_STATUSES.map((s) => (
-            <DropdownItem key={s} onClick={() => onStatus(s)}>
-              <StatusDot status={s} />
-              <span className="truncate">{STATUS_META[s].label}</span>
+          {/* Lo stop qui tiene aperto il menu mentre si espande il sotto-menu stati. */}
+          <div onClick={(e) => e.stopPropagation()}>
+            <DropdownItem onClick={() => setStatusOpen((v) => !v)}>
+              <RefreshCw /> Cambia stato
+              <ChevronRight className={cn('ml-auto transition-transform', statusOpen && 'rotate-90')} />
             </DropdownItem>
-          ))}
-        </div>
+          </div>
+
+          {statusOpen && (
+            <div className="ml-3 border-l border-border pl-1">
+              {REQUEST_STATUSES.map((s) => (
+                <DropdownItem key={s} onClick={() => onStatus(s)}>
+                  <StatusDot status={s} />
+                  <span className="truncate">{STATUS_META[s].label}</span>
+                </DropdownItem>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
-      <DropdownSeparator />
-      <DropdownItem danger onClick={onDelete}><Trash2 /> Elimina</DropdownItem>
+      {mayDelete && (
+        <>
+          <DropdownSeparator />
+          <DropdownItem danger onClick={onDelete}><Trash2 /> Elimina</DropdownItem>
+        </>
+      )}
     </Dropdown>
   )
 }
@@ -275,7 +295,13 @@ export default function Richieste() {
   const setRequestStatus = useStore((s) => s.setRequestStatus)
   const deleteRequests = useStore((s) => s.deleteRequests)
   const upsertRequest = useStore((s) => s.upsertRequest)
+  const completeRequest = useStore((s) => s.completeRequest)
   const toast = useToast()
+
+  /* Un account pulizie non ha poteri sull'insieme: niente selezione multipla,
+     niente creazione, niente cambio di stato libero. */
+  const mayCreate = canCreateRequest(user)
+  const mayBulk = isManager(user)
 
   const hosts = React.useMemo(() => allUsers.filter((u) => u.role === 'host'), [allUsers])
 
@@ -363,8 +389,8 @@ export default function Richieste() {
   const pageRows = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)
 
   const selectedIds = React.useMemo(
-    () => filtered.filter((r) => selected.has(r.req.id)).map((r) => r.req.id),
-    [filtered, selected],
+    () => (mayBulk ? filtered.filter((r) => selected.has(r.req.id)).map((r) => r.req.id) : []),
+    [filtered, selected, mayBulk],
   )
   const pageIds = pageRows.map((r) => r.req.id)
   const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id))
@@ -511,10 +537,12 @@ export default function Richieste() {
               <Download />
               <span className="hidden sm:inline">Esporta CSV</span>
             </Button>
-            <Button onClick={() => { setEditingId(null); setFormOpen(true) }}>
-              <Plus />
-              Nuova <span className="hidden sm:inline">richiesta</span>
-            </Button>
+            {mayCreate && (
+              <Button onClick={() => { setEditingId(null); setFormOpen(true) }}>
+                <Plus />
+                Nuova <span className="hidden sm:inline">richiesta</span>
+              </Button>
+            )}
           </>
         }
       />
@@ -644,12 +672,16 @@ export default function Richieste() {
             title={scoped.length === 0 ? 'Nessuna richiesta' : 'Nessun risultato con questi filtri'}
             description={
               scoped.length === 0
-                ? 'Crea la prima richiesta di pulizia per iniziare a pianificare i turnover.'
+                ? mayCreate
+                  ? 'Crea la prima richiesta di pulizia per iniziare a pianificare i turnover.'
+                  : 'Non ci sono pulizie assegnate al tuo account.'
                 : 'Allarga l’intervallo di date oppure azzera i filtri per vedere tutte le richieste.'
             }
             action={
               scoped.length === 0
-                ? <Button onClick={() => { setEditingId(null); setFormOpen(true) }}><Plus /> Nuova richiesta</Button>
+                ? mayCreate
+                  ? <Button onClick={() => { setEditingId(null); setFormOpen(true) }}><Plus /> Nuova richiesta</Button>
+                  : undefined
                 : <Button variant="outline" onClick={resetFilters}>Cancella filtri</Button>
             }
           />
@@ -657,14 +689,16 @@ export default function Richieste() {
           <Table className="min-w-[1240px]">
             <thead>
               <tr>
-                <Th className="w-10">
-                  <Checkbox
-                    checked={allPageSelected}
-                    indeterminate={somePageSelected}
-                    onChange={togglePage}
-                    label="Seleziona tutte le righe della pagina"
-                  />
-                </Th>
+                {mayBulk && (
+                  <Th className="w-10">
+                    <Checkbox
+                      checked={allPageSelected}
+                      indeterminate={somePageSelected}
+                      onChange={togglePage}
+                      label="Seleziona tutte le righe della pagina"
+                    />
+                  </Th>
+                )}
                 <Th className="w-10"><span className="sr-only">Azioni</span></Th>
                 <Th>Indirizzo</Th>
                 <Th>Cap/Quartiere</Th>
@@ -683,7 +717,12 @@ export default function Richieste() {
             </thead>
             <tbody>
               {pageRows.map((r) => {
-                const isSelected = selected.has(r.req.id)
+                const isSelected = mayBulk && selected.has(r.req.id)
+                const rowEdit = canEditRequest(user, r.req)
+                const rowDelete = canDeleteRequest(user, r.req)
+                const rowStatus = canChangeStatus(user, r.req)
+                /* Il manager ha gia' il cambio di stato: la scorciatoia serve all'addetto. */
+                const rowComplete = !rowStatus && canCompleteRequest(user, r.req) && r.req.status !== 'completata'
                 return (
                   <tr
                     key={r.req.id}
@@ -693,18 +732,28 @@ export default function Richieste() {
                       isSelected ? 'bg-primary/5' : 'hover:bg-muted/50',
                     )}
                   >
-                    <Td>
-                      <Checkbox
-                        checked={isSelected}
-                        onChange={() => toggleOne(r.req.id)}
-                        label={`Seleziona richiesta ${r.address}`}
-                      />
-                    </Td>
+                    {mayBulk && (
+                      <Td>
+                        <Checkbox
+                          checked={isSelected}
+                          onChange={() => toggleOne(r.req.id)}
+                          label={`Seleziona richiesta ${r.address}`}
+                        />
+                      </Td>
+                    )}
 
                     <Td onClick={(e) => e.stopPropagation()}>
                       <RowMenu
+                        mayEdit={rowEdit}
+                        mayDelete={rowDelete}
+                        mayChangeStatus={rowStatus}
+                        mayComplete={rowComplete}
                         onView={() => setDetailId(r.req.id)}
                         onEdit={() => openEdit(r.req)}
+                        onComplete={() => {
+                          completeRequest(r.req.id)
+                          toast({ title: 'Pulizia segnata come completata', description: r.address })
+                        }}
                         onStatus={(next) => {
                           const before = r.req.status
                           setRequestStatus([r.req.id], next)
@@ -782,7 +831,8 @@ export default function Richieste() {
         </div>
 
         <span className="text-sm tabular-nums text-muted-foreground">
-          (Richieste totali: {fmtNum(filtered.length)} | Selezionate: {fmtNum(selectedIds.length)})
+          (Richieste totali: {fmtNum(filtered.length)}
+          {mayBulk && ` | Selezionate: ${fmtNum(selectedIds.length)}`})
         </span>
       </div>
 
@@ -793,6 +843,7 @@ export default function Richieste() {
         open={detail !== null}
         onClose={() => setDetailId(null)}
         onEdit={openEdit}
+        onDelete={(r) => setPendingDelete([r.id])}
       />
 
       <RequestForm

@@ -19,6 +19,8 @@ import { RequestCard, RequestDetail } from '@/components/requests/RequestDetail'
 import { RequestForm } from '@/components/requests/RequestForm'
 import { useIsDesktop } from '@/hooks/useMediaQuery'
 import { scopeApartments, scopeRequests, useCurrentUser, useStore } from '@/data/store'
+import { canCreateRequest, canEditRequest, isManager } from '@/lib/permissions'
+import { useToast } from '@/components/feedback/Toast'
 import { TODAY } from '@/data/seed'
 import { asDate, fmtDayLong, fmtMonthYear, fmtTime, norm, plural } from '@/lib/format'
 import { REQUEST_STATUSES, STATUS_META, type CleaningRequest, type RequestStatus } from '@/types'
@@ -159,6 +161,12 @@ export default function Calendario() {
   const allApartments = useStore((s) => s.apartments)
   const setRequestStatus = useStore((s) => s.setRequestStatus)
   const deleteRequests = useStore((s) => s.deleteRequests)
+  const upsertRequest = useStore((s) => s.upsertRequest)
+  const toast = useToast()
+
+  /* Un account pulizie non crea richieste e non agisce sull'insieme. */
+  const mayCreate = canCreateRequest(user)
+  const mayBulk = isManager(user)
 
   const [view, setView] = React.useState<CalView>('mese')
   const [cursor, setCursor] = React.useState<Date>(TODAY)
@@ -170,6 +178,7 @@ export default function Calendario() {
   const [selectionMode, setSelectionMode] = React.useState(false)
   const [checkedIds, setCheckedIds] = React.useState<string[]>([])
   const [confirmOpen, setConfirmOpen] = React.useState(false)
+  const [pendingDelete, setPendingDelete] = React.useState<CleaningRequest | null>(null)
   const [dayDialogOpen, setDayDialogOpen] = React.useState(false)
 
   const [detail, setDetail] = React.useState<CleaningRequest | null>(null)
@@ -181,11 +190,11 @@ export default function Calendario() {
      subito, cosi' un ricaricamento non riapre il modulo a sorpresa. */
   React.useEffect(() => {
     if (searchParams.get('nuova') !== '1') return
-    setFormOpen(true)
+    if (mayCreate) setFormOpen(true)
     const next = new URLSearchParams(searchParams)
     next.delete('nuova')
     setSearchParams(next, { replace: true })
-  }, [searchParams, setSearchParams])
+  }, [searchParams, setSearchParams, mayCreate])
   const [editing, setEditing] = React.useState<CleaningRequest | null>(null)
   const [reloading, setReloading] = React.useState(false)
   const reloadTimer = React.useRef<number>()
@@ -345,9 +354,25 @@ export default function Calendario() {
   }
 
   const openEdit = (r: CleaningRequest) => {
+    if (!canEditRequest(user, r)) return
     setDetail(null)
     setEditing(r)
     setFormOpen(true)
+  }
+
+  /* L'eliminazione dal dettaglio passa dalla stessa conferma delle altre pagine,
+     con la notifica che permette di rimettere la richiesta come era. */
+  const confirmDeleteOne = () => {
+    const r = pendingDelete
+    if (!r) return
+    deleteRequests([r.id])
+    setPendingDelete(null)
+    setDetail(null)
+    toast({
+      title: 'Richiesta eliminata',
+      description: 'Puoi rimetterla come era finche’ questa notifica resta a schermo.',
+      action: { label: 'Annulla', onClick: () => upsertRequest(r) },
+    })
   }
 
   /* Il refresh riallinea solo la vista: il ripristino del dataset vive in Impostazioni,
@@ -658,18 +683,20 @@ export default function Calendario() {
                 onChange={(e) => setSort(e.target.value as SortKey)}
                 options={SORT_OPTIONS}
               />
-              <Button
-                variant={selectionMode ? 'secondary' : 'outline'}
-                size="sm"
-                onClick={() => {
-                  setSelectionMode((v) => !v)
-                  setCheckedIds([])
-                }}
-              >
-                <CheckSquare /> {selectionMode ? 'Chiudi selezione' : 'Seleziona'}
-              </Button>
+              {mayBulk && (
+                <Button
+                  variant={selectionMode ? 'secondary' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setSelectionMode((v) => !v)
+                    setCheckedIds([])
+                  }}
+                >
+                  <CheckSquare /> {selectionMode ? 'Chiudi selezione' : 'Seleziona'}
+                </Button>
+              )}
 
-              {selectionMode && visible.length > 0 && (
+              {mayBulk && selectionMode && visible.length > 0 && (
                 <span className="ml-1 inline-flex items-center gap-2 text-xs text-muted-foreground">
                   <Checkbox
                     checked={allChecked}
@@ -702,7 +729,7 @@ export default function Calendario() {
               )}
             </div>
 
-            {selectionMode && checked.length > 0 && (
+            {mayBulk && selectionMode && checked.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted px-3 py-2">
                 <span className="text-xs font-semibold">
                   {plural(checked.length, 'richiesta selezionata', 'richieste selezionate')}
@@ -762,17 +789,21 @@ export default function Calendario() {
                     description={
                       selectedDay
                         ? `Non ci sono pulizie programmate per ${fmtDayLong(selectedDay)}.`
-                        : 'Naviga fra i periodi oppure crea una nuova richiesta di pulizia.'
+                        : mayCreate
+                          ? 'Naviga fra i periodi oppure crea una nuova richiesta di pulizia.'
+                          : 'Naviga fra i periodi per vedere le pulizie assegnate.'
                     }
-                    action={<Button onClick={openNew}>
-                      <Plus /> Nuova richiesta
-                    </Button>}
+                    action={mayCreate ? (
+                      <Button onClick={openNew}>
+                        <Plus /> Nuova richiesta
+                      </Button>
+                    ) : undefined}
                   />
                 )}
               </Card>
             ) : (
               visible.map((r) =>
-                selectionMode ? (
+                mayBulk && selectionMode ? (
                   <div key={r.id} className="flex items-start gap-2">
                     <span className="pt-5">
                       <Checkbox
@@ -808,15 +839,17 @@ export default function Calendario() {
         >
           <RotateCw className={cn(reloading && 'animate-spin')} />
         </Button>
-        <Button
-          size="icon"
-          onClick={openNew}
-          title="Nuova richiesta"
-          aria-label="Nuova richiesta"
-          className="h-14 w-14 rounded-full"
-        >
-          <Plus className="size-5" />
-        </Button>
+        {mayCreate && (
+          <Button
+            size="icon"
+            onClick={openNew}
+            title="Nuova richiesta"
+            aria-label="Nuova richiesta"
+            className="h-14 w-14 rounded-full"
+          >
+            <Plus className="size-5" />
+          </Button>
+        )}
       </div>
 
       <Dialog
@@ -830,14 +863,16 @@ export default function Calendario() {
             <Button variant="outline" onClick={() => setDayDialogOpen(false)}>
               Chiudi
             </Button>
-            <Button
-              onClick={() => {
-                setDayDialogOpen(false)
-                openNew()
-              }}
-            >
-              <Plus /> Nuova richiesta
-            </Button>
+            {mayCreate && (
+              <Button
+                onClick={() => {
+                  setDayDialogOpen(false)
+                  openNew()
+                }}
+              >
+                <Plus /> Nuova richiesta
+              </Button>
+            )}
           </>
         }
       >
@@ -856,7 +891,35 @@ export default function Calendario() {
         )}
       </Dialog>
 
-      <RequestDetail request={detail} open={detail !== null} onClose={() => setDetail(null)} onEdit={openEdit} />
+      <RequestDetail
+        request={detail}
+        open={detail !== null}
+        onClose={() => setDetail(null)}
+        onEdit={openEdit}
+        onDelete={(r) => setPendingDelete(r)}
+      />
+
+      <Dialog
+        open={pendingDelete !== null}
+        onClose={() => setPendingDelete(null)}
+        title="Elimina richiesta"
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setPendingDelete(null)}>
+              Annulla
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteOne}>
+              <Trash2 /> Elimina
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm">
+          Stai per eliminare la richiesta di {pendingDelete ? labelOf(pendingDelete) : ''}.
+          L’operazione non è reversibile.
+        </p>
+      </Dialog>
 
       <RequestForm
         open={formOpen}
