@@ -1,9 +1,10 @@
 import * as React from 'react'
-import { BedDouble, Home, MapPin, StickyNote, Users } from 'lucide-react'
-import { Dialog, Button, Select } from '@/components/ui'
+import { BedDouble, Check, Home, MapPin, StickyNote, Trash2, Users } from 'lucide-react'
+import { Dialog, Button, Select, Textarea } from '@/components/ui'
 import { StatusChip } from '@/components/StatusChip'
 import { HelpTip } from '@/components/HelpTip'
-import { useStore } from '@/data/store'
+import { useCurrentUser, useStore } from '@/data/store'
+import { canAnnotateRequest, canCompleteRequest, canDeleteRequest, canEditRequest, canChangeStatus } from '@/lib/permissions'
 import { fmtDateTime } from '@/lib/format'
 import { REQUEST_STATUSES, STATUS_META, type CleaningRequest, type ExtraLine, type RequestStatus } from '@/types'
 import { cn } from '@/lib/utils'
@@ -56,14 +57,40 @@ export function totalBedExtras(req: CleaningRequest): ExtraLine[] {
 }
 
 export function RequestDetail({
-  request, open, onClose, onEdit,
-}: { request: CleaningRequest | null; open: boolean; onClose: () => void; onEdit?: (r: CleaningRequest) => void }) {
+  request, open, onClose, onEdit, onDelete,
+}: {
+  request: CleaningRequest | null
+  open: boolean
+  onClose: () => void
+  onEdit?: (r: CleaningRequest) => void
+  onDelete?: (r: CleaningRequest) => void
+}) {
   const apartments = useStore((s) => s.apartments)
   const users = useStore((s) => s.users)
   const workSheets = useStore((s) => s.workSheets)
   const setRequestStatus = useStore((s) => s.setRequestStatus)
+  const completeRequest = useStore((s) => s.completeRequest)
+  const setOperatorNotes = useStore((s) => s.setOperatorNotes)
+  const user = useCurrentUser()
+
+  const [noteDraft, setNoteDraft] = React.useState('')
+  const [noteSaved, setNoteSaved] = React.useState(false)
+  const requestId = request?.id
+  const savedNotes = request?.operatorNotes ?? ''
+  React.useEffect(() => {
+    setNoteDraft(savedNotes)
+    setNoteSaved(false)
+  }, [requestId, savedNotes])
 
   if (!request) return null
+
+  const mayEdit = canEditRequest(user, request)
+  const mayDelete = canDeleteRequest(user, request)
+  const mayChangeStatus = canChangeStatus(user, request)
+  const mayComplete = canCompleteRequest(user, request)
+  const mayAnnotate = canAnnotateRequest(user, request)
+  const isDone = request.status === 'completata'
+  const completedBy = users.find((u) => u.id === request.completedById)
   const ap = apartments.find((a) => a.id === request.apartmentId)
   const assignee = users.find((u) => u.id === request.assigneeId)
   const sheet = workSheets.find((w) => w.id === request.workSheetId)
@@ -77,8 +104,18 @@ export function RequestDetail({
       size="lg"
       footer={
         <>
+          {mayDelete && onDelete && (
+            <Button variant="outline" className="mr-auto text-destructive" onClick={() => onDelete(request)}>
+              <Trash2 /> Elimina
+            </Button>
+          )}
           <Button variant="outline" onClick={onClose}>Chiudi</Button>
-          {onEdit && <Button onClick={() => onEdit(request)}>Modifica</Button>}
+          {mayComplete && !isDone && !mayEdit && (
+            <Button onClick={() => completeRequest(request.id)}>
+              <Check /> Segna come completata
+            </Button>
+          )}
+          {mayEdit && onEdit && <Button onClick={() => onEdit(request)}>Modifica</Button>}
         </>
       }
     >
@@ -86,12 +123,17 @@ export function RequestDetail({
         <div className="pb-4">
           <Row label="Ora creazione">{fmtDateTime(request.createdAt)}</Row>
           <Row label="Stato richiesta">
-            <Select
-              className="h-8 w-auto text-xs"
-              value={request.status}
-              options={REQUEST_STATUSES.map((s) => ({ value: s, label: STATUS_META[s].label }))}
-              onChange={(e) => setRequestStatus([request.id], e.target.value as RequestStatus)}
-            />
+            {mayChangeStatus ? (
+              <Select
+                className="h-8 w-auto text-xs"
+                aria-label="Stato richiesta"
+                value={request.status}
+                options={REQUEST_STATUSES.map((s) => ({ value: s, label: STATUS_META[s].label }))}
+                onChange={(e) => setRequestStatus([request.id], e.target.value as RequestStatus)}
+              />
+            ) : (
+              <StatusChip status={request.status} />
+            )}
           </Row>
           <Row label="Assegnata a">{assignee?.name ?? <span className="text-muted-foreground">Non assegnata</span>}</Row>
           <Row label="Scheda di lavoro">{sheet?.name ?? <span className="text-muted-foreground">Nessuna scheda di lavoro assegnata</span>}</Row>
@@ -103,6 +145,64 @@ export function RequestDetail({
             )}
           </Row>
         </div>
+
+        {(mayComplete || mayAnnotate || request.operatorNotes) && (
+          <Section title="Lavoro sul posto" icon={Check}>
+            {isDone ? (
+              <p className="py-2 text-sm text-status-completed">
+                Completata{request.completedAt ? ` il ${fmtDateTime(request.completedAt)}` : ''}
+                {completedBy ? ` da ${completedBy.name}` : ''}.
+              </p>
+            ) : (
+              <p className="py-2 text-sm text-muted-foreground">
+                Pulizia non ancora completata.
+              </p>
+            )}
+
+            {mayComplete && (
+              <div className="flex flex-wrap gap-2 pb-3">
+                {!isDone ? (
+                  <Button size="sm" onClick={() => completeRequest(request.id)}>
+                    <Check /> Segna come completata
+                  </Button>
+                ) : mayChangeStatus ? (
+                  <Button size="sm" variant="outline" onClick={() => setRequestStatus([request.id], 'da_verificare')}>
+                    Riapri la pulizia
+                  </Button>
+                ) : null}
+              </div>
+            )}
+
+            {mayAnnotate ? (
+              <div className="space-y-2 pb-1">
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="note-addetto">
+                  Note dell'addetto
+                </label>
+                <Textarea
+                  id="note-addetto"
+                  value={noteDraft}
+                  placeholder="Cosa e' stato fatto, cosa manca, segnalazioni per il manager."
+                  onChange={(e) => { setNoteDraft(e.target.value); setNoteSaved(false) }}
+                />
+                <div className="flex items-center gap-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={noteDraft === savedNotes}
+                    onClick={() => { setOperatorNotes(request.id, noteDraft); setNoteSaved(true) }}
+                  >
+                    Salva le note
+                  </Button>
+                  <span aria-live="polite" className="text-xs text-muted-foreground">
+                    {noteSaved && noteDraft === savedNotes ? 'Note salvate.' : ''}
+                  </span>
+                </div>
+              </div>
+            ) : request.operatorNotes ? (
+              <p className="whitespace-pre-line py-2 text-sm">{request.operatorNotes}</p>
+            ) : null}
+          </Section>
+        )}
 
         <Section title="Check-out, Check-in e ospiti" icon={Users}>
           <Row label="Check-out">{fmtDateTime(request.checkOutAt)}</Row>

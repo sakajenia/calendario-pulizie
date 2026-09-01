@@ -2,6 +2,31 @@
 
 export type UserRole = 'admin' | 'host' | 'operator'
 
+/**
+ * Due tipologie di account:
+ * - "manager" (amministratore e host): controllano e aggiornano tutto delle pulizie;
+ * - "pulizie" (operatore): segna una pulizia come completata e lascia note.
+ */
+export type AccountKind = 'manager' | 'pulizie'
+
+export const ROLE_META: Record<UserRole, { label: string; kind: AccountKind; hint: string }> = {
+  admin: {
+    label: 'Manager (amministratore)',
+    kind: 'manager',
+    hint: 'Gestisce tutte le pulizie, gli appartamenti e gli account.',
+  },
+  host: {
+    label: 'Manager',
+    kind: 'manager',
+    hint: 'Gestisce le pulizie e gli appartamenti di sua competenza.',
+  },
+  operator: {
+    label: 'Addetto alle pulizie',
+    kind: 'pulizie',
+    hint: 'Vede le pulizie assegnate, le completa e lascia note.',
+  },
+}
+
 export interface User {
   id: string
   name: string
@@ -112,6 +137,15 @@ export interface CleaningRequest {
   assigneeId?: string
   recurrence?: Recurrence
   spotApartmentName?: string
+  /** Note lasciate dall'addetto alle pulizie sul posto. */
+  operatorNotes?: string
+  /** Momento in cui la pulizia e' stata segnata come completata. */
+  completedAt?: string
+  /** Chi ha segnato la pulizia come completata. */
+  completedById?: string
+  /** Ultima modifica registrata sulla richiesta. */
+  updatedAt?: string
+  updatedById?: string
 }
 
 export interface TaskCatalogItem {

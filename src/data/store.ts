@@ -43,6 +43,10 @@ interface State {
   upsertRequest: (r: CleaningRequest) => void
   setRequestStatus: (ids: string[], status: RequestStatus) => void
   deleteRequests: (ids: string[]) => void
+  /** L'addetto (o un manager) segna la pulizia come completata. */
+  completeRequest: (id: string) => void
+  /** Note lasciate sul posto dall'addetto alle pulizie. */
+  setOperatorNotes: (id: string, notes: string) => void
 
   upsertApartment: (a: Apartment) => void
   deleteApartment: (id: string) => void
@@ -77,6 +81,14 @@ const baseData = () => ({
   notifications: seed.notifications,
 })
 
+const nowIso = () => new Date().toISOString()
+
+/** Traccia chi e quando ha chiuso la pulizia; tornando indietro la traccia si azzera. */
+const statusStamp = (status: RequestStatus, userId: string | null) =>
+  status === 'completata'
+    ? { completedAt: nowIso(), completedById: userId ?? undefined, updatedAt: nowIso(), updatedById: userId ?? undefined }
+    : { completedAt: undefined, completedById: undefined, updatedAt: nowIso(), updatedById: userId ?? undefined }
+
 const upsertBy = <T extends { id: string }>(list: T[], item: T): T[] => {
   const i = list.findIndex((x) => x.id === item.id)
   if (i === -1) return [item, ...list]
@@ -106,10 +118,31 @@ export const useStore = create<State>()(
       setFilters: (f) => set((s) => ({ filters: { ...s.filters, ...f } })),
       resetFilters: () => set({ filters: emptyFilters }),
 
-      upsertRequest: (r) => set((s) => ({ requests: upsertBy(s.requests, r) })),
+      upsertRequest: (r) =>
+        set((s) => ({
+          requests: upsertBy(s.requests, { ...r, updatedAt: nowIso(), updatedById: s.currentUserId ?? undefined }),
+        })),
       setRequestStatus: (ids, status) =>
-        set((s) => ({ requests: s.requests.map((r) => (ids.includes(r.id) ? { ...r, status } : r)) })),
+        set((s) => ({
+          requests: s.requests.map((r) =>
+            ids.includes(r.id) ? { ...r, status, ...statusStamp(status, s.currentUserId) } : r,
+          ),
+        })),
       deleteRequests: (ids) => set((s) => ({ requests: s.requests.filter((r) => !ids.includes(r.id)) })),
+      completeRequest: (id) =>
+        set((s) => ({
+          requests: s.requests.map((r) =>
+            r.id === id ? { ...r, status: 'completata', ...statusStamp('completata', s.currentUserId) } : r,
+          ),
+        })),
+      setOperatorNotes: (id, notes) =>
+        set((s) => ({
+          requests: s.requests.map((r) =>
+            r.id === id
+              ? { ...r, operatorNotes: notes.trim() ? notes : undefined, updatedAt: nowIso(), updatedById: s.currentUserId ?? undefined }
+              : r,
+          ),
+        })),
 
       upsertApartment: (a) => set((s) => ({ apartments: upsertBy(s.apartments, a) })),
       deleteApartment: (id) => set((s) => ({ apartments: s.apartments.filter((a) => a.id !== id) })),
