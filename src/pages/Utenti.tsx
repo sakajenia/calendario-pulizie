@@ -7,8 +7,9 @@ import { PageHeader } from '@/components/layout/AppShell'
 import {
   Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Checkbox, MobileRecord,
   Dialog, Dropdown, DropdownItem, DropdownSeparator, EmptyState, Field, Input, Select,
-  Switch, Table, Td, Th, Tooltip,
+  Switch, Table, TableScroller, Td, Th, Tooltip,
 } from '@/components/ui'
+import { useToast } from '@/components/feedback/Toast'
 import { useCurrentUser, useStore } from '@/data/store'
 import { asDate, downloadFile, fmtDate, fmtNum, fmtRelative, norm, plural, toCsv } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -67,7 +68,35 @@ const initials = (name: string) =>
 /* ------------------------------------------------------------------- chip */
 
 function RoleBadge({ role }: { role: UserRole }) {
-  return <Badge className={ROLE_CHIP[role]}>{ROLE_META[role].label}</Badge>
+  return <Badge className={cn('whitespace-nowrap', ROLE_CHIP[role])}>{ROLE_META[role].label}</Badge>
+}
+
+/** Le stesse azioni della riga, sia in tabella sia nella scheda su telefono. */
+function RowMenu({
+  user, isSelf, onEdit, onToggleActive, onDelete,
+}: { user: User; isSelf: boolean; onEdit: () => void; onToggleActive: () => void; onDelete: () => void }) {
+  return (
+    <Dropdown
+      align="end"
+      className="w-[200px]"
+      trigger={
+        <Button variant="ghost" size="icon" className="size-8" aria-label={`Azioni ${user.name}`}>
+          <MoreVertical />
+        </Button>
+      }
+    >
+      <DropdownItem onClick={onEdit}><Pencil /> Modifica</DropdownItem>
+      {/* Disattivare se stessi chiuderebbe fuori dall'app al prossimo accesso. */}
+      <DropdownItem onClick={onToggleActive} disabled={isSelf && user.active}>
+        {user.active ? <UserX /> : <UserCheck />}
+        {user.active ? 'Disattiva' : 'Attiva'}
+      </DropdownItem>
+      <DropdownSeparator />
+      <DropdownItem danger onClick={onDelete}>
+        <Trash2 /> Elimina
+      </DropdownItem>
+    </Dropdown>
+  )
 }
 
 function ActiveBadge({ active }: { active: boolean }) {
@@ -282,6 +311,7 @@ export default function Utenti() {
   const upsertUser = useStore((s) => s.upsertUser)
   const upsertApartment = useStore((s) => s.upsertApartment)
   const upsertRequest = useStore((s) => s.upsertRequest)
+  const toast = useToast()
 
   const [text, setText] = React.useState('')
   const [roleFilter, setRoleFilter] = React.useState<UserRole | 'all'>('all')
@@ -419,16 +449,33 @@ export default function Utenti() {
     setFormOpen(true)
   }
 
+  const setActiveWithUndo = (ids: string[], active: boolean) => {
+    const before = users.filter((u) => ids.includes(u.id) && u.active !== active)
+    if (before.length === 0) return
+    setUsersActive(before.map((u) => u.id), active)
+    toast({
+      title: active
+        ? plural(before.length, 'utente attivato', 'utenti attivati')
+        : plural(before.length, 'utente disattivato', 'utenti disattivati'),
+      description: before.map((u) => u.name).join(', ').slice(0, 90),
+      action: { label: 'Annulla', onClick: () => setUsersActive(before.map((u) => u.id), !active) },
+    })
+  }
+
   const bulkSetActive = (active: boolean) => {
-    if (bulkIds.length > 0) setUsersActive(bulkIds, active)
+    if (bulkIds.length > 0) setActiveWithUndo(bulkIds, active)
   }
 
   const bulkSetRole = (role: UserRole) => {
-    for (const id of bulkIds) {
-      const u = users.find((x) => x.id === id)
-      if (!u || u.role === role) continue
+    const before = users.filter((u) => bulkIds.includes(u.id) && u.role !== role)
+    if (before.length === 0) return
+    for (const u of before) {
       upsertUser({ ...u, role, refHostId: role === 'operator' ? u.refHostId : undefined })
     }
+    toast({
+      title: `${plural(before.length, 'utente passato', 'utenti passati')} a “${ROLE_META[role].label}”`,
+      action: { label: 'Annulla', onClick: () => before.forEach(upsertUser) },
+    })
   }
 
   const exportCsv = () => {
@@ -450,13 +497,19 @@ export default function Utenti() {
 
   const confirmDelete = () => {
     if (!pendingDelete || deleteBlocked) return
-    deleteUser(pendingDelete.user.id)
+    const removed = pendingDelete.user
+    deleteUser(removed.id)
     setSelected((prev) => {
       const next = new Set(prev)
-      next.delete(pendingDelete.user.id)
+      next.delete(removed.id)
       return next
     })
     setPendingDeleteId(null)
+    toast({
+      title: 'Utente eliminato',
+      description: `${removed.name}. Puoi annullare finché questa notifica resta a schermo.`,
+      action: { label: 'Annulla', onClick: () => upsertUser(removed) },
+    })
   }
 
   const runMigration = () => {
@@ -615,7 +668,7 @@ export default function Utenti() {
         </div>
       )}
 
-      <div className="overflow-x-auto lg:min-h-0 lg:flex-1 lg:overflow-auto">
+      <TableScroller className="lg:flex-1" innerClassName="overflow-x-auto lg:overflow-auto lg:min-h-0 lg:flex-1">
         {filtered.length === 0 ? (
           <EmptyState
             icon={Users}
@@ -641,7 +694,26 @@ export default function Utenti() {
                   subtitle={r.user.email}
                   selected={selected.has(r.user.id)}
                   onClick={() => openEdit(r.user)}
-                  badge={<ActiveBadge active={r.user.active} />}
+                  badge={
+                    <>
+                      <ActiveBadge active={r.user.active} />
+                      <Checkbox
+                        checked={selected.has(r.user.id)}
+                        onChange={() => toggleOne(r.user.id)}
+                        label={`Seleziona ${r.user.name}`}
+                        className="ml-1"
+                      />
+                    </>
+                  }
+                  action={
+                    <RowMenu
+                      user={r.user}
+                      isSelf={r.user.id === currentUser.id}
+                      onEdit={() => openEdit(r.user)}
+                      onToggleActive={() => setActiveWithUndo([r.user.id], !r.user.active)}
+                      onDelete={() => setPendingDeleteId(r.user.id)}
+                    />
+                  }
                   fields={[
                     { label: 'Ruolo', value: ROLE_META[r.user.role].label },
                     { label: 'Telefono', value: r.user.phone ?? '—' },
@@ -700,25 +772,13 @@ export default function Utenti() {
                     </Td>
 
                     <Td onClick={(e) => e.stopPropagation()}>
-                      <Dropdown
-                        align="start"
-                        className="w-[200px]"
-                        trigger={
-                          <Button variant="ghost" size="icon" className="size-7" aria-label={`Azioni ${r.user.name}`}>
-                            <MoreVertical />
-                          </Button>
-                        }
-                      >
-                        <DropdownItem onClick={() => openEdit(r.user)}><Pencil /> Modifica</DropdownItem>
-                        <DropdownItem onClick={() => setUsersActive([r.user.id], !r.user.active)}>
-                          {r.user.active ? <UserX /> : <UserCheck />}
-                          {r.user.active ? 'Disattiva' : 'Attiva'}
-                        </DropdownItem>
-                        <DropdownSeparator />
-                        <DropdownItem danger onClick={() => setPendingDeleteId(r.user.id)}>
-                          <Trash2 /> Elimina
-                        </DropdownItem>
-                      </Dropdown>
+                      <RowMenu
+                        user={r.user}
+                        isSelf={isSelf}
+                        onEdit={() => openEdit(r.user)}
+                        onToggleActive={() => setActiveWithUndo([r.user.id], !r.user.active)}
+                        onDelete={() => setPendingDeleteId(r.user.id)}
+                      />
                     </Td>
 
                     <Td className="max-w-[240px]">
@@ -784,7 +844,7 @@ export default function Utenti() {
           </Table>
           </>
         )}
-      </div>
+      </TableScroller>
 
       <section className="shrink-0 border-t border-border bg-muted/30 px-5 py-4">
         <Card>
@@ -923,7 +983,7 @@ export default function Utenti() {
               <>
                 <p>
                   Stai per eliminare <span className="font-medium">{pendingDelete.user.name}</span>{' '}
-                  ({pendingDelete.user.email}). L'operazione non è reversibile.
+                  ({pendingDelete.user.email}). Potrai annullare dalla notifica per qualche secondo.
                 </p>
                 {pendingDelete.requestCount + pendingDelete.apartmentCount > 0 && (
                   <p className="rounded-md bg-muted px-3 py-2 text-muted-foreground">

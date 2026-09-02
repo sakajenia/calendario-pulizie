@@ -19,7 +19,7 @@ import { scopeRequests, useCurrentUser, useStore } from '@/data/store'
 import { TODAY } from '@/data/seed'
 import { asDate, downloadFile, fmtDate, fmtEur, fmtNum, norm, plural, toCsv } from '@/lib/format'
 import {
-  REQUEST_STATUSES, STATUS_META,
+  REQUEST_STATUSES, ROLE_META, STATUS_META,
   type CleaningRequest, type ExtraLine, type RequestStatus, type UserRole,
 } from '@/types'
 import { cn } from '@/lib/utils'
@@ -92,12 +92,7 @@ const DATE_FIELDS = [
 ] as const
 type DateField = (typeof DATE_FIELDS)[number]['value']
 
-const ROLE_LABEL: Record<UserRole, string> = {
-  admin: 'Amministratore',
-  host: 'Host',
-  operator: 'Operatore',
-}
-
+/* Il ruolo si chiama come nel resto dell'app (Utenti, Login): un vocabolario diverso per pagina confonde. */
 const ROLE_CHIP: Record<UserRole, string> = {
   admin: 'bg-primary/10 text-brand ring-1 ring-inset ring-primary/20',
   host: 'bg-status-progress/12 text-status-progress ring-1 ring-inset ring-status-progress/25',
@@ -540,10 +535,11 @@ export default function Dashboard() {
       />
 
       <div className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-5 py-2.5">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+        <span id="dash-date-field" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
           Tipo filtro data
         </span>
         <Tabs
+          aria-labelledby="dash-date-field"
           value={dateField}
           onChange={setDateField}
           items={DATE_FIELDS.map((f) => ({ value: f.value, label: f.label, count: fieldCounts[f.value] }))}
@@ -788,7 +784,7 @@ export default function Dashboard() {
                             </Td>
                             <Td>
                               <div className="flex items-center gap-1.5">
-                                <Badge className={ROLE_CHIP[u.role]}>{ROLE_LABEL[u.role]}</Badge>
+                                <Badge className={cn('whitespace-nowrap', ROLE_CHIP[u.role])}>{ROLE_META[u.role].label}</Badge>
                                 {!u.active && (
                                   <Badge className="bg-muted text-muted-foreground ring-1 ring-inset ring-border">
                                     Non attivo

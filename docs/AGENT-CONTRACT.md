@@ -22,7 +22,8 @@ Button        // props: variant 'default'|'secondary'|'outline'|'ghost'|'destruc
               //        size 'sm'|'md'|'lg'|'icon'|'pill', loading
 Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter
 Input, Textarea, Label
-Field         // { label, hint?, error?, children }
+Field         // { label, hint?, error?, htmlFor?, children } — collega label, id, aria-describedby e aria-invalid al controllo figlio;
+              //   passa htmlFor (e lo stesso id al controllo) quando il figlio e' un contenitore con icona
 Select        // { options: {value,label}[], ...selectProps }
 Badge
 Checkbox      // { checked, indeterminate?, onChange(v), label?, disabled? }

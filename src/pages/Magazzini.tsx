@@ -10,6 +10,7 @@ import {
   Dropdown, DropdownItem, DropdownSeparator, EmptyState, Field, Input, Select, Switch,
   Table, TableScroller, Td, Textarea, Th,
 } from '@/components/ui'
+import { useToast } from '@/components/feedback/Toast'
 import { scopeRequests, useCurrentUser, useIsAdmin, useStore } from '@/data/store'
 import { downloadFile, fmtEur, fmtNum, norm, plural, toCsv } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -140,13 +141,14 @@ interface Draft {
 const emptyDraft: Draft = { name: '', address: '', code: '', notes: '' }
 
 function WarehouseForm({
-  open, onClose, initial, warehouses, items,
+  open, onClose, initial, warehouses, items, onSaved,
 }: {
   open: boolean
   onClose: () => void
   initial: Warehouse | null
   warehouses: Warehouse[]
   items: ItemRow[]
+  onSaved: (w: Warehouse, created: boolean) => void
 }) {
   const upsertWarehouse = useStore((s) => s.upsertWarehouse)
   const [draft, setDraft] = React.useState<Draft>(emptyDraft)
@@ -179,13 +181,15 @@ function WarehouseForm({
     const code = draft.code.trim()
     const notes = draft.notes.trim()
 
-    upsertWarehouse({
+    const w: Warehouse = {
       id: initial?.id ?? uid(),
       name,
       address: address || undefined,
       code: code || undefined,
       notes: notes || undefined,
-    })
+    }
+    upsertWarehouse(w)
+    onSaved(w, !initial)
     onClose()
   }
 
@@ -286,7 +290,9 @@ export default function Magazzini() {
   const extras = useStore((s) => s.extraCatalog)
   const requests = useStore((s) => s.requests)
   const deleteWarehouse = useStore((s) => s.deleteWarehouse)
+  const upsertWarehouse = useStore((s) => s.upsertWarehouse)
   const upsertExtra = useStore((s) => s.upsertExtra)
+  const toast = useToast()
 
   const [text, setText] = React.useState('')
   const [basis, setBasis] = React.useState<Basis>('active')
@@ -485,9 +491,9 @@ export default function Magazzini() {
   const confirmDelete = () => {
     if (!pendingDelete) return
     const ids = new Set(pendingDelete)
-    for (const e of extras) {
-      if (e.warehouseId && ids.has(e.warehouseId)) upsertExtra({ ...e, warehouseId: undefined })
-    }
+    const removed = warehouses.filter((w) => ids.has(w.id))
+    const detached = extras.filter((e) => e.warehouseId !== undefined && ids.has(e.warehouseId))
+    for (const e of detached) upsertExtra({ ...e, warehouseId: undefined })
     for (const id of pendingDelete) deleteWarehouse(id)
     setSelected((prev) => {
       const next = new Set(prev)
@@ -496,6 +502,23 @@ export default function Magazzini() {
     })
     if (ids.has(whFilter)) setWhFilter('all')
     setPendingDelete(null)
+    toast({
+      title: plural(removed.length, 'magazzino eliminato', 'magazzini eliminati'),
+      description: detached.length
+        ? `${plural(detached.length, 'articolo', 'articoli')} senza magazzino. Puoi annullare finché questa notifica resta a schermo.`
+        : 'Puoi annullare finché questa notifica resta a schermo.',
+      action: {
+        label: 'Annulla',
+        onClick: () => {
+          removed.forEach(upsertWarehouse)
+          detached.forEach(upsertExtra)
+        },
+      },
+    })
+  }
+
+  const onSaved = (w: Warehouse, created: boolean) => {
+    toast({ title: created ? 'Magazzino creato' : 'Magazzino aggiornato', description: w.name })
   }
 
   const exportCsv = () => {
@@ -543,7 +566,7 @@ export default function Magazzini() {
             </div>
             <Button onClick={openNew}>
               <Plus />
-              Nuovo <span className="hidden sm:inline">Magazzino</span>
+              Nuovo <span className="hidden sm:inline">magazzino</span>
             </Button>
           </>
         }
@@ -671,7 +694,7 @@ export default function Magazzini() {
               icon={Boxes}
               title="Nessun magazzino"
               description="Crea il primo deposito: potrai assegnargli gli articoli del catalogo extra e seguire il consumo stimato delle richieste."
-              action={<Button onClick={openNew}><Plus /> Nuovo Magazzino</Button>}
+              action={<Button onClick={openNew}><Plus /> Nuovo magazzino</Button>}
             />
           ) : cards.length === 0 ? (
             <EmptyState
@@ -943,6 +966,7 @@ export default function Magazzini() {
         initial={editing}
         warehouses={warehouses}
         items={editingItems}
+        onSaved={onSaved}
       />
 
       <Dialog
@@ -961,11 +985,11 @@ export default function Magazzini() {
           {pendingRows.length === 1 && pendingRows[0] ? (
             <p>
               Stai per eliminare <span className="font-medium">{pendingRows[0].warehouse.name}</span>.
-              L'operazione non è reversibile.
+              Potrai annullare dalla notifica per qualche secondo.
             </p>
           ) : (
             <>
-              <p>Stai per eliminare i seguenti magazzini. L'operazione non è reversibile.</p>
+              <p>Stai per eliminare i seguenti magazzini. Potrai annullare dalla notifica per qualche secondo.</p>
               <ul className="max-h-40 space-y-1 overflow-y-auto rounded-md bg-muted px-3 py-2">
                 {pendingRows.map((r) => (
                   <li key={r.warehouse.id} className="flex items-baseline justify-between gap-3">
@@ -981,8 +1005,8 @@ export default function Magazzini() {
 
           {pendingItems.length > 0 && (
             <div className="space-y-2 rounded-md bg-status-pending/10 px-3 py-2.5 ring-1 ring-inset ring-status-pending/25">
-              <p className="flex items-start gap-2 font-medium text-status-pending">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <p className="flex items-start gap-2 font-medium">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-status-pending" />
                 <span>
                   {pendingRows.length === 1
                     ? `A questo magazzino sono collegati ${plural(pendingItems.length, 'articolo extra', 'articoli extra')}`

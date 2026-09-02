@@ -53,7 +53,7 @@ export default function Login() {
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-background bg-dotted">
+    <div className="relative flex min-h-[100dvh] flex-col bg-background bg-dotted">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 top-0 h-[42vh] bg-gradient-to-b from-primary/10 to-transparent"
@@ -77,10 +77,11 @@ export default function Login() {
 
           <Card className="p-6 shadow-raised">
             <form onSubmit={submit} className="space-y-4" noValidate>
-              <Field label="Email">
+              <Field label="Email" htmlFor="login-email">
                 <div className="relative">
                   <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
+                    id="login-email"
                     type="email"
                     autoComplete="username"
                     placeholder="nome@propromanager.com"
@@ -91,10 +92,11 @@ export default function Login() {
                 </div>
               </Field>
 
-              <Field label="Password">
+              <Field label="Password" htmlFor="login-password">
                 <div className="relative">
                   <KeyRound className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
+                    id="login-password"
                     type="password"
                     autoComplete="current-password"
                     placeholder="••••••"
@@ -106,7 +108,7 @@ export default function Login() {
               </Field>
 
               {error && (
-                <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+                <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-status-cancelled">{error}</p>
               )}
 
               <Button type="submit" size="lg" className="w-full" loading={loading}>

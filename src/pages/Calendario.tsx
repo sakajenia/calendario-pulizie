@@ -181,7 +181,9 @@ export default function Calendario() {
   const [pendingDelete, setPendingDelete] = React.useState<CleaningRequest | null>(null)
   const [dayDialogOpen, setDayDialogOpen] = React.useState(false)
 
-  const [detail, setDetail] = React.useState<CleaningRequest | null>(null)
+  /* Si tiene l'id, non l'oggetto: dopo un cambio di stato fatto dal dettaglio
+     una copia catturata al clic mostrerebbe ancora il valore vecchio. */
+  const [detailId, setDetailId] = React.useState<string | null>(null)
   const [formOpen, setFormOpen] = React.useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
   const isDesktop = useIsDesktop()
@@ -213,6 +215,10 @@ export default function Calendario() {
   )
 
   const scoped = React.useMemo(() => scopeRequests(allRequests, user), [allRequests, user])
+  const detail = React.useMemo(
+    () => (detailId ? scoped.find((r) => r.id === detailId) ?? null : null),
+    [detailId, scoped],
+  )
 
   /* Il testo filtra sia la lista sia i pallini del calendario: la vista resta coerente. */
   const searched = React.useMemo(() => {
@@ -339,13 +345,18 @@ export default function Calendario() {
     setCheckedIds([])
   }
 
-  const openDetail = (r: CleaningRequest) => setDetail(r)
+  const openDetail = (r: CleaningRequest) => setDetailId(r.id)
+  const closeDetail = React.useCallback(() => setDetailId(null), [])
+  const closeDayDialog = React.useCallback(() => setDayDialogOpen(false), [])
+  const closeForm = React.useCallback(() => { setFormOpen(false); setEditing(null) }, [])
+  const closeConfirm = React.useCallback(() => setConfirmOpen(false), [])
+  const closePendingDelete = React.useCallback(() => setPendingDelete(null), [])
 
   /* I dialog non si sovrappongono: chiudiamo il riepilogo del giorno prima di
      aprire il dettaglio o il modulo. */
   const openDetailFromDay = (r: CleaningRequest) => {
     setDayDialogOpen(false)
-    setDetail(r)
+    setDetailId(r.id)
   }
 
   const openNew = () => {
@@ -355,7 +366,7 @@ export default function Calendario() {
 
   const openEdit = (r: CleaningRequest) => {
     if (!canEditRequest(user, r)) return
-    setDetail(null)
+    setDetailId(null)
     setEditing(r)
     setFormOpen(true)
   }
@@ -367,10 +378,10 @@ export default function Calendario() {
     if (!r) return
     deleteRequests([r.id])
     setPendingDelete(null)
-    setDetail(null)
+    setDetailId(null)
     toast({
       title: 'Richiesta eliminata',
-      description: 'Puoi rimetterla come era finche’ questa notifica resta a schermo.',
+      description: 'Puoi rimetterla come era finché questa notifica resta a schermo.',
       action: { label: 'Annulla', onClick: () => upsertRequest(r) },
     })
   }
@@ -385,15 +396,27 @@ export default function Calendario() {
     reloadTimer.current = window.setTimeout(() => setReloading(false), 600)
   }
 
+  /* Le azioni di massa danno lo stesso riscontro con rientro della pagina Richieste. */
   const applyBulkStatus = (s: RequestStatus) => {
-    setRequestStatus(checked.map((r) => r.id), s)
+    const before = checked.map((r) => ({ id: r.id, status: r.status }))
+    setRequestStatus(before.map((b) => b.id), s)
     setCheckedIds([])
+    toast({
+      title: `${plural(before.length, 'richiesta aggiornata', 'richieste aggiornate')} a “${STATUS_META[s].label}”`,
+      action: { label: 'Annulla', onClick: () => before.forEach((b) => setRequestStatus([b.id], b.status)) },
+    })
   }
 
   const confirmDelete = () => {
-    deleteRequests(checked.map((r) => r.id))
+    const removed = checked.slice()
+    deleteRequests(removed.map((r) => r.id))
     setCheckedIds([])
     setConfirmOpen(false)
+    toast({
+      title: plural(removed.length, 'richiesta eliminata', 'richieste eliminate'),
+      description: 'Puoi rimetterle come erano finché questa notifica resta a schermo.',
+      action: { label: 'Annulla', onClick: () => removed.forEach(upsertRequest) },
+    })
   }
 
   /* ---- etichette ---- */
@@ -413,6 +436,20 @@ export default function Calendario() {
             <span className="capitalize">{fmtMonthYear(cursor)}</span> ·{' '}
             {plural(periodRequests.length, 'richiesta', 'richieste')} nel periodo · {todayCount} in data odierna
           </span>
+        }
+        actions={
+          /* Da lg in su le azioni stanno in testata come nelle altre pagine: i
+             pulsanti flottanti coprivano la colonna delle richieste. */
+          <div className="hidden items-center gap-2 lg:flex">
+            <Button variant="outline" size="icon" onClick={reload} aria-label="Aggiorna la vista" title="Aggiorna la vista">
+              <RotateCw className={cn(reloading && 'animate-spin')} />
+            </Button>
+            {mayCreate && (
+              <Button onClick={openNew}>
+                <Plus /> Nuova richiesta
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -477,7 +514,8 @@ export default function Calendario() {
                       type="button"
                       onClick={() => pickDay(d)}
                       aria-pressed={isSelected}
-                      aria-haspopup="dialog"
+                      /* Da lg in su il clic seleziona soltanto: annunciare un popup sarebbe falso. */
+                      aria-haspopup={isDesktop ? undefined : 'dialog'}
                       aria-label={`${fmtDayLong(d)} · ${plural(list.length, 'richiesta', 'richieste')}`}
                       className={cn(
                         'flex min-h-[52px] flex-col items-start gap-1.5 rounded-lg border border-transparent p-1.5 text-left transition-colors focus-ring',
@@ -762,7 +800,7 @@ export default function Calendario() {
 
           {/* Sotto lg scorre solo il contenitore esterno: qui niente altezza ne'
               overflow, altrimenti si annidano due aree di scorrimento. */}
-          <div className="stagger space-y-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pb-24 lg:pr-1">
+          <div className="stagger space-y-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pb-4 lg:pr-1">
             {visible.length === 0 ? (
               <Card>
                 {filtersOn ? (
@@ -827,8 +865,8 @@ export default function Calendario() {
         </div>
       </div>
 
-      {/* --------------------------------------------------------------- FAB */}
-      <div className="fixed bottom-6 right-6 z-30 flex flex-col items-end gap-3">
+      {/* ----------------------------------------------- FAB, solo sotto lg */}
+      <div className="fixed bottom-6 right-6 z-30 flex flex-col items-end gap-3 lg:hidden">
         <Button
           variant="outline"
           size="icon"
@@ -854,7 +892,7 @@ export default function Calendario() {
 
       <Dialog
         open={dayDialogOpen && selectedDay !== null && !isDesktop}
-        onClose={() => setDayDialogOpen(false)}
+        onClose={closeDayDialog}
         title={selectedDay ? fmtDayLong(selectedDay) : ''}
         description={plural(visible.length, 'richiesta', 'richieste')}
         size="md"
@@ -894,19 +932,19 @@ export default function Calendario() {
       <RequestDetail
         request={detail}
         open={detail !== null}
-        onClose={() => setDetail(null)}
+        onClose={closeDetail}
         onEdit={openEdit}
         onDelete={(r) => setPendingDelete(r)}
       />
 
       <Dialog
         open={pendingDelete !== null}
-        onClose={() => setPendingDelete(null)}
+        onClose={closePendingDelete}
         title="Elimina richiesta"
         size="sm"
         footer={
           <>
-            <Button variant="outline" onClick={() => setPendingDelete(null)}>
+            <Button variant="outline" onClick={closePendingDelete}>
               Annulla
             </Button>
             <Button variant="destructive" onClick={confirmDeleteOne}>
@@ -917,29 +955,26 @@ export default function Calendario() {
       >
         <p className="text-sm">
           Stai per eliminare la richiesta di {pendingDelete ? labelOf(pendingDelete) : ''}.
-          L’operazione non è reversibile.
+          Potrai annullare dalla notifica per qualche secondo.
         </p>
       </Dialog>
 
       <RequestForm
         open={formOpen}
-        onClose={() => {
-          setFormOpen(false)
-          setEditing(null)
-        }}
+        onClose={closeForm}
         initial={editing}
         defaultDate={selectedDay ?? undefined}
       />
 
       <Dialog
         open={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
+        onClose={closeConfirm}
         title="Elimina richieste"
-        description={`Stai per eliminare ${plural(checked.length, 'richiesta', 'richieste')}. L'operazione non è reversibile.`}
+        description={`Stai per eliminare ${plural(checked.length, 'richiesta', 'richieste')}. Potrai annullare dalla notifica per qualche secondo.`}
         size="sm"
         footer={
           <>
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+            <Button variant="outline" onClick={closeConfirm}>
               Annulla
             </Button>
             <Button variant="destructive" onClick={confirmDelete}>

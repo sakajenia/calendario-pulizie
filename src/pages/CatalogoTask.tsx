@@ -7,8 +7,9 @@ import { PageHeader } from '@/components/layout/AppShell'
 import { HelpTip } from '@/components/HelpTip'
 import {
   Badge, Button, Checkbox, Dialog, Dropdown, DropdownItem, DropdownSeparator, EmptyState,
-  Field, Input, MobileRecord, Select, Table, Td, Textarea, Th,
+  Field, Input, MobileRecord, Select, Table, TableScroller, Td, Textarea, Th,
 } from '@/components/ui'
+import { useToast } from '@/components/feedback/Toast'
 import { useIsAdmin, useStore } from '@/data/store'
 import { fmtNum, norm, plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -88,22 +89,39 @@ function SummaryTile({
   hint?: React.ReactNode
   tone?: 'brand' | 'warn'
 }) {
+  /* Stessa banda di metriche di Magazzini: etichetta, cifra, nota. Niente
+     icona in un quadratino colorato (DESIGN.md, sezione 4). */
   return (
-    <div className="flex items-start gap-3 bg-card px-5 py-3.5">
-      <span
-        className={cn(
-          'mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg',
-          tone === 'warn' ? 'bg-status-pending/12 text-status-pending' : 'bg-primary/10 text-brand',
-        )}
-      >
-        <Icon className="size-4" />
-      </span>
-      <div className="min-w-0">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="font-display text-lg font-bold leading-tight tabular-nums">{value}</p>
-        {hint && <div className="mt-0.5 text-xs text-muted-foreground">{hint}</div>}
-      </div>
+    <div className="min-w-0 bg-card px-5 py-3.5">
+      <p className="eyebrow flex items-center gap-1.5">
+        <Icon className={cn('size-3.5 shrink-0', tone === 'warn' ? 'text-status-pending' : 'text-brand')} />
+        <span className="truncate">{label}</span>
+      </p>
+      <p className="mt-1.5 font-display text-xl font-bold leading-none tabular-nums">{value}</p>
+      {hint && <div className="mt-1.5 text-xs text-muted-foreground">{hint}</div>}
     </div>
+  )
+}
+
+/** Le stesse tre azioni della riga, sia in tabella sia nella scheda su telefono. */
+function RowMenu({
+  name, onEdit, onDuplicate, onDelete,
+}: { name: string; onEdit: () => void; onDuplicate: () => void; onDelete: () => void }) {
+  return (
+    <Dropdown
+      align="end"
+      className="w-[200px]"
+      trigger={
+        <Button variant="ghost" size="icon" className="size-8" aria-label={`Azioni ${name}`}>
+          <MoreVertical />
+        </Button>
+      }
+    >
+      <DropdownItem onClick={onEdit}><Pencil /> Modifica</DropdownItem>
+      <DropdownItem onClick={onDuplicate}><Copy /> Duplica</DropdownItem>
+      <DropdownSeparator />
+      <DropdownItem danger onClick={onDelete}><Trash2 /> Elimina</DropdownItem>
+    </Dropdown>
   )
 }
 
@@ -157,13 +175,14 @@ interface Draft {
 const emptyDraft: Draft = { name: '', description: '', estimate: '' }
 
 function TaskForm({
-  open, onClose, initial, tasks, sheets,
+  open, onClose, initial, tasks, sheets, onSaved,
 }: {
   open: boolean
   onClose: () => void
   initial: TaskCatalogItem | null
   tasks: TaskCatalogItem[]
   sheets: WorkSheet[]
+  onSaved: (task: TaskCatalogItem, created: boolean) => void
 }) {
   const upsertTask = useStore((s) => s.upsertTask)
   const [draft, setDraft] = React.useState<Draft>(emptyDraft)
@@ -203,12 +222,14 @@ function TaskForm({
     setErrors(next)
     if (next.name || next.description || next.estimate) return
 
-    upsertTask({
+    const task: TaskCatalogItem = {
       id: initial?.id ?? uid(),
       name,
       description,
       estimateMin: minutes === undefined ? undefined : Math.round(minutes),
-    })
+    }
+    upsertTask(task)
+    onSaved(task, !initial)
     onClose()
   }
 
@@ -260,7 +281,6 @@ function TaskForm({
           <Input
             type="number"
             min={1}
-            step={5}
             inputMode="numeric"
             value={draft.estimate}
             placeholder="25"
@@ -292,6 +312,7 @@ export default function CatalogoTask() {
   const deleteTask = useStore((s) => s.deleteTask)
   const upsertTask = useStore((s) => s.upsertTask)
   const upsertWorkSheet = useStore((s) => s.upsertWorkSheet)
+  const toast = useToast()
 
   const [text, setText] = React.useState('')
   const [usage, setUsage] = React.useState('all')
@@ -335,6 +356,12 @@ export default function CatalogoTask() {
     }
 
     return list.sort((a, b) => {
+      /* Un task senza stima non e' "il piu' breve": va in coda in entrambe le direzioni. */
+      if (sortKey === 'estimate') {
+        const missA = a.task.estimateMin === undefined
+        const missB = b.task.estimateMin === undefined
+        if (missA !== missB) return missA ? 1 : -1
+      }
       const r = primary(a, b)
       if (r !== 0) return sortDir === 'asc' ? r : -r
       return a.task.name.localeCompare(b.task.name, 'it')
@@ -418,24 +445,35 @@ export default function CatalogoTask() {
   /** La copia viene creata subito e aperta in modifica: il nome va quasi sempre ritoccato. */
   const duplicate = (task: TaskCatalogItem) => {
     const id = uid()
-    upsertTask({
+    const copy: TaskCatalogItem = {
       id,
       name: duplicateName(task.name, tasks),
       description: task.description,
       estimateMin: task.estimateMin,
-    })
+    }
+    upsertTask(copy)
     setEditingId(id)
     setFormOpen(true)
+    toast({
+      title: 'Task duplicato',
+      description: `${copy.name} e' nel catalogo: modifica il nome se serve.`,
+      action: { label: 'Annulla', onClick: () => { deleteTask(id); setFormOpen(false); setEditingId(null) } },
+    })
+  }
+
+  const onSaved = (task: TaskCatalogItem, created: boolean) => {
+    toast({ title: created ? 'Task creato' : 'Task aggiornato', description: task.name })
   }
 
   /** Eliminare un task lo sfila anche dai fogli che lo includono, per non lasciare riferimenti morti. */
   const confirmDelete = () => {
     if (!pendingDelete) return
     const ids = new Set(pendingDelete)
-    for (const w of workSheets) {
-      if (w.taskIds.some((id) => ids.has(id))) {
-        upsertWorkSheet({ ...w, taskIds: w.taskIds.filter((id) => !ids.has(id)) })
-      }
+    /* Stato precedente messo da parte: la notifica permette di rimettere tutto com'era. */
+    const removed = tasks.filter((t) => ids.has(t.id))
+    const touched = workSheets.filter((w) => w.taskIds.some((id) => ids.has(id)))
+    for (const w of touched) {
+      upsertWorkSheet({ ...w, taskIds: w.taskIds.filter((id) => !ids.has(id)) })
     }
     for (const id of pendingDelete) deleteTask(id)
     setSelected((prev) => {
@@ -444,6 +482,19 @@ export default function CatalogoTask() {
       return next
     })
     setPendingDelete(null)
+    toast({
+      title: plural(removed.length, 'task eliminato', 'task eliminati'),
+      description: touched.length
+        ? `Rimosso anche da ${plural(touched.length, 'foglio di lavoro', 'fogli di lavoro')}. Puoi annullare finché questa notifica resta a schermo.`
+        : 'Puoi annullare finché questa notifica resta a schermo.',
+      action: {
+        label: 'Annulla',
+        onClick: () => {
+          removed.forEach(upsertTask)
+          touched.forEach(upsertWorkSheet)
+        },
+      },
+    })
   }
 
   if (!isAdmin) {
@@ -478,7 +529,7 @@ export default function CatalogoTask() {
             </div>
             <Button onClick={openNew}>
               <Plus />
-              Nuovo <span className="hidden sm:inline">Task</span>
+              Nuovo <span className="hidden sm:inline">task</span>
             </Button>
           </>
         }
@@ -565,7 +616,7 @@ export default function CatalogoTask() {
           />
         </div>
 
-        <span className="text-sm tabular-nums text-muted-foreground">
+        <span aria-live="polite" className="text-sm tabular-nums text-muted-foreground">
           {fmtNum(filtered.length)} di {plural(tasks.length, 'task', 'task')}
         </span>
 
@@ -594,7 +645,7 @@ export default function CatalogoTask() {
         </div>
       )}
 
-      <div className="overflow-x-auto lg:min-h-0 lg:flex-1 lg:overflow-auto">
+      <TableScroller className="lg:flex-1" innerClassName="overflow-x-auto lg:overflow-auto lg:min-h-0 lg:flex-1">
         {filtered.length === 0 ? (
           <EmptyState
             icon={ClipboardList}
@@ -606,7 +657,7 @@ export default function CatalogoTask() {
             }
             action={
               tasks.length === 0
-                ? <Button onClick={openNew}><Plus /> Nuovo Task</Button>
+                ? <Button onClick={openNew}><Plus /> Nuovo task</Button>
                 : <Button variant="outline" onClick={clearFilters}>Cancella filtri</Button>
             }
           />
@@ -618,7 +669,23 @@ export default function CatalogoTask() {
                   key={r.task.id}
                   title={r.task.name}
                   subtitle={r.task.description}
+                  selected={selected.has(r.task.id)}
                   onClick={() => openEdit(r.task.id)}
+                  badge={
+                    <Checkbox
+                      checked={selected.has(r.task.id)}
+                      onChange={() => toggleOne(r.task.id)}
+                      label={`Seleziona ${r.task.name}`}
+                    />
+                  }
+                  action={
+                    <RowMenu
+                      name={r.task.name}
+                      onEdit={() => openEdit(r.task.id)}
+                      onDuplicate={() => duplicate(r.task)}
+                      onDelete={() => setPendingDelete([r.task.id])}
+                    />
+                  }
                   fields={[
                     { label: 'Stima', value: r.task.estimateMin ? fmtMin(r.task.estimateMin) : '—' },
                     { label: 'Usato in', value: plural(r.sheets.length, 'foglio', 'fogli') },
@@ -669,22 +736,12 @@ export default function CatalogoTask() {
                     </Td>
 
                     <Td onClick={(e) => e.stopPropagation()}>
-                      <Dropdown
-                        align="start"
-                        className="w-[200px]"
-                        trigger={
-                          <Button variant="ghost" size="icon" className="size-7" aria-label={`Azioni ${r.task.name}`}>
-                            <MoreVertical />
-                          </Button>
-                        }
-                      >
-                        <DropdownItem onClick={() => openEdit(r.task.id)}><Pencil /> Modifica</DropdownItem>
-                        <DropdownItem onClick={() => duplicate(r.task)}><Copy /> Duplica</DropdownItem>
-                        <DropdownSeparator />
-                        <DropdownItem danger onClick={() => setPendingDelete([r.task.id])}>
-                          <Trash2 /> Elimina
-                        </DropdownItem>
-                      </Dropdown>
+                      <RowMenu
+                        name={r.task.name}
+                        onEdit={() => openEdit(r.task.id)}
+                        onDuplicate={() => duplicate(r.task)}
+                        onDelete={() => setPendingDelete([r.task.id])}
+                      />
                     </Td>
 
                     <Td className="max-w-[260px]">
@@ -717,7 +774,7 @@ export default function CatalogoTask() {
           </Table>
           </>
         )}
-      </div>
+      </TableScroller>
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3">
         <span className="text-sm text-muted-foreground">
@@ -735,6 +792,7 @@ export default function CatalogoTask() {
         initial={editing}
         tasks={tasks}
         sheets={editingSheets}
+        onSaved={onSaved}
       />
 
       <Dialog
@@ -753,11 +811,11 @@ export default function CatalogoTask() {
           {pendingRows.length === 1 && pendingRows[0] ? (
             <p>
               Stai per eliminare <span className="font-medium">{pendingRows[0].task.name}</span>.
-              L'operazione non è reversibile.
+              Potrai annullare dalla notifica per qualche secondo.
             </p>
           ) : (
             <>
-              <p>Stai per eliminare i seguenti task. L'operazione non è reversibile.</p>
+              <p>Stai per eliminare i seguenti task. Potrai annullare dalla notifica per qualche secondo.</p>
               <ul className="max-h-40 space-y-1 overflow-y-auto rounded-md bg-muted px-3 py-2">
                 {pendingRows.map((r) => (
                   <li key={r.task.id} className="flex items-baseline justify-between gap-3">
@@ -773,8 +831,9 @@ export default function CatalogoTask() {
 
           {pendingSheets.length > 0 && (
             <div className="space-y-2 rounded-md bg-status-pending/10 px-3 py-2.5 ring-1 ring-inset ring-status-pending/25">
-              <p className="flex items-start gap-2 font-medium text-status-pending">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              {/* Il testo resta nel colore del testo: l'ambra sulla tinta non regge il 4.5:1. */}
+              <p className="flex items-start gap-2 font-medium">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-status-pending" />
                 <span>
                   {pendingRows.length === 1
                     ? `Questo task è usato in ${plural(pendingSheets.length, 'foglio di lavoro', 'fogli di lavoro')}`

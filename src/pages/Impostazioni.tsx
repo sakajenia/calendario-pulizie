@@ -234,10 +234,12 @@ export default function Impostazioni() {
                     />
                   </Field>
 
-                  <Field label="Telefono" error={errors.phone} hint="Usato per le comunicazioni operative.">
+                  <Field label="Telefono" error={errors.phone} hint="Usato per le comunicazioni operative." htmlFor="profilo-telefono">
                     <div className="relative">
                       <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
+                        id="profilo-telefono"
+                        aria-invalid={errors.phone ? true : undefined}
                         className="pl-9"
                         value={form.phone}
                         onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
@@ -247,10 +249,10 @@ export default function Impostazioni() {
                     </div>
                   </Field>
 
-                  <Field label="Email" hint="L'indirizzo di accesso non è modificabile.">
+                  <Field label="Email" hint="L'indirizzo di accesso non è modificabile." htmlFor="profilo-email">
                     <div className="relative">
                       <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input className="pl-9" value={user.email} readOnly disabled />
+                      <Input id="profilo-email" className="pl-9" value={user.email} readOnly disabled />
                     </div>
                   </Field>
 

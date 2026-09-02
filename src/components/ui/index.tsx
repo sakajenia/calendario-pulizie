@@ -103,17 +103,40 @@ export const Label = ({ className, ...p }: React.LabelHTMLAttributes<HTMLLabelEl
   <label className={cn('text-xs font-medium text-muted-foreground', className)} {...p} />
 )
 
+/**
+ * Etichetta, controllo e messaggio collegati fra loro: senza `htmlFor` e
+ * `aria-describedby` uno screen reader annuncia solo "casella di testo" e
+ * l'errore non viene letto. Il controllo riceve l'id se non ne ha gia' uno.
+ */
 export function Field({
-  label, hint, error, children, className,
-}: { label: string; hint?: string; error?: string; children: React.ReactNode; className?: string }) {
+  label, hint, error, children, className, htmlFor,
+}: {
+  label: string; hint?: string; error?: string; children: React.ReactNode; className?: string
+  /** Id del controllo quando e' avvolto in un contenitore (icona, prefisso) e non e' il figlio diretto. */
+  htmlFor?: string
+}) {
+  const autoId = React.useId()
+  const control = !htmlFor && React.isValidElement<Record<string, unknown>>(children) ? children : null
+  const id = htmlFor ?? (control?.props.id as string | undefined) ?? autoId
+  const descId = `${id}-desc`
+  const described = error || hint ? descId : undefined
+  const body = control
+    ? React.cloneElement(control, {
+        id,
+        'aria-invalid': error ? true : control.props['aria-invalid'],
+        'aria-describedby': [control.props['aria-describedby'], described].filter(Boolean).join(' ') || undefined,
+      })
+    : children
   return (
     <div className={cn('space-y-1.5', className)}>
-      <Label>{label}</Label>
-      {children}
+      <Label htmlFor={id}>{label}</Label>
+      {body}
       {error ? (
-        <p className="text-xs text-destructive">{error}</p>
+        // Il testo in rosso e' testo, non riempimento: --destructive in tema
+        // scuro non regge il 4.5:1, --status-cancelled si'.
+        <p id={descId} role="alert" className="text-xs text-status-cancelled">{error}</p>
       ) : hint ? (
-        <p className="text-xs text-muted-foreground">{hint}</p>
+        <p id={descId} className="text-xs text-muted-foreground">{hint}</p>
       ) : null}
     </div>
   )
@@ -205,7 +228,7 @@ export function Switch({
     >
       <span
         className={cn(
-          'inline-block size-4 transform rounded-full bg-white shadow transition-transform',
+          'inline-block size-4 transform rounded-full bg-primary-foreground shadow transition-transform',
           checked ? 'translate-x-[18px]' : 'translate-x-0.5',
         )}
       />
@@ -224,6 +247,12 @@ export function Dialog({
   const panelRef = React.useRef<HTMLDivElement>(null)
   const titleId = React.useId()
 
+  // Le pagine passano quasi sempre una funzione nuova a ogni render: se
+  // l'effetto dipendesse da `onClose`, ogni modifica allo store fatta dentro
+  // il dialog lo farebbe ripartire e il focus salterebbe al pulsante Chiudi.
+  const onCloseRef = React.useRef(onClose)
+  React.useEffect(() => { onCloseRef.current = onClose }, [onClose])
+
   React.useEffect(() => {
     if (!open) return
     // Alla chiusura il focus deve tornare da dove era partito, altrimenti chi
@@ -236,7 +265,7 @@ export function Dialog({
       ) ?? [])].filter((el) => el.offsetParent !== null)
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { onClose(); return }
+      if (e.key === 'Escape') { onCloseRef.current(); return }
       if (e.key !== 'Tab') return
       // Il Tab non deve uscire dal dialog finche' resta aperto.
       const items = focusables()
@@ -268,7 +297,7 @@ export function Dialog({
       window.clearTimeout(t)
       returnTo?.focus?.()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
   const width = { sm: 'max-w-md', md: 'max-w-xl', lg: 'max-w-3xl', xl: 'max-w-5xl' }[size]
@@ -337,33 +366,68 @@ export function Dropdown({
 
   React.useLayoutEffect(() => { if (open) place() }, [open, place])
 
+  const items = () =>
+    [...(menuRef.current?.querySelectorAll<HTMLElement>('button:not([disabled])') ?? [])]
+
+  const close = React.useCallback((restoreFocus: boolean) => {
+    setOpen(false)
+    // Da tastiera il focus deve tornare al pulsante che ha aperto il menu,
+    // altrimenti si riparte dall'inizio della pagina.
+    if (restoreFocus) anchorRef.current?.querySelector<HTMLElement>('button, [tabindex]')?.focus()
+  }, [])
+
   React.useEffect(() => {
     if (!open) return
     const onDoc = (e: MouseEvent) => {
       const t = e.target as Node
       if (!anchorRef.current?.contains(t) && !menuRef.current?.contains(t)) setOpen(false)
     }
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    // In fase di cattura: Escape deve chiudere solo il menu, non anche un
+    // eventuale dialog sottostante che ascolta lo stesso tasto sul documento.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); close(true); return }
+      // Con Tab il focus esce dal menu: un menu aperto senza focus resterebbe appeso.
+      if (e.key === 'Tab') { setOpen(false); return }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return
+      const list = items()
+      if (!list.length) return
+      e.preventDefault()
+      const i = list.indexOf(document.activeElement as HTMLElement)
+      const next =
+        e.key === 'Home' ? 0
+        : e.key === 'End' ? list.length - 1
+        : e.key === 'ArrowDown' ? (i + 1) % list.length
+        : (i - 1 + list.length) % list.length
+      list[next]?.focus()
+    }
     // Il menu e' ancorato a coordinate di viewport: se la pagina scorre va richiuso.
     const onScroll = () => setOpen(false)
     document.addEventListener('mousedown', onDoc)
-    document.addEventListener('keydown', onKey)
+    document.addEventListener('keydown', onKey, true)
     window.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', onScroll)
+    // Il focus entra nel menu appena si apre: chi naviga con Tab lo raggiunge subito.
+    const t = window.setTimeout(() => items()[0]?.focus(), 0)
     return () => {
+      window.clearTimeout(t)
       document.removeEventListener('mousedown', onDoc)
-      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('keydown', onKey, true)
       window.removeEventListener('scroll', onScroll, true)
       window.removeEventListener('resize', onScroll)
     }
-  }, [open])
+  }, [open, close])
+
+  const triggerNode = React.isValidElement<Record<string, unknown>>(trigger)
+    ? React.cloneElement(trigger, { 'aria-haspopup': 'menu', 'aria-expanded': open })
+    : trigger
 
   return (
     <div ref={anchorRef} className="relative">
-      <div onClick={() => setOpen((v) => !v)}>{trigger}</div>
+      <div onClick={() => setOpen((v) => !v)}>{triggerNode}</div>
       {open && createPortal(
         <div
           ref={menuRef}
+          role="menu"
           onClick={() => setOpen(false)}
           style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999 }}
           className={cn(
@@ -385,9 +449,11 @@ export function DropdownItem({
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { danger?: boolean }) {
   return (
     <button
+      type="button"
+      role="menuitem"
       className={cn(
-        'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted [&_svg]:size-4 [&_svg]:text-muted-foreground',
-        danger && 'text-destructive hover:bg-destructive/10 [&_svg]:text-destructive',
+        'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:text-muted-foreground',
+        danger && 'text-status-cancelled hover:bg-destructive/10 focus-visible:bg-destructive/10 [&_svg]:text-status-cancelled',
         className,
       )}
       {...p}
@@ -527,16 +593,26 @@ export function MobileRecord({
 /* ------------------------------------------------------------------- Tabs */
 
 export function Tabs<T extends string>({
-  value, onChange, items, className,
-}: { value: T; onChange: (v: T) => void; items: { value: T; label: string; count?: number }[]; className?: string }) {
+  value, onChange, items, className, ...rest
+}: {
+  value: T; onChange: (v: T) => void; items: { value: T; label: string; count?: number }[]; className?: string
+} & Pick<React.HTMLAttributes<HTMLDivElement>, 'aria-label' | 'aria-labelledby'>) {
+  /* Su schermo stretto le voci scorrono su una riga: spezzare "Check-out" a
+     meta' parola le rendeva illeggibili. */
   return (
-    <div className={cn('inline-flex items-center gap-1 rounded-lg bg-muted p-1', className)}>
+    <div
+      role="group"
+      className={cn('no-scrollbar inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-lg bg-muted p-1', className)}
+      {...rest}
+    >
       {items.map((it) => (
         <button
           key={it.value}
+          type="button"
+          aria-pressed={value === it.value}
           onClick={() => onChange(it.value)}
           className={cn(
-            'rounded-md px-3 py-1.5 text-sm font-medium transition-all focus-ring',
+            'shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all focus-ring',
             value === it.value ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
           )}
         >
@@ -581,9 +657,13 @@ export const Skeleton = ({ className }: { className?: string }) => (
 
 export function Tooltip({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <span className="group/tt relative inline-flex">
+    <span className="group/tt relative inline-flex" tabIndex={0} aria-label={label}>
       {children}
-      <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs text-background group-hover/tt:block">
+      {/* Visibile anche col focus da tastiera: un'informazione solo al passaggio del mouse non esiste per chi non lo usa. */}
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs text-background group-hover/tt:block group-focus-within/tt:block"
+      >
         {label}
       </span>
     </span>

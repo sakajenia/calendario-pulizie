@@ -9,6 +9,7 @@ import {
   Badge, Button, Dialog, Dropdown,
   DropdownItem, DropdownSeparator, EmptyState, Field, Input, Select, Textarea,
 } from '@/components/ui'
+import { useToast } from '@/components/feedback/Toast'
 import { scopeRequests, useCurrentUser, useStore } from '@/data/store'
 import { asDate, downloadFile, fmtDate, fmtNum, norm, plural, toCsv } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -60,13 +61,14 @@ interface Draft {
 const emptyDraft: Draft = { name: '', description: '', taskIds: [] }
 
 function WorkSheetForm({
-  open, onClose, initial, catalog, sheets,
+  open, onClose, initial, catalog, sheets, onSaved,
 }: {
   open: boolean
   onClose: () => void
   initial: WorkSheet | null
   catalog: TaskCatalogItem[]
   sheets: WorkSheet[]
+  onSaved: (sheet: WorkSheet, created: boolean) => void
 }) {
   const upsertWorkSheet = useStore((s) => s.upsertWorkSheet)
   const [draft, setDraft] = React.useState<Draft>(emptyDraft)
@@ -142,12 +144,14 @@ function WorkSheetForm({
     setErrors(next)
     if (next.name || next.tasks) return
 
-    upsertWorkSheet({
+    const sheet: WorkSheet = {
       id: initial?.id ?? uid(),
       name,
       description: draft.description.trim() || undefined,
       taskIds: draft.taskIds,
-    })
+    }
+    upsertWorkSheet(sheet)
+    onSaved(sheet, !initial)
     onClose()
   }
 
@@ -213,7 +217,7 @@ function WorkSheetForm({
               <div
                 className={cn(
                   'grid min-h-[9rem] place-items-center rounded-lg border border-dashed px-4 py-6 text-center text-xs',
-                  errors.tasks ? 'border-destructive/60 text-destructive' : 'border-border text-muted-foreground',
+                  errors.tasks ? 'border-destructive/60 text-status-cancelled' : 'border-border text-muted-foreground',
                 )}
               >
                 Nessun task nel foglio: aggiungili dal catalogo qui a fianco.
@@ -273,7 +277,7 @@ function WorkSheetForm({
               </ol>
             )}
 
-            {errors.tasks && <p className="text-xs text-destructive">{errors.tasks}</p>}
+            {errors.tasks && <p role="alert" className="text-xs text-status-cancelled">{errors.tasks}</p>}
           </section>
 
           <section className="space-y-2">
@@ -470,6 +474,7 @@ export default function FogliDiLavoro() {
   const upsertWorkSheet = useStore((s) => s.upsertWorkSheet)
   const deleteWorkSheet = useStore((s) => s.deleteWorkSheet)
   const upsertRequest = useStore((s) => s.upsertRequest)
+  const toast = useToast()
 
   const [text, setText] = React.useState('')
   const [taskFilter, setTaskFilter] = React.useState<string>('all')
@@ -560,18 +565,40 @@ export default function FogliDiLavoro() {
       name = `${base} ${i}`
       i += 1
     }
-    upsertWorkSheet({ id: uid(), name, description: sheet.description, taskIds: [...sheet.taskIds] })
+    const copy: WorkSheet = { id: uid(), name, description: sheet.description, taskIds: [...sheet.taskIds] }
+    upsertWorkSheet(copy)
+    toast({
+      title: 'Foglio duplicato',
+      description: copy.name,
+      action: { label: 'Annulla', onClick: () => deleteWorkSheet(copy.id) },
+    })
+  }
+
+  const onSaved = (sheet: WorkSheet, created: boolean) => {
+    toast({ title: created ? 'Foglio di lavoro creato' : 'Foglio di lavoro aggiornato', description: sheet.name })
   }
 
   const confirmDelete = () => {
     if (!pendingDelete) return
-    const id = pendingDelete.sheet.id
+    const removed = pendingDelete.sheet
     // Le richieste non devono restare con il riferimento a un foglio inesistente.
-    for (const r of requests) {
-      if (r.workSheetId === id) upsertRequest({ ...r, workSheetId: undefined })
-    }
-    deleteWorkSheet(id)
+    const linked = requests.filter((r) => r.workSheetId === removed.id)
+    for (const r of linked) upsertRequest({ ...r, workSheetId: undefined })
+    deleteWorkSheet(removed.id)
     setPendingDeleteId(null)
+    toast({
+      title: 'Foglio di lavoro eliminato',
+      description: linked.length
+        ? `${plural(linked.length, 'richiesta', 'richieste')} senza foglio. Puoi annullare finché questa notifica resta a schermo.`
+        : 'Puoi annullare finché questa notifica resta a schermo.',
+      action: {
+        label: 'Annulla',
+        onClick: () => {
+          upsertWorkSheet(removed)
+          linked.forEach(upsertRequest)
+        },
+      },
+    })
   }
 
   const exportCsv = () => {
@@ -743,6 +770,7 @@ export default function FogliDiLavoro() {
         initial={editing}
         catalog={taskCatalog}
         sheets={workSheets}
+        onSaved={onSaved}
       />
 
       <Dialog
@@ -762,7 +790,7 @@ export default function FogliDiLavoro() {
             <p>
               Stai per eliminare <span className="font-medium">{pendingDelete.sheet.name}</span> con i suoi{' '}
               {plural(pendingDelete.tasks.length, 'task', 'task')} ({fmtDuration(pendingDelete.minutes)}).
-              L'operazione non è reversibile.
+              Potrai annullare dalla notifica per qualche secondo.
             </p>
             {pendingDelete.usage > 0 && (
               <p className="rounded-md bg-muted px-3 py-2 text-muted-foreground">

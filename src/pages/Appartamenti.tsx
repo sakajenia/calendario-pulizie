@@ -6,7 +6,7 @@ import {
 import { PageHeader } from '@/components/layout/AppShell'
 import {
   Badge, Button, Checkbox, Dialog, Dropdown, DropdownItem, DropdownSeparator,
-  EmptyState, Field, Input, MobileRecord, Label, Select, Switch, Table, Td, Textarea, Th, Tooltip,
+  EmptyState, Field, Input, MobileRecord, Label, Select, Switch, Table, TableScroller, Td, Textarea, Th, Tooltip,
 } from '@/components/ui'
 import { StatusChip } from '@/components/StatusChip'
 import { scopeApartments, scopeRequests, useCurrentUser, useStore } from '@/data/store'
@@ -115,6 +115,28 @@ function SortHeader({
           : <ChevronsUpDown className="size-3.5 opacity-40" />}
       </button>
     </Th>
+  )
+}
+
+/** Le stesse azioni della riga, sia in tabella sia nella scheda su telefono. */
+function RowMenu({
+  name, onView, onEdit, onDelete,
+}: { name: string; onView: () => void; onEdit: () => void; onDelete: () => void }) {
+  return (
+    <Dropdown
+      align="end"
+      className="w-[200px]"
+      trigger={
+        <Button variant="ghost" size="icon" className="size-8" aria-label={`Azioni ${name}`}>
+          <MoreVertical />
+        </Button>
+      }
+    >
+      <DropdownItem onClick={onView}><Eye /> Visualizza</DropdownItem>
+      <DropdownItem onClick={onEdit}><Pencil /> Modifica</DropdownItem>
+      <DropdownSeparator />
+      <DropdownItem danger onClick={onDelete}><Trash2 /> Elimina</DropdownItem>
+    </Dropdown>
   )
 }
 
@@ -512,21 +534,21 @@ function ApartmentForm({
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Prezzo base (€)" error={errors.base}>
               <Input
-                type="number" min="0" step="1" inputMode="decimal"
+                type="number" min="0" step="0.01" inputMode="decimal"
                 value={draft.base}
                 onChange={(e) => setDraft((d) => ({ ...d, base: e.target.value }))}
               />
             </Field>
             <Field label="Prezzo minimo (€)">
               <Input
-                type="number" min="0" step="1" inputMode="decimal"
+                type="number" min="0" step="0.01" inputMode="decimal"
                 value={draft.min}
                 onChange={(e) => setDraft((d) => ({ ...d, min: e.target.value }))}
               />
             </Field>
             <Field label="Prezzo massimo (€)" error={errors.range}>
               <Input
-                type="number" min="0" step="1" inputMode="decimal"
+                type="number" min="0" step="0.01" inputMode="decimal"
                 value={draft.max}
                 onChange={(e) => setDraft((d) => ({ ...d, max: e.target.value }))}
               />
@@ -805,7 +827,7 @@ export default function Appartamenti() {
             aria-label="Filtra per proprietario"
             className="h-9"
             options={[
-              { value: 'all', label: 'Filtra per proprietario' },
+              { value: 'all', label: 'Tutti i proprietari' },
               ...hosts.map((h) => ({ value: h.id, label: h.name })),
             ]}
           />
@@ -846,7 +868,7 @@ export default function Appartamenti() {
         </div>
       )}
 
-      <div className="overflow-x-auto lg:min-h-0 lg:flex-1 lg:overflow-auto">
+      <TableScroller className="lg:flex-1" innerClassName="overflow-x-auto lg:overflow-auto lg:min-h-0 lg:flex-1">
         {filtered.length === 0 ? (
           <EmptyState
             icon={Building2}
@@ -873,6 +895,21 @@ export default function Appartamenti() {
                   subtitle={`${r.apt.district} · ${r.apt.city}`}
                   selected={selected.has(r.apt.id)}
                   onClick={() => setDetailId(r.apt.id)}
+                  badge={
+                    <Checkbox
+                      checked={selected.has(r.apt.id)}
+                      onChange={() => toggleOne(r.apt.id)}
+                      label={`Seleziona ${r.apt.name}`}
+                    />
+                  }
+                  action={
+                    <RowMenu
+                      name={r.apt.name}
+                      onView={() => setDetailId(r.apt.id)}
+                      onEdit={() => openEdit(r.apt)}
+                      onDelete={() => setPendingDelete([r.apt.id])}
+                    />
+                  }
                   fields={[
                     { label: 'Letti', value: fmtNum(r.apt.beds.length) },
                     { label: 'Prezzo base', value: fmtEur(r.apt.prices.base) },
@@ -926,20 +963,12 @@ export default function Appartamenti() {
                     </Td>
 
                     <Td onClick={(e) => e.stopPropagation()}>
-                      <Dropdown
-                        align="start"
-                        className="w-[200px]"
-                        trigger={
-                          <Button variant="ghost" size="icon" className="size-7" aria-label={`Azioni ${r.apt.name}`}>
-                            <MoreVertical />
-                          </Button>
-                        }
-                      >
-                        <DropdownItem onClick={() => setDetailId(r.apt.id)}><Eye /> Visualizza</DropdownItem>
-                        <DropdownItem onClick={() => openEdit(r.apt)}><Pencil /> Modifica</DropdownItem>
-                        <DropdownSeparator />
-                        <DropdownItem danger onClick={() => setPendingDelete([r.apt.id])}><Trash2 /> Elimina</DropdownItem>
-                      </Dropdown>
+                      <RowMenu
+                        name={r.apt.name}
+                        onView={() => setDetailId(r.apt.id)}
+                        onEdit={() => openEdit(r.apt)}
+                        onDelete={() => setPendingDelete([r.apt.id])}
+                      />
                     </Td>
 
                     <Td className="max-w-[240px]">
@@ -990,7 +1019,7 @@ export default function Appartamenti() {
           </Table>
           </>
         )}
-      </div>
+      </TableScroller>
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3">
         <span className="text-sm text-muted-foreground">
@@ -1037,7 +1066,7 @@ export default function Appartamenti() {
       >
         <p className="text-sm">
           Stai per eliminare {plural(pendingDelete?.length ?? 0, 'appartamento', 'appartamenti')}.
-          Le richieste già collegate resteranno in elenco senza appartamento. L’operazione non è reversibile.
+          Le richieste già collegate resteranno in elenco senza appartamento. Potrai annullare dalla notifica per qualche secondo.
         </p>
       </Dialog>
     </div>

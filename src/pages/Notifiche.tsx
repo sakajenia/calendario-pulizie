@@ -10,6 +10,7 @@ import {
 } from '@/components/ui'
 import { StatusChip } from '@/components/StatusChip'
 import { RequestDetail } from '@/components/requests/RequestDetail'
+import { useToast } from '@/components/feedback/Toast'
 import { scopeRequests, useCurrentUser, useStore } from '@/data/store'
 import {
   asDate, fmtDate, fmtDateTime, fmtDayLong, fmtNum, fmtRelative, norm, plural, sameDay,
@@ -184,6 +185,7 @@ export default function Notifiche() {
   const markNotification = useStore((s) => s.markNotification)
   const markAllNotificationsRead = useStore((s) => s.markAllNotificationsRead)
   const user = useCurrentUser()
+  const toast = useToast()
 
   const [tab, setTab] = React.useState<TabKey>('all')
   const [kind, setKind] = React.useState<KindFilter>('all')
@@ -274,6 +276,16 @@ export default function Notifiche() {
     setSelected([])
   }
 
+  /* Un clic segna tutto: senza rientro, un tocco di troppo cancella la lista delle cose da leggere. */
+  const markAllRead = () => {
+    const unread = notifications.filter((n) => !n.read).map((n) => n.id)
+    markAllNotificationsRead()
+    toast({
+      title: `${plural(unread.length, 'notifica segnata', 'notifiche segnate')} come letta`,
+      action: { label: 'Annulla', onClick: () => unread.forEach((id) => markNotification(id, false)) },
+    })
+  }
+
   const clearFilters = () => {
     setTab('all')
     setKind('all')
@@ -288,6 +300,7 @@ export default function Notifiche() {
   }
 
   const detail = detailId ? requestById.get(detailId) ?? null : null
+  const closeDetail = React.useCallback(() => setDetailId(null), [])
 
   return (
     <div className="flex flex-col lg:h-full">
@@ -305,7 +318,7 @@ export default function Notifiche() {
           </span>
         }
         actions={
-          <Button onClick={markAllNotificationsRead} disabled={unreadTotal === 0}>
+          <Button onClick={markAllRead} disabled={unreadTotal === 0}>
             <CheckCheck />
             Segna tutte come lette
           </Button>
@@ -464,7 +477,7 @@ export default function Notifiche() {
         <span>Ultima notifica: {latest ? fmtDateTime(latest) : '—'}</span>
       </div>
 
-      <RequestDetail request={detail} open={detail !== null} onClose={() => setDetailId(null)} />
+      <RequestDetail request={detail} open={detail !== null} onClose={closeDetail} />
 
       <Dialog
         open={orphan !== null}

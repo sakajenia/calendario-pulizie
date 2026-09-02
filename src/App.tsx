@@ -2,6 +2,7 @@ import { HashRouter, Navigate, Route, BrowserRouter, Routes } from 'react-router
 import { AppShell } from '@/components/layout/AppShell'
 import { ToastProvider } from '@/components/feedback/Toast'
 import { useCurrentUser } from '@/data/store'
+import { isManager } from '@/lib/permissions'
 
 import Login from '@/pages/Login'
 import Calendario from '@/pages/Calendario'
@@ -19,10 +20,14 @@ import Impostazioni from '@/pages/Impostazioni'
 /* La build per l'artifact gira su file statico: li' serve il routing ad hash. */
 const Router = import.meta.env.VITE_ROUTER === 'hash' ? HashRouter : BrowserRouter
 
-function Protected({ children, adminOnly }: { children: JSX.Element; adminOnly?: boolean }) {
+function Protected({
+  children, adminOnly, managerOnly,
+}: { children: JSX.Element; adminOnly?: boolean; managerOnly?: boolean }) {
   const user = useCurrentUser()
   if (!user) return <Navigate to="/login" replace />
   if (adminOnly && user.role !== 'admin') return <Navigate to="/calendario" replace />
+  /* La voce sparisce dal menu per l'account pulizie: anche l'URL digitato a mano deve rimandare indietro. */
+  if (managerOnly && !isManager(user)) return <Navigate to="/calendario" replace />
   return children
 }
 
@@ -42,7 +47,7 @@ export default function App() {
           <Route index element={<Navigate to="/calendario" replace />} />
           <Route path="/calendario" element={<Calendario />} />
           <Route path="/richieste" element={<Richieste />} />
-          <Route path="/appartamenti" element={<Appartamenti />} />
+          <Route path="/appartamenti" element={<Protected managerOnly><Appartamenti /></Protected>} />
           <Route path="/notifiche" element={<Notifiche />} />
           <Route path="/impostazioni" element={<Impostazioni />} />
           <Route path="/dashboard" element={<Protected adminOnly><Dashboard /></Protected>} />

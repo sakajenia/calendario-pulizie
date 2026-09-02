@@ -316,6 +316,9 @@ export default function Richieste() {
   const [pendingDelete, setPendingDelete] = React.useState<string[] | null>(null)
 
   const closeFilters = React.useCallback(() => setFiltersOpen(false), [])
+  const closeDetail = React.useCallback(() => setDetailId(null), [])
+  const closeForm = React.useCallback(() => { setFormOpen(false); setEditingId(null) }, [])
+  const closePendingDelete = React.useCallback(() => setPendingDelete(null), [])
 
   const scoped = React.useMemo(() => scopeRequests(allRequests, user), [allRequests, user])
   const apartments = React.useMemo(() => scopeApartments(allApartments, user), [allApartments, user])
@@ -499,7 +502,7 @@ export default function Richieste() {
     deleteRequests(pendingDelete)
     toast({
       title: `${plural(removed.length, 'richiesta eliminata', 'richieste eliminate')}`,
-      description: 'Puoi rimetterle come erano finche\u2019 questa notifica resta a schermo.',
+      description: 'Puoi rimetterle come erano finch\u00e9 questa notifica resta a schermo.',
       action: { label: 'Annulla', onClick: () => removed.forEach(upsertRequest) },
     })
     setSelected((prev) => {
@@ -841,32 +844,32 @@ export default function Richieste() {
       <RequestDetail
         request={detail}
         open={detail !== null}
-        onClose={() => setDetailId(null)}
+        onClose={closeDetail}
         onEdit={openEdit}
         onDelete={(r) => setPendingDelete([r.id])}
       />
 
       <RequestForm
         open={formOpen}
-        onClose={() => { setFormOpen(false); setEditingId(null) }}
+        onClose={closeForm}
         initial={editing}
       />
 
       <Dialog
         open={pendingDelete !== null}
-        onClose={() => setPendingDelete(null)}
+        onClose={closePendingDelete}
         title={pendingDelete?.length === 1 ? 'Elimina richiesta' : 'Elimina richieste'}
         size="sm"
         footer={
           <>
-            <Button variant="outline" onClick={() => setPendingDelete(null)}>Annulla</Button>
+            <Button variant="outline" onClick={closePendingDelete}>Annulla</Button>
             <Button variant="destructive" onClick={confirmDelete}><Trash2 /> Elimina</Button>
           </>
         }
       >
         <p className="text-sm">
           Stai per eliminare {plural(pendingDelete?.length ?? 0, 'richiesta', 'richieste')}.
-          L’operazione non è reversibile.
+          Potrai annullare dalla notifica per qualche secondo.
         </p>
       </Dialog>
     </div>

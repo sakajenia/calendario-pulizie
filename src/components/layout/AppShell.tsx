@@ -49,8 +49,8 @@ function NavItem({ entry, onNavigate }: { entry: NavEntry; onNavigate?: () => vo
         cn(
           'group flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-[background-color,color] duration-200 ease-out-expo',
           isActive
-            ? 'bg-sidebar-accent text-white'
-            : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-white',
+            ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+            : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
         )
       }
     >

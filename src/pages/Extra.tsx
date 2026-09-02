@@ -7,8 +7,9 @@ import { PageHeader } from '@/components/layout/AppShell'
 import { HelpTip } from '@/components/HelpTip'
 import {
   Badge, Button, Checkbox, Dialog, Dropdown, DropdownItem, DropdownSeparator, EmptyState,
-  Field, Input, MobileRecord, Select, Table, Tabs, Td, Th,
+  Field, Input, MobileRecord, Select, Table, TableScroller, Tabs, Td, Th,
 } from '@/components/ui'
+import { useToast } from '@/components/feedback/Toast'
 import { scopeRequests, useCurrentUser, useStore } from '@/data/store'
 import { asDate, downloadFile, fmtDate, fmtEur, fmtNum, norm, plural, toCsv } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -135,6 +136,25 @@ function SortHeader({
   )
 }
 
+/** Le stesse azioni della riga, sia in tabella sia nella scheda su telefono. */
+function RowMenu({ name, onEdit, onDelete }: { name: string; onEdit: () => void; onDelete: () => void }) {
+  return (
+    <Dropdown
+      align="end"
+      className="w-[200px]"
+      trigger={
+        <Button variant="ghost" size="icon" className="size-8" aria-label={`Azioni per ${name}`}>
+          <MoreVertical />
+        </Button>
+      }
+    >
+      <DropdownItem onClick={onEdit}><Pencil /> Modifica</DropdownItem>
+      <DropdownSeparator />
+      <DropdownItem danger onClick={onDelete}><Trash2 /> Elimina</DropdownItem>
+    </Dropdown>
+  )
+}
+
 /* --------------------------------------------------------------------- form */
 
 interface Draft {
@@ -168,7 +188,7 @@ function ExtraForm({
   warehouses: Warehouse[]
   usage: Map<string, Usage>
   basis: Basis
-  onSaved: (scope: ExtraScope) => void
+  onSaved: (item: ExtraCatalogItem, created: boolean) => void
 }) {
   const upsertExtra = useStore((s) => s.upsertExtra)
   const [draft, setDraft] = React.useState<Draft>(() => emptyDraft(defaultScope))
@@ -218,15 +238,16 @@ function ExtraForm({
     setErrors(next)
     if (next.name || next.unitCost) return
 
-    upsertExtra({
+    const item: ExtraCatalogItem = {
       id: initial?.id ?? uid(),
       name,
       scope: draft.scope,
       bedTypes: draft.scope === 'bed' && draft.bedTypes.length > 0 ? draft.bedTypes : undefined,
       unitCost: amount,
       warehouseId: draft.warehouseId || undefined,
-    })
-    onSaved(draft.scope)
+    }
+    upsertExtra(item)
+    onSaved(item, !initial)
     onClose()
   }
 
@@ -235,7 +256,7 @@ function ExtraForm({
       open={open}
       onClose={onClose}
       size="lg"
-      title={initial ? 'Modifica Extra' : 'Nuovo Extra'}
+      title={initial ? 'Modifica extra' : 'Nuovo extra'}
       description={initial ? `Stai modificando “${initial.name}”.` : PAGE_SUBTITLE}
       footer={
         <>
@@ -244,14 +265,14 @@ function ExtraForm({
           </span>
           <Button variant="outline" onClick={onClose}>Annulla</Button>
           <Button type="submit" form="extra-form">
-            {initial ? 'Salva modifiche' : 'Crea Extra'}
+            {initial ? 'Salva modifiche' : 'Crea extra'}
           </Button>
         </>
       }
     >
       <form id="extra-form" onSubmit={submit} className="space-y-4" noValidate>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Nome Extra" error={errors.name}>
+          <Field label="Nome extra" error={errors.name}>
             <Input
               value={draft.name}
               placeholder="Lenzuola matrimoniali"
@@ -263,7 +284,7 @@ function ExtraForm({
             />
           </Field>
 
-          <Field label="Tipo di Extra" hint={SCOPE_META[draft.scope].formHint}>
+          <Field label="Tipo di extra" hint={SCOPE_META[draft.scope].formHint}>
             <Select
               value={draft.scope}
               onChange={(e) => {
@@ -376,6 +397,7 @@ export default function Extra() {
   const requests = useStore((s) => s.requests)
   const upsertExtra = useStore((s) => s.upsertExtra)
   const deleteExtra = useStore((s) => s.deleteExtra)
+  const toast = useToast()
 
   const [scope, setScope] = React.useState<ExtraScope>('apartment')
   const [text, setText] = React.useState('')
@@ -542,18 +564,34 @@ export default function Extra() {
   }
 
   const assignWarehouse = (warehouseId: string) => {
-    for (const id of selectedVisible) {
-      const item = extraCatalog.find((e) => e.id === id)
-      if (item) upsertExtra({ ...item, warehouseId: warehouseId || undefined })
-    }
+    const before = extraCatalog.filter((e) => selectedVisible.includes(e.id))
+    for (const item of before) upsertExtra({ ...item, warehouseId: warehouseId || undefined })
     setSelected([])
+    const target = warehouses.find((w) => w.id === warehouseId)
+    toast({
+      title: target
+        ? `${plural(before.length, 'extra assegnato', 'extra assegnati')} a ${target.name}`
+        : `Magazzino rimosso da ${plural(before.length, 'extra', 'extra')}`,
+      action: { label: 'Annulla', onClick: () => before.forEach(upsertExtra) },
+    })
+  }
+
+  const onSaved = (item: ExtraCatalogItem, created: boolean) => {
+    if (item.scope !== scope) changeScope(item.scope)
+    toast({ title: created ? 'Extra creato' : 'Extra aggiornato', description: item.name })
   }
 
   const confirmDelete = () => {
     if (!pendingDelete) return
+    const removed = extraCatalog.filter((e) => pendingDelete.includes(e.id))
     for (const id of pendingDelete) deleteExtra(id)
     setSelected((cur) => cur.filter((id) => !pendingDelete.includes(id)))
     setPendingDelete(null)
+    toast({
+      title: plural(removed.length, 'extra eliminato', 'extra eliminati'),
+      description: 'Puoi annullare finché questa notifica resta a schermo.',
+      action: { label: 'Annulla', onClick: () => removed.forEach(upsertExtra) },
+    })
   }
 
   const exportCsv = () => {
@@ -612,7 +650,7 @@ export default function Extra() {
             </Button>
             <Button onClick={openNew}>
               <Plus />
-              Nuovo <span className="hidden sm:inline">Extra</span>
+              Nuovo <span className="hidden sm:inline">extra</span>
             </Button>
           </>
         }
@@ -713,20 +751,20 @@ export default function Extra() {
         </div>
       )}
 
-      <div className="overflow-x-auto lg:min-h-0 lg:flex-1 lg:overflow-auto">
+      <TableScroller className="lg:flex-1" innerClassName="overflow-x-auto lg:overflow-auto lg:min-h-0 lg:flex-1">
         {extraCatalog.length === 0 ? (
           <EmptyState
             icon={PackageOpen}
             title="Nessun extra in catalogo"
             description="Il catalogo raccoglie i materiali forniti durante gli interventi: costo unitario, magazzino di prelievo e tipologie di letto a cui si applicano."
-            action={<Button onClick={openNew}><Plus /> Nuovo Extra</Button>}
+            action={<Button onClick={openNew}><Plus /> Nuovo extra</Button>}
           />
         ) : tabRows.length === 0 ? (
           <EmptyState
             icon={meta.icon}
             title={meta.emptyTitle}
             description={meta.emptyText}
-            action={<Button onClick={openNew}><Plus /> Nuovo Extra</Button>}
+            action={<Button onClick={openNew}><Plus /> Nuovo extra</Button>}
           />
         ) : rows.length === 0 ? (
           <EmptyState
@@ -744,7 +782,22 @@ export default function Extra() {
                   key={r.extra.id}
                   title={r.extra.name}
                   subtitle={r.warehouse?.name ?? (r.orphanWarehouse ? 'Magazzino rimosso' : 'Non assegnato')}
+                  selected={selected.includes(r.extra.id)}
                   onClick={() => openEdit(r.extra.id)}
+                  badge={
+                    <Checkbox
+                      checked={selected.includes(r.extra.id)}
+                      onChange={() => toggleOne(r.extra.id)}
+                      label={`Seleziona ${r.extra.name}`}
+                    />
+                  }
+                  action={
+                    <RowMenu
+                      name={r.extra.name}
+                      onEdit={() => openEdit(r.extra.id)}
+                      onDelete={() => setPendingDelete([r.extra.id])}
+                    />
+                  }
                   fields={[
                     { label: 'Costo unitario', value: fmtEur(r.cost) },
                     { label: 'Impegnato', value: fmtNum(r.qty) },
@@ -806,22 +859,11 @@ export default function Extra() {
                     </Td>
 
                     <Td>
-                      <Dropdown
-                        align="start"
-                        trigger={
-                          <Button variant="ghost" size="icon" aria-label={`Azioni per ${row.extra.name}`}>
-                            <MoreVertical />
-                          </Button>
-                        }
-                      >
-                        <DropdownItem onClick={() => openEdit(row.extra.id)}>
-                          <Pencil /> Modifica
-                        </DropdownItem>
-                        <DropdownSeparator />
-                        <DropdownItem danger onClick={() => setPendingDelete([row.extra.id])}>
-                          <Trash2 /> Elimina
-                        </DropdownItem>
-                      </Dropdown>
+                      <RowMenu
+                        name={row.extra.name}
+                        onEdit={() => openEdit(row.extra.id)}
+                        onDelete={() => setPendingDelete([row.extra.id])}
+                      />
                     </Td>
 
                     <Td className="font-medium">{row.extra.name}</Td>
@@ -897,7 +939,7 @@ export default function Extra() {
           </Table>
           </>
         )}
-      </div>
+      </TableScroller>
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3">
         <span className="text-sm text-muted-foreground">
@@ -919,7 +961,7 @@ export default function Extra() {
         warehouses={warehouses}
         usage={usage}
         basis={basis}
-        onSaved={(s) => { if (s !== scope) changeScope(s) }}
+        onSaved={onSaved}
       />
 
       <Dialog
@@ -940,12 +982,12 @@ export default function Extra() {
               {deleteRows.length === 1 ? (
                 <>
                   Stai per eliminare <span className="font-medium">{deleteRows[0].extra.name}</span> dal
-                  catalogo. L'operazione non è reversibile.
+                  catalogo. Potrai annullare dalla notifica per qualche secondo.
                 </>
               ) : (
                 <>
                   Stai per eliminare <span className="font-medium">{fmtNum(deleteRows.length)} extra</span> dal
-                  catalogo. L'operazione non è reversibile.
+                  catalogo. Potrai annullare dalla notifica per qualche secondo.
                 </>
               )}
             </p>

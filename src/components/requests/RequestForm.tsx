@@ -10,6 +10,15 @@ const toLocalInput = (iso: string) => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
+/**
+ * Un campo data svuotato o incompleto arriva come stringa vuota: `new Date('')`
+ * e' una data non valida e `toISOString` lancia. Si tiene l'ultimo valore buono.
+ */
+const parseLocalInput = (value: string): string | null => {
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? null : d.toISOString()
+}
+
 function blank(apartmentId: string, hostId: string, date = TODAY): CleaningRequest {
   const co = new Date(date); co.setHours(10, 0, 0, 0)
   const ci = new Date(date); ci.setHours(15, 0, 0, 0)
@@ -78,8 +87,10 @@ export function RequestForm({
     if (!draft.apartmentId) return setError('Scegli appartamento')
     if (draft.checkInPeople <= 0) return setError('Inserire un numero di ospiti in ingresso superiore a 0')
     if (!draft.beds.length) return setError('Selezionare almeno un letto da rifare')
+    if (draft.recurrence?.enabled && draft.recurrence.everyDays < 1)
+      return setError('La frequenza della pulizia ricorrente deve essere di almeno 1 giorno')
     if (new Date(draft.checkInAt) < new Date(draft.checkOutAt))
-      return setError('La data di checkIn non può essere precedente alla data di checkOut')
+      return setError('La data di check-in non può essere precedente alla data di check-out')
 
     upsertRequest({
       ...draft,
@@ -129,23 +140,25 @@ export function RequestForm({
             <Input
               type="datetime-local"
               value={toLocalInput(draft.checkOutAt)}
-              onChange={(e) => set('checkOutAt', new Date(e.target.value).toISOString())}
+              onChange={(e) => { const v = parseLocalInput(e.target.value); if (v) set('checkOutAt', v) }}
             />
           </Field>
           <Field label="Data e ora di arrivo (Check-in)">
             <Input
               type="datetime-local"
               value={toLocalInput(draft.checkInAt)}
-              onChange={(e) => set('checkInAt', new Date(e.target.value).toISOString())}
+              onChange={(e) => { const v = parseLocalInput(e.target.value); if (v) set('checkInAt', v) }}
             />
           </Field>
           <Field label="Ospiti in arrivo">
             <Input
               type="number"
               min={1}
-              value={draft.checkInPeople}
+              inputMode="numeric"
+              /* Svuotando il campo per riscrivere il numero non deve comparire uno 0. */
+              value={draft.checkInPeople || ''}
               onChange={(e) => {
-                const n = Number(e.target.value)
+                const n = Math.max(0, Math.floor(Number(e.target.value)))
                 setDraft((d) => ({ ...d, checkInPeople: n, perPersonExtras: recalcPerPerson(n) }))
               }}
             />
@@ -219,21 +232,24 @@ export function RequestForm({
               <Input
                 type="number"
                 min={1}
-                value={draft.recurrence.everyDays}
-                onChange={(e) => set('recurrence', { ...draft.recurrence!, everyDays: Number(e.target.value) })}
+                inputMode="numeric"
+                value={draft.recurrence.everyDays || ''}
+                onChange={(e) => set('recurrence', { ...draft.recurrence!, everyDays: Math.max(0, Math.floor(Number(e.target.value))) })}
               />
             </Field>
             <Field label="Data fine ricorrenza">
               <Input
                 type="date"
                 value={draft.recurrence.until?.slice(0, 10) ?? ''}
-                onChange={(e) => set('recurrence', { ...draft.recurrence!, until: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
+                onChange={(e) => set('recurrence', { ...draft.recurrence!, until: parseLocalInput(e.target.value) ?? undefined })}
               />
             </Field>
           </div>
         )}
 
-        {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+        {error && (
+          <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-status-cancelled">{error}</p>
+        )}
       </div>
     </Dialog>
   )

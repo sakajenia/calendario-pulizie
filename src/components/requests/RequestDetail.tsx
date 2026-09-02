@@ -149,7 +149,7 @@ export function RequestDetail({
         {(mayComplete || mayAnnotate || request.operatorNotes) && (
           <Section title="Lavoro sul posto" icon={Check}>
             {isDone ? (
-              <p className="py-2 text-sm text-status-completed">
+              <p className="py-2 text-sm text-status-done">
                 Completata{request.completedAt ? ` il ${fmtDateTime(request.completedAt)}` : ''}
                 {completedBy ? ` da ${completedBy.name}` : ''}.
               </p>
@@ -293,7 +293,14 @@ export function RequestCard({
       <div className="mt-3 space-y-1.5">
         <p className="flex items-center gap-2 text-sm font-medium">
           <MapPin className="size-4 shrink-0 text-brand" />
-          <span className="truncate">{ap ? `${ap.address}, ${ap.district} - ${ap.city}` : request.spotApartmentName}</span>
+          {ap ? (
+            <span className="truncate">{`${ap.address}, ${ap.district} - ${ap.city}`}</span>
+          ) : (
+            /* Un appartamento eliminato non deve lasciare una riga vuota. */
+            <span className="truncate text-muted-foreground">
+              {request.spotApartmentName ?? 'Appartamento non disponibile'}
+            </span>
+          )}
         </p>
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <BedDouble className="size-4 shrink-0" />
