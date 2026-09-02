@@ -531,7 +531,7 @@ export default function Utenti() {
 
   if (currentUser?.role !== 'admin') {
     return (
-      <div className="flex flex-col lg:h-full">
+      <div className="flex min-h-full flex-col">
         <PageHeader title="Utenti" />
         <EmptyState
           icon={ShieldAlert}
@@ -543,7 +543,7 @@ export default function Utenti() {
   }
 
   return (
-    <div className="flex flex-col lg:h-full">
+    <div className="flex min-h-full flex-col">
       <PageHeader
         title="Utenti"
         subtitle={
@@ -668,7 +668,7 @@ export default function Utenti() {
         </div>
       )}
 
-      <TableScroller className="lg:flex-1" innerClassName="overflow-x-auto lg:overflow-auto lg:min-h-0 lg:flex-1">
+      <TableScroller innerClassName="overflow-x-auto">
         {filtered.length === 0 ? (
           <EmptyState
             icon={Users}
@@ -933,7 +933,7 @@ export default function Utenti() {
         </Card>
       </section>
 
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3">
+      <div className="mt-auto flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3 md:sticky md:bottom-0 md:z-10">
         <span className="text-sm text-muted-foreground">
           Ordinati per <span className="font-medium text-foreground">{SORT_LABEL[sortKey]}</span>{' '}
           ({sortDir === 'asc' ? 'crescente' : 'decrescente'})

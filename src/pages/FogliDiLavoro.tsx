@@ -621,7 +621,7 @@ export default function FogliDiLavoro() {
 
   if (currentUser?.role !== 'admin') {
     return (
-      <div className="flex flex-col lg:h-full">
+      <div className="flex min-h-full flex-col">
         <PageHeader title="Fogli di Lavoro" />
         <EmptyState
           icon={ShieldAlert}
@@ -633,7 +633,7 @@ export default function FogliDiLavoro() {
   }
 
   return (
-    <div className="flex flex-col lg:h-full">
+    <div className="flex min-h-full flex-col">
       <PageHeader
         title={<span className="inline-flex items-center gap-1.5">Fogli di Lavoro<HelpTip term="foglio di lavoro" /></span>}
         subtitle={
@@ -723,7 +723,7 @@ export default function FogliDiLavoro() {
         </div>
       )}
 
-      <div className="p-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+      <div className="p-5">
         {workSheets.length === 0 ? (
           <EmptyState
             icon={ClipboardList}
@@ -758,7 +758,7 @@ export default function FogliDiLavoro() {
         )}
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3">
+      <div className="mt-auto flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3 md:sticky md:bottom-0 md:z-10">
         <span className="text-sm text-muted-foreground">
           Ordinati per <span className="font-medium text-foreground">{SORT_LABEL[sortKey].toLowerCase()}</span>
         </span>

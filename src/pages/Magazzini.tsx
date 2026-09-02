@@ -536,7 +536,7 @@ export default function Magazzini() {
 
   if (!isAdmin) {
     return (
-      <div className="flex flex-col lg:h-full">
+      <div className="flex min-h-full flex-col">
         <PageHeader title="Magazzini" />
         <EmptyState
           icon={ShieldAlert}
@@ -548,7 +548,7 @@ export default function Magazzini() {
   }
 
   return (
-    <div className="flex flex-col lg:h-full">
+    <div className="flex min-h-full flex-col">
       <PageHeader
         title={<span className="inline-flex items-center gap-1.5">Magazzini<HelpTip term="magazzino" /></span>}
         subtitle="Crea, modifica ed elimina i magazzini"
@@ -687,7 +687,7 @@ export default function Magazzini() {
         </div>
       )}
 
-      <div className="lg:min-h-0 lg:flex-1 lg:overflow-auto">
+      <div>
         <div className="space-y-6 p-5">
           {warehouses.length === 0 ? (
             <EmptyState
@@ -950,7 +950,7 @@ export default function Magazzini() {
         </div>
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3">
+      <div className="mt-auto flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3 md:sticky md:bottom-0 md:z-10">
         <span className="text-sm text-muted-foreground">
           Magazzini ordinati per <span className="font-medium text-foreground">{CARD_SORT_LABEL[cardSort]}</span>{' '}
           · consumi calcolati su {BASIS_LABEL[basis]}

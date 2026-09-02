@@ -499,7 +499,7 @@ export default function CatalogoTask() {
 
   if (!isAdmin) {
     return (
-      <div className="flex flex-col lg:h-full">
+      <div className="flex min-h-full flex-col">
         <PageHeader title="Catalogo Task" />
         <EmptyState
           icon={ShieldAlert}
@@ -511,7 +511,7 @@ export default function CatalogoTask() {
   }
 
   return (
-    <div className="flex flex-col lg:h-full">
+    <div className="flex min-h-full flex-col">
       <PageHeader
         title={<span className="inline-flex items-center gap-1.5">Catalogo Task<HelpTip term="task" /></span>}
         subtitle="Definisci i singoli task che potranno essere inseriti nei fogli di lavoro"
@@ -645,7 +645,7 @@ export default function CatalogoTask() {
         </div>
       )}
 
-      <TableScroller className="lg:flex-1" innerClassName="overflow-x-auto lg:overflow-auto lg:min-h-0 lg:flex-1">
+      <TableScroller innerClassName="overflow-x-auto">
         {filtered.length === 0 ? (
           <EmptyState
             icon={ClipboardList}
@@ -777,7 +777,7 @@ export default function CatalogoTask() {
         )}
       </TableScroller>
 
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3">
+      <div className="mt-auto flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3 md:sticky md:bottom-0 md:z-10">
         <span className="text-sm text-muted-foreground">
           Ordinati per <span className="font-medium text-foreground">{SORT_LABEL[sortKey]}</span>{' '}
           ({sortDir === 'asc' ? 'crescente' : 'decrescente'})

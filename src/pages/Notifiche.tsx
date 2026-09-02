@@ -304,7 +304,7 @@ export default function Notifiche() {
   const closeDetail = React.useCallback(() => setDetailId(null), [])
 
   return (
-    <div className="flex flex-col lg:h-full">
+    <div className="flex min-h-full flex-col">
       <PageHeader
         title="Notifiche"
         subtitle={
@@ -424,7 +424,7 @@ export default function Notifiche() {
         )}
       </div>
 
-      <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+      <div>
         {notifications.length === 0 ? (
           <EmptyState
             icon={Bell}
@@ -469,7 +469,7 @@ export default function Notifiche() {
         )}
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-border bg-card px-5 py-2.5 text-xs text-muted-foreground">
+      <div className="mt-auto flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-border bg-card px-5 py-2.5 text-xs text-muted-foreground md:sticky md:bottom-0 md:z-10">
         <span>
           Notifiche elencate: {fmtNum(rows.length)} di {fmtNum(notifications.length)} · (Da leggere:{' '}
           {fmtNum(unreadTotal)} | Selezionate: {fmtNum(selectedIds.length)})

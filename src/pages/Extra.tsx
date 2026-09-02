@@ -615,7 +615,7 @@ export default function Extra() {
 
   if (currentUser?.role !== 'admin') {
     return (
-      <div className="flex flex-col lg:h-full">
+      <div className="flex min-h-full flex-col">
         <PageHeader title="Extra" />
         <EmptyState
           icon={ShieldAlert}
@@ -627,7 +627,7 @@ export default function Extra() {
   }
 
   return (
-    <div className="flex flex-col lg:h-full">
+    <div className="flex min-h-full flex-col">
       <PageHeader
         title={<span className="inline-flex items-center gap-1.5">Extra<HelpTip term="extra" /></span>}
         subtitle={
@@ -751,7 +751,7 @@ export default function Extra() {
         </div>
       )}
 
-      <TableScroller className="lg:flex-1" innerClassName="overflow-x-auto lg:overflow-auto lg:min-h-0 lg:flex-1">
+      <TableScroller innerClassName="overflow-x-auto">
         {extraCatalog.length === 0 ? (
           <EmptyState
             icon={PackageOpen}
@@ -942,7 +942,7 @@ export default function Extra() {
         )}
       </TableScroller>
 
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3">
+      <div className="mt-auto flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3 md:sticky md:bottom-0 md:z-10">
         <span className="text-sm text-muted-foreground">
           {meta.tab} · valore complessivo{' '}
           <span className="font-medium text-foreground">{fmtEur(tabValue)}</span> su {BASIS_LABEL[basis]}

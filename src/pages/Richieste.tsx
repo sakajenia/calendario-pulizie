@@ -517,7 +517,7 @@ export default function Richieste() {
   }
 
   return (
-    <div className="flex flex-col lg:h-full">
+    <div className="flex min-h-full flex-col">
       <PageHeader
         title="Richieste"
         subtitle={
@@ -670,7 +670,7 @@ export default function Richieste() {
         </div>
       )}
 
-      <TableScroller className={cn('lg:flex-1', pageRows.length > 0 && 'hidden md:flex')} innerClassName="overflow-x-auto lg:overflow-auto lg:min-h-0 lg:flex-1">
+      <TableScroller className={cn(pageRows.length > 0 && 'hidden md:flex')} innerClassName="overflow-x-auto">
         {pageRows.length === 0 ? (
           <EmptyState
             icon={ClipboardList}
@@ -819,7 +819,7 @@ export default function Richieste() {
         )}
       </TableScroller>
 
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3">
+      <div className="mt-auto flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3 md:sticky md:bottom-0 md:z-10">
         <div className="flex items-center gap-2">
           <Button
             variant="outline" size="icon" aria-label="Pagina precedente"
