@@ -71,14 +71,52 @@ npm install
 npm run dev          # http://localhost:5173
 ```
 
-Login demo: una qualsiasi email del team (es. `aurea.consulting.marketing@gmail.com`)
-con una password di almeno 6 caratteri. Il selettore in alto a destra permette di
-passare da un profilo all'altro per vedere l'app con occhi diversi.
+Due account, uno per tipologia:
+
+| Tipologia | Email | Password |
+| --- | --- | --- |
+| Manager (amministratore) | `aurea.consulting.marketing@gmail.com` | almeno 6 caratteri |
+| Addetto alle pulizie | `pulizie@propromanager.it` | almeno 6 caratteri |
+
+Il selettore in alto a destra permette di passare da un profilo all'altro per vedere
+l'app con occhi diversi.
 
 ```bash
 npm run build        # build di produzione
 npm run typecheck    # controllo tipi
 ```
+
+## Pubblicazione su Cloudflare Pages
+
+Il progetto è una SPA statica: `npm run build` produce `dist/`, che è tutto quello
+che serve. `public/_redirects` riscrive ogni percorso su `index.html`, così i link
+diretti (`/appartamenti`, `/magazzini`, …) non danno 404.
+
+**Da riga di comando** — aggiorna il progetto Pages esistente:
+
+```bash
+npx wrangler login                 # una sola volta
+npm run deploy                     # build + wrangler pages deploy dist
+```
+
+Se il progetto su Cloudflare ha un nome diverso da `propromanager`, cambialo nello
+script `deploy` di `package.json` e in `wrangler.toml`.
+
+**Da repository collegato** — nelle impostazioni del progetto Pages:
+
+| Campo | Valore |
+| --- | --- |
+| Framework preset | None |
+| Build command | `npm run build` |
+| Build output directory | `dist` |
+| Node version | 20 o superiore |
+
+Ogni push sul branch collegato pubblica una nuova versione.
+
+Nota: senza backend l'autenticazione è solo di facciata (l'email deve corrispondere a
+un utente, la password serve solo come lunghezza minima) e i dati stanno nel
+`localStorage` del singolo browser. Per proteggere davvero il sito usa
+Cloudflare Access davanti al progetto Pages.
 
 ## Struttura
 

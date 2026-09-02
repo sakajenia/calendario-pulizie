@@ -29,8 +29,6 @@ const day = (offset: number, h = 10, m = 0) => {
 
 export const users: User[] = [
   { id: 'u-admin', name: 'Gianluca Biondi', email: 'aurea.consulting.marketing@gmail.com', phone: '+39 340 118 2277', role: 'admin', active: true, createdAt: iso(day(-420)) },
-  { id: 'u-host-1', name: 'ProProManager Roma Centro', email: 'centro@propromanager.com', phone: '+39 06 4522 1180', role: 'host', active: true, createdAt: iso(day(-380)) },
-  { id: 'u-host-2', name: 'ProProManager Prati', email: 'prati@propromanager.com', phone: '+39 06 3751 9040', role: 'host', active: true, createdAt: iso(day(-330)) },
   /* Un solo account per le pulizie: e' la squadra che opera sul campo. */
   { id: 'u-pulizie', name: 'Pulizie ProProManager', email: 'pulizie@propromanager.it', phone: '+39 349 772 1188', role: 'operator', active: true, createdAt: iso(day(-260)) },
 ]
@@ -43,7 +41,7 @@ const DIVM: BedType = 'Divano letto Matrimoniale'
 export const apartments: Apartment[] = [
   {
     id: 'ap-livraghi', name: 'Via Giovanni Livraghi 2', address: 'Via Giovanni Livraghi 2',
-    district: 'Trastevere', city: 'Roma', ownerId: 'u-host-1', visibility: 'official', provider: 'guesty',
+    district: 'Trastevere', city: 'Roma', ownerId: 'u-admin', visibility: 'official', provider: 'guesty',
     providerListingId: 'GY-88213', beds: [
       { id: 'b-liv-1', type: MATR }, { id: 'b-liv-2', type: DIVM },
     ],
@@ -53,7 +51,7 @@ export const apartments: Apartment[] = [
   },
   {
     id: 'ap-consoli', name: 'Piazza dei Consoli, 51', address: 'Piazza dei Consoli, 50',
-    district: 'Tuscolana', city: 'Roma', ownerId: 'u-host-1', visibility: 'official', provider: 'hostaway',
+    district: 'Tuscolana', city: 'Roma', ownerId: 'u-admin', visibility: 'official', provider: 'hostaway',
     providerListingId: 'HA-40917', beds: [
       { id: 'b-con-1', type: MATR }, { id: 'b-con-2', type: SING }, { id: 'b-con-3', type: SING },
     ],
@@ -63,7 +61,7 @@ export const apartments: Apartment[] = [
   },
   {
     id: 'ap-giuliana', name: 'Via della Giuliana 35', address: 'Via della Giuliana 35',
-    district: 'Prati', city: 'Roma', ownerId: 'u-host-2', visibility: 'official', provider: 'guesty',
+    district: 'Prati', city: 'Roma', ownerId: 'u-admin', visibility: 'official', provider: 'guesty',
     providerListingId: 'GY-88240', beds: [
       { id: 'b-giu-1', type: MATR }, { id: 'b-giu-2', type: DIVM },
     ],
@@ -73,7 +71,7 @@ export const apartments: Apartment[] = [
   },
   {
     id: 'ap-labicana', name: 'Via di Porta Labicana 19', address: 'Via di Porta Labicana 19',
-    district: 'San Giovanni', city: 'Roma', ownerId: 'u-host-1', visibility: 'official', provider: 'guesty',
+    district: 'San Giovanni', city: 'Roma', ownerId: 'u-admin', visibility: 'official', provider: 'guesty',
     providerListingId: 'GY-88266', beds: [
       { id: 'b-lab-1', type: MATR }, { id: 'b-lab-2', type: MATR }, { id: 'b-lab-3', type: SING },
     ],
@@ -83,7 +81,7 @@ export const apartments: Apartment[] = [
   },
   {
     id: 'ap-trionfale', name: 'Via Trionfale 20', address: 'Via Trionfale 20',
-    district: 'Prati', city: 'Roma', ownerId: 'u-host-2', visibility: 'official', provider: 'hostaway',
+    district: 'Prati', city: 'Roma', ownerId: 'u-admin', visibility: 'official', provider: 'hostaway',
     providerListingId: 'HA-40952', beds: [{ id: 'b-tri-1', type: MATR }],
     notes: '1) Mettere di nostro:\n   - la saponetta + shampoo\n   - carta igienica\n   - the vari e zucchero\n\n   Tutti i refill si trovano nel vostro armadietto, codice lucchetto 140.',
     prices: { base: 40, min: 32, max: 62, perGuest: { 1: 36, 2: 40 } },
@@ -91,7 +89,7 @@ export const apartments: Apartment[] = [
   },
   {
     id: 'ap-scala', name: 'Via della Scala 9', address: 'Via della Scala 9',
-    district: 'Trastevere', city: 'Roma', ownerId: 'u-host-1', visibility: 'official', provider: 'guesty',
+    district: 'Trastevere', city: 'Roma', ownerId: 'u-admin', visibility: 'official', provider: 'guesty',
     providerListingId: 'GY-88301', beds: [
       { id: 'b-sca-1', type: MATR }, { id: 'b-sca-2', type: DIVM },
     ],

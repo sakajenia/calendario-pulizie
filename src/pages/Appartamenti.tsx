@@ -10,6 +10,7 @@ import {
 } from '@/components/ui'
 import { StatusChip } from '@/components/StatusChip'
 import { scopeApartments, scopeRequests, useCurrentUser, useStore } from '@/data/store'
+import { isManager } from '@/lib/permissions'
 import {
   asDate, downloadFile, fmtDate, fmtDateTime, fmtEur, fmtNum, norm, plural, toCsv,
 } from '@/lib/format'
@@ -643,10 +644,13 @@ export default function Appartamenti() {
   const scoped = React.useMemo(() => scopeApartments(allApartments, user), [allApartments, user])
   const scopedRequests = React.useMemo(() => scopeRequests(allRequests, user), [allRequests, user])
 
-  /** Un host può assegnare gli appartamenti solo a sé stesso. */
+  /**
+   * Proprietari selezionabili: gli account manager (amministratori e host).
+   * Un host può assegnare gli appartamenti solo a sé stesso.
+   */
   const hosts = React.useMemo(() => {
     if (user?.role === 'host') return [user]
-    return users.filter((u) => u.role === 'host')
+    return users.filter(isManager)
   }, [users, user])
 
   const rows = React.useMemo<Row[]>(() => {

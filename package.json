@@ -10,7 +10,8 @@
     "typecheck": "tsc -b --noEmit",
     "check:tokens": "node scripts/check-tokens.mjs",
     "shoot": "node scripts/shoot.mjs",
-    "check:contrast": "node scripts/check-contrast.mjs"
+    "check:contrast": "node scripts/check-contrast.mjs",
+    "deploy": "npm run build && wrangler pages deploy dist --project-name=propromanager"
   },
   "dependencies": {
     "clsx": "^2.1.1",

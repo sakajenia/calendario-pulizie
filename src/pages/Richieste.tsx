@@ -157,7 +157,7 @@ function FiltersDrawer({ open, onClose }: { open: boolean; onClose: () => void }
   const resetFilters = useStore((s) => s.resetFilters)
 
   const isAdmin = user?.role === 'admin'
-  const hosts = React.useMemo(() => allUsers.filter((u) => u.role === 'host'), [allUsers])
+  const hosts = React.useMemo(() => allUsers.filter(isManager), [allUsers])
 
   React.useEffect(() => {
     if (!open) return
@@ -305,7 +305,7 @@ export default function Richieste() {
   const mayCreate = canCreateRequest(user)
   const mayBulk = isManager(user)
 
-  const hosts = React.useMemo(() => allUsers.filter((u) => u.role === 'host'), [allUsers])
+  const hosts = React.useMemo(() => allUsers.filter(isManager), [allUsers])
 
   const [sortKey, setSortKey] = React.useState<SortKey>('createdAt')
   const [sortDir, setSortDir] = React.useState<SortDir>('desc')

@@ -11,6 +11,7 @@ import {
 } from '@/components/ui'
 import { useToast } from '@/components/feedback/Toast'
 import { useCurrentUser, useStore } from '@/data/store'
+import { isManager } from '@/lib/permissions'
 import { asDate, downloadFile, fmtDate, fmtNum, fmtRelative, norm, plural, toCsv } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ROLE_META, type User, type UserRole } from '@/types'
@@ -330,7 +331,7 @@ export default function Utenti() {
   const [migrateConfirm, setMigrateConfirm] = React.useState(false)
   const [migrationNote, setMigrationNote] = React.useState('')
 
-  const hosts = React.useMemo(() => users.filter((u) => u.role === 'host'), [users])
+  const hosts = React.useMemo(() => users.filter(isManager), [users])
 
   const rows = React.useMemo<Row[]>(() => {
     const nameById = new Map(users.map((u) => [u.id, u.name]))
@@ -398,7 +399,10 @@ export default function Utenti() {
 
   const hasFilters = text.trim() !== '' || roleFilter !== 'all' || statusFilter !== 'all'
   const activeCount = users.filter((u) => u.active).length
-  const roleCounts = ROLES.map((r) => ({ role: r, n: users.filter((u) => u.role === r).length }))
+  /* Solo i ruoli presenti: un "0 manager" nel sommario e' rumore. */
+  const roleCounts = ROLES
+    .map((r) => ({ role: r, n: users.filter((u) => u.role === r).length }))
+    .filter((r) => r.n > 0)
 
   const editing = editingId ? users.find((u) => u.id === editingId) ?? null : null
   const pendingDelete = pendingDeleteId ? rows.find((r) => r.user.id === pendingDeleteId) ?? null : null

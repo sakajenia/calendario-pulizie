@@ -1,0 +1,4 @@
+# Deploy su Cloudflare Pages:  npm run deploy
+name = "propromanager"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-09-02"

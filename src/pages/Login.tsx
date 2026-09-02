@@ -1,29 +1,20 @@
 import * as React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRight, KeyRound, Mail, ShieldCheck, Sparkles } from 'lucide-react'
+import { KeyRound, Mail } from 'lucide-react'
 import { Button, Card, Field, Input } from '@/components/ui'
 import { Logo } from '@/components/brand/Logo'
 import { useStore } from '@/data/store'
-import { ROLE_META, type UserRole } from '@/types'
 
 const APP_VERSION = '1.0.0'
-const DEMO_PASSWORD = '123456'
-
-/** Le due tipologie di account, con l'utente di prova che le rappresenta. */
-const DEMO_ACCOUNTS: { role: UserRole; name: string; email: string; icon: typeof ShieldCheck }[] = [
-  { role: 'admin', name: 'Aurea Consulting', email: 'aurea.consulting.marketing@gmail.com', icon: ShieldCheck },
-  { role: 'operator', name: 'Pulizie ProProManager', email: 'pulizie@propromanager.it', icon: Sparkles },
-]
 
 export default function Login() {
   const login = useStore((s) => s.login)
   const navigate = useNavigate()
-  const [email, setEmail] = React.useState('aurea.consulting.marketing@gmail.com')
-  const [password, setPassword] = React.useState(DEMO_PASSWORD)
+  const [email, setEmail] = React.useState('')
+  const [password, setPassword] = React.useState('')
   const [error, setError] = React.useState<string>()
   const [loading, setLoading] = React.useState(false)
 
-  /** Unico punto di accesso: lo usano sia il modulo sia le scorciatoie di prova. */
   const run = (mail: string, pass: string) => {
     setError(undefined)
     if (!mail.trim()) return setError('Inserire un indirizzo email')
@@ -42,14 +33,6 @@ export default function Login() {
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     run(email, password)
-  }
-
-  /* Riempie il modulo a vista e poi entra: si vede con quali credenziali si accede. */
-  const useDemo = (mail: string) => {
-    if (loading) return
-    setEmail(mail)
-    setPassword(DEMO_PASSWORD)
-    run(mail, DEMO_PASSWORD)
   }
 
   return (
@@ -116,46 +99,6 @@ export default function Login() {
               </Button>
             </form>
           </Card>
-
-          <Card className="mt-4 p-4">
-            <p className="eyebrow">Accessi di prova</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Due tipologie di account. Scegline una: il modulo si compila e l&apos;accesso parte.
-            </p>
-
-            <div className="mt-3 grid gap-2">
-              {DEMO_ACCOUNTS.map((a) => {
-                const Icon = a.icon
-                return (
-                  <button
-                    key={a.role}
-                    type="button"
-                    disabled={loading}
-                    onClick={() => useDemo(a.email)}
-                    className="group flex w-full items-start gap-3 rounded-lg border border-border bg-background/60 p-3 text-left transition-colors hover:border-primary/40 hover:bg-muted focus-ring disabled:opacity-60"
-                  >
-                    <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-brand">
-                      <Icon className="size-4" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold leading-tight">{ROLE_META[a.role].label}</span>
-                      <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
-                        {ROLE_META[a.role].hint}
-                      </span>
-                      <span className="mt-1 block truncate font-mono text-[11px] leading-snug text-muted-foreground">
-                        {a.email}
-                      </span>
-                    </span>
-                    <ArrowRight className="mt-1.5 size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-brand" />
-                  </button>
-                )
-              })}
-            </div>
-          </Card>
-
-          <p className="mt-4 text-center text-xs text-muted-foreground">
-            Demo: usa una qualsiasi email del team con password di almeno 6 caratteri.
-          </p>
         </div>
       </main>
 
