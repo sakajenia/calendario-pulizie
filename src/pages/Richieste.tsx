@@ -79,9 +79,11 @@ function SortHeader({
 /* -------------------------------------------------------------- menu di riga */
 
 function RowMenu({
-  onView, onEdit, onStatus, onDelete, onComplete,
+  name, onView, onEdit, onStatus, onDelete, onComplete,
   mayEdit, mayDelete, mayChangeStatus, mayComplete,
 }: {
+  /** Nome della richiesta nel nome accessibile: dieci pulsanti "Azioni richiesta" identici non si distinguono. */
+  name: string
   onView: () => void
   onEdit: () => void
   onStatus: (s: RequestStatus) => void
@@ -97,10 +99,10 @@ function RowMenu({
 
   return (
     <Dropdown
-      align="start"
+      align="end"
       className="w-[220px]"
       trigger={
-        <Button variant="ghost" size="icon" className="size-7" aria-label="Azioni richiesta" onClick={() => setStatusOpen(false)}>
+        <Button variant="ghost" size="icon" className="size-8" aria-label={`Azioni richiesta ${name}`} onClick={() => setStatusOpen(false)}>
           <MoreVertical />
         </Button>
       }
@@ -615,15 +617,15 @@ export default function Richieste() {
               onChange={(e) => {
                 const v = e.target.value
                 if (!v) return
-                const before = allRequests
-                  .filter((r) => selectedIds.includes(r.id))
-                  .map((r) => ({ id: r.id, status: r.status }))
+                /* Oggetti interi, non solo lo stato: il rientro non deve riscrivere
+                   data e autore del completamento. */
+                const before = allRequests.filter((r) => selectedIds.includes(r.id))
                 setRequestStatus(selectedIds, v as RequestStatus)
                 toast({
                   title: `${plural(before.length, 'richiesta aggiornata', 'richieste aggiornate')} a \u201c${STATUS_META[v as RequestStatus].label}\u201d`,
                   action: {
                     label: 'Annulla',
-                    onClick: () => before.forEach((b) => setRequestStatus([b.id], b.status)),
+                    onClick: () => before.forEach(upsertRequest),
                   },
                 })
               }}
@@ -747,6 +749,7 @@ export default function Richieste() {
 
                     <Td onClick={(e) => e.stopPropagation()}>
                       <RowMenu
+                        name={r.address}
                         mayEdit={rowEdit}
                         mayDelete={rowDelete}
                         mayChangeStatus={rowStatus}
@@ -758,12 +761,12 @@ export default function Richieste() {
                           toast({ title: 'Pulizia segnata come completata', description: r.address })
                         }}
                         onStatus={(next) => {
-                          const before = r.req.status
+                          const before = r.req
                           setRequestStatus([r.req.id], next)
                           toast({
                             title: `Stato aggiornato a \u201c${STATUS_META[next].label}\u201d`,
                             description: r.address,
-                            action: { label: 'Annulla', onClick: () => setRequestStatus([r.req.id], before) },
+                            action: { label: 'Annulla', onClick: () => upsertRequest(before) },
                           })
                         }}
                         onDelete={() => setPendingDelete([r.req.id])}

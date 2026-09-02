@@ -456,7 +456,7 @@ export default function CatalogoTask() {
     setFormOpen(true)
     toast({
       title: 'Task duplicato',
-      description: `${copy.name} e' nel catalogo: modifica il nome se serve.`,
+      description: `${copy.name} è nel catalogo: modifica il nome se serve.`,
       action: { label: 'Annulla', onClick: () => { deleteTask(id); setFormOpen(false); setEditingId(null) } },
     })
   }
@@ -673,6 +673,7 @@ export default function CatalogoTask() {
                   onClick={() => openEdit(r.task.id)}
                   badge={
                     <Checkbox
+                      padded
                       checked={selected.has(r.task.id)}
                       onChange={() => toggleOne(r.task.id)}
                       label={`Seleziona ${r.task.name}`}

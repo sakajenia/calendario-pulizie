@@ -698,10 +698,10 @@ export default function Utenti() {
                     <>
                       <ActiveBadge active={r.user.active} />
                       <Checkbox
+                        padded
                         checked={selected.has(r.user.id)}
                         onChange={() => toggleOne(r.user.id)}
                         label={`Seleziona ${r.user.name}`}
-                        className="ml-1"
                       />
                     </>
                   }

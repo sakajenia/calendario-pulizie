@@ -786,6 +786,7 @@ export default function Extra() {
                   onClick={() => openEdit(r.extra.id)}
                   badge={
                     <Checkbox
+                      padded
                       checked={selected.includes(r.extra.id)}
                       onChange={() => toggleOne(r.extra.id)}
                       label={`Seleziona ${r.extra.name}`}

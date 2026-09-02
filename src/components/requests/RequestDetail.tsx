@@ -3,6 +3,7 @@ import { BedDouble, Check, Home, MapPin, StickyNote, Trash2, Users } from 'lucid
 import { Dialog, Button, Select, Textarea } from '@/components/ui'
 import { StatusChip } from '@/components/StatusChip'
 import { HelpTip } from '@/components/HelpTip'
+import { useToast } from '@/components/feedback/Toast'
 import { useCurrentUser, useStore } from '@/data/store'
 import { canAnnotateRequest, canCompleteRequest, canDeleteRequest, canEditRequest, canChangeStatus } from '@/lib/permissions'
 import { fmtDateTime } from '@/lib/format'
@@ -71,7 +72,29 @@ export function RequestDetail({
   const setRequestStatus = useStore((s) => s.setRequestStatus)
   const completeRequest = useStore((s) => s.completeRequest)
   const setOperatorNotes = useStore((s) => s.setOperatorNotes)
+  const upsertRequest = useStore((s) => s.upsertRequest)
   const user = useCurrentUser()
+  const toast = useToast()
+
+  /* Stesso riscontro con rientro del menu di riga e delle azioni di massa:
+     si rimette l'oggetto intero, non solo lo stato, per non riscrivere data
+     e autore del completamento. */
+  const changeStatus = (r: CleaningRequest, next: RequestStatus) => {
+    const before = r
+    setRequestStatus([r.id], next)
+    toast({
+      title: `Stato aggiornato a “${STATUS_META[next].label}”`,
+      action: { label: 'Annulla', onClick: () => upsertRequest(before) },
+    })
+  }
+  const complete = (r: CleaningRequest) => {
+    const before = r
+    completeRequest(r.id)
+    toast({
+      title: 'Pulizia segnata come completata',
+      action: { label: 'Annulla', onClick: () => upsertRequest(before) },
+    })
+  }
 
   const [noteDraft, setNoteDraft] = React.useState('')
   const [noteSaved, setNoteSaved] = React.useState(false)
@@ -111,7 +134,7 @@ export function RequestDetail({
           )}
           <Button variant="outline" onClick={onClose}>Chiudi</Button>
           {mayComplete && !isDone && !mayEdit && (
-            <Button onClick={() => completeRequest(request.id)}>
+            <Button onClick={() => complete(request)}>
               <Check /> Segna come completata
             </Button>
           )}
@@ -129,7 +152,7 @@ export function RequestDetail({
                 aria-label="Stato richiesta"
                 value={request.status}
                 options={REQUEST_STATUSES.map((s) => ({ value: s, label: STATUS_META[s].label }))}
-                onChange={(e) => setRequestStatus([request.id], e.target.value as RequestStatus)}
+                onChange={(e) => changeStatus(request, e.target.value as RequestStatus)}
               />
             ) : (
               <StatusChip status={request.status} />
@@ -162,11 +185,11 @@ export function RequestDetail({
             {mayComplete && (
               <div className="flex flex-wrap gap-2 pb-3">
                 {!isDone ? (
-                  <Button size="sm" onClick={() => completeRequest(request.id)}>
+                  <Button size="sm" onClick={() => complete(request)}>
                     <Check /> Segna come completata
                   </Button>
                 ) : mayChangeStatus ? (
-                  <Button size="sm" variant="outline" onClick={() => setRequestStatus([request.id], 'da_verificare')}>
+                  <Button size="sm" variant="outline" onClick={() => changeStatus(request, 'da_verificare')}>
                     Riapri la pulizia
                   </Button>
                 ) : null}

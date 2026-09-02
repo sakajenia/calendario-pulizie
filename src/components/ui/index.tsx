@@ -184,12 +184,14 @@ export const Badge = ({ className, ...p }: React.HTMLAttributes<HTMLSpanElement>
 /* ---------------------------------------------------------------- Checkbox */
 
 export function Checkbox({
-  checked, indeterminate, onChange, className, label, disabled,
+  checked, indeterminate, onChange, className, label, disabled, padded,
 }: {
   checked: boolean; indeterminate?: boolean; onChange: (v: boolean) => void
   className?: string; label?: string; disabled?: boolean
+  /** Area di tocco allargata (36px) per le schede su telefono: la casella da 16px da sola non basta al dito. */
+  padded?: boolean
 }) {
-  return (
+  const box = (
     <button
       type="button"
       role="checkbox"
@@ -205,6 +207,16 @@ export function Checkbox({
     >
       {indeterminate ? <span className="h-0.5 w-2 rounded bg-current" /> : checked ? <Check className="size-3" strokeWidth={3} /> : null}
     </button>
+  )
+  if (!padded) return box
+  return (
+    <span
+      className="grid size-9 shrink-0 cursor-pointer place-items-center"
+      onClick={(e) => { e.stopPropagation(); if (!disabled) onChange(!checked) }}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      {box}
+    </span>
   )
 }
 
@@ -428,7 +440,9 @@ export function Dropdown({
         <div
           ref={menuRef}
           role="menu"
-          onClick={() => setOpen(false)}
+          /* Il focus torna al trigger prima che un eventuale dialog aperto
+             dalla voce registri da dove ripartire alla chiusura. */
+          onClick={() => close(true)}
           style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999 }}
           className={cn(
             'fixed z-50 min-w-[200px] overflow-hidden rounded-lg border border-border bg-popover p-1 shadow-raised animate-scale-in',
@@ -556,7 +570,9 @@ export function MobileRecord({
       tabIndex={interactive ? 0 : undefined}
       onClick={onClick}
       onKeyDown={(e) => {
-        if (!interactive) return
+        // Solo i tasti premuti sulla scheda stessa: la casella e il menu al suo
+        // interno gestiscono da soli Invio e Spazio.
+        if (!interactive || e.target !== e.currentTarget) return
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.() }
       }}
       className={cn(
@@ -572,7 +588,9 @@ export function MobileRecord({
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {badge}
-          {action && <span onClick={(e) => e.stopPropagation()}>{action}</span>}
+          {action && (
+            <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>{action}</span>
+          )}
         </div>
       </div>
 
@@ -655,12 +673,21 @@ export const Skeleton = ({ className }: { className?: string }) => (
 
 /* ----------------------------------------------------------------- Tooltip */
 
-export function Tooltip({ label, children }: { label: string; children: React.ReactNode }) {
+/**
+ * Il contenuto visibile resta il nome; il testo del suggerimento e' collegato
+ * con aria-describedby. Visibile anche col focus da tastiera: un'informazione
+ * solo al passaggio del mouse non esiste per chi il mouse non lo usa.
+ * `focusable={false}` quando sta dentro un altro elemento interattivo.
+ */
+export function Tooltip({
+  label, children, focusable = true,
+}: { label: string; children: React.ReactNode; focusable?: boolean }) {
+  const id = React.useId()
   return (
-    <span className="group/tt relative inline-flex" tabIndex={0} aria-label={label}>
+    <span className="group/tt relative inline-flex" tabIndex={focusable ? 0 : undefined} aria-describedby={id}>
       {children}
-      {/* Visibile anche col focus da tastiera: un'informazione solo al passaggio del mouse non esiste per chi non lo usa. */}
       <span
+        id={id}
         role="tooltip"
         className="pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs text-background group-hover/tt:block group-focus-within/tt:block"
       >

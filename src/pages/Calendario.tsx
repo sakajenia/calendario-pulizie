@@ -398,12 +398,14 @@ export default function Calendario() {
 
   /* Le azioni di massa danno lo stesso riscontro con rientro della pagina Richieste. */
   const applyBulkStatus = (s: RequestStatus) => {
-    const before = checked.map((r) => ({ id: r.id, status: r.status }))
+    /* Si conserva l'oggetto intero: rimettere solo lo stato riscriverebbe data e
+       autore del completamento. */
+    const before = checked.slice()
     setRequestStatus(before.map((b) => b.id), s)
     setCheckedIds([])
     toast({
       title: `${plural(before.length, 'richiesta aggiornata', 'richieste aggiornate')} a “${STATUS_META[s].label}”`,
-      action: { label: 'Annulla', onClick: () => before.forEach((b) => setRequestStatus([b.id], b.status)) },
+      action: { label: 'Annulla', onClick: () => before.forEach(upsertRequest) },
     })
   }
 

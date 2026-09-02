@@ -366,8 +366,10 @@ function SheetCard({
           </p>
         </div>
         <Dropdown
+          align="end"
+          className="w-[200px]"
           trigger={
-            <Button variant="ghost" size="icon" aria-label={`Azioni per ${row.sheet.name}`}>
+            <Button variant="ghost" size="icon" className="size-8" aria-label={`Azioni per ${row.sheet.name}`}>
               <MoreVertical />
             </Button>
           }
@@ -430,8 +432,10 @@ function SheetCard({
       <div className="flex items-start justify-between gap-3 lg:flex-col lg:items-end lg:justify-start lg:gap-1.5 lg:text-right">
         <div className="hidden lg:block">
           <Dropdown
+            align="end"
+            className="w-[200px]"
             trigger={
-              <Button variant="ghost" size="icon" aria-label={`Azioni per ${row.sheet.name}`}>
+              <Button variant="ghost" size="icon" className="size-8" aria-label={`Azioni per ${row.sheet.name}`}>
                 <MoreVertical />
               </Button>
             }

@@ -766,7 +766,7 @@ export default function Appartamenti() {
     for (const id of pendingDelete) deleteApartment(id)
     toast({
       title: plural(removed.length, 'appartamento eliminato', 'appartamenti eliminati'),
-      description: removed.map((a) => a.name).join(', ').slice(0, 90),
+      description: `${removed.map((a) => a.name).join(', ').slice(0, 90)}. Puoi annullare finché questa notifica resta a schermo.`,
       action: { label: 'Annulla', onClick: () => removed.forEach(restoreApartment) },
     })
     setSelected((prev) => {
@@ -897,6 +897,7 @@ export default function Appartamenti() {
                   onClick={() => setDetailId(r.apt.id)}
                   badge={
                     <Checkbox
+                      padded
                       checked={selected.has(r.apt.id)}
                       onChange={() => toggleOne(r.apt.id)}
                       label={`Seleziona ${r.apt.name}`}

@@ -6,7 +6,7 @@ import {
 import { PageHeader } from '@/components/layout/AppShell'
 import {
   Button, Checkbox, Dialog, Dropdown, DropdownItem, DropdownSeparator, EmptyState,
-  Input, Select, Tabs, Tooltip,
+  Input, Select, Tabs,
 } from '@/components/ui'
 import { StatusChip } from '@/components/StatusChip'
 import { RequestDetail } from '@/components/requests/RequestDetail'
@@ -118,9 +118,10 @@ function NotificationRow({
           <span className="block text-sm text-muted-foreground">{notification.body}</span>
 
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            <Tooltip label={fmtDateTime(notification.createdAt)}>
-              <span className="cursor-help">{fmtRelative(notification.createdAt)}</span>
-            </Tooltip>
+            {/* Dentro un pulsante non ci va un altro elemento focalizzabile: basta il title. */}
+            <time dateTime={notification.createdAt} title={fmtDateTime(notification.createdAt)}>
+              {fmtRelative(notification.createdAt)}
+            </time>
             <span aria-hidden className="text-border">|</span>
             {request ? (
               <span className="inline-flex items-center gap-0.5 font-medium text-brand">
@@ -281,7 +282,7 @@ export default function Notifiche() {
     const unread = notifications.filter((n) => !n.read).map((n) => n.id)
     markAllNotificationsRead()
     toast({
-      title: `${plural(unread.length, 'notifica segnata', 'notifiche segnate')} come letta`,
+      title: plural(unread.length, 'notifica segnata come letta', 'notifiche segnate come lette'),
       action: { label: 'Annulla', onClick: () => unread.forEach((id) => markNotification(id, false)) },
     })
   }
