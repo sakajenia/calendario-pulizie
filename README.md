@@ -86,53 +86,46 @@ npm run build        # build di produzione
 npm run typecheck    # controllo tipi
 ```
 
-## Pubblicazione su Cloudflare Pages
+## Pubblicazione su Cloudflare
 
 Il progetto è una SPA statica: `npm run build` produce `dist/`, che è tutto quello
-che serve. `public/_redirects` riscrive ogni percorso su `index.html`, così i link
-diretti (`/appartamenti`, `/magazzini`, …) non danno 404.
+che serve. Viene pubblicato come Worker di soli asset statici, configurato in
+`wrangler.toml`:
 
-**Da riga di comando** — aggiorna il progetto Pages esistente:
+```toml
+name = "calendario-pulizie"
+compatibility_date = "2026-09-02"
 
-```bash
-npx wrangler login                 # una sola volta
-npm run deploy                     # build + wrangler pages deploy dist
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
 ```
 
-Se il progetto su Cloudflare ha un nome diverso da `propromanager`, cambialo nello
-script `deploy` di `package.json` e in `wrangler.toml`.
+`not_found_handling` serve da fallback su `index.html`, così i link diretti
+(`/appartamenti`, `/magazzini`, …) non danno 404. Non usare in parallelo un file
+`public/_redirects` con la regola `/* /index.html 200`: Workers la rifiuta come
+loop infinito e il deploy fallisce.
 
-**Da repository collegato** — nelle impostazioni del progetto Pages:
+**Da repository collegato (Workers Builds)** — è la configurazione attiva. Ogni
+push su `main` fa partire una build che pubblica una nuova versione:
 
 | Campo | Valore |
 | --- | --- |
-| Framework preset | None |
 | Build command | `npm run build` |
-| Build output directory | `dist` |
-| Node version | 20 o superiore |
+| Deploy command | `npx wrangler deploy` |
+| Path | `/` |
 
-Ogni push sul branch collegato pubblica una nuova versione.
+Il `name` in `wrangler.toml` deve combaciare con il nome del progetto su
+Cloudflare, altrimenti il deploy non trova il Worker giusto.
+
+**Da riga di comando**, in alternativa:
+
+```bash
+npx wrangler login                 # una sola volta
+npm run deploy                     # build + wrangler deploy
+```
 
 Nota: senza backend l'autenticazione è solo di facciata (l'email deve corrispondere a
 un utente, la password serve solo come lunghezza minima) e i dati stanno nel
 `localStorage` del singolo browser. Per proteggere davvero il sito usa
-Cloudflare Access davanti al progetto Pages.
-
-## Struttura
-
-```
-src/
-├── components/
-│   ├── brand/        logo ProProManager in SVG
-│   ├── layout/       shell, sidebar, header di pagina
-│   ├── requests/     dettaglio, card e form richiesta
-│   └── ui/           primitive del design system
-├── data/             seed e store
-├── lib/              formattazione date/valuta, CSV, utility
-├── pages/            una per sezione
-└── types/            modello di dominio
-docs/
-├── RECON-COMFYHOST.md        cosa fa l'originale e come è stato analizzato
-├── BRAND-PROPROMANAGER.md    design system del brand
-└── AGENT-CONTRACT.md         convenzioni di implementazione
-```
+Cloudflare Access davanti al Worker.
