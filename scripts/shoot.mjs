@@ -1,6 +1,9 @@
 /* Avvia il dev server, fa login e cattura ogni schermata. */
 import { chromium } from 'playwright'
 import fs from 'node:fs'
+/* Il modulo di accesso parte vuoto: le credenziali vanno inserite. */
+const ADMIN_EMAIL = process.env.APP_EMAIL || 'aurea.consulting.marketing@gmail.com'
+const ADMIN_PASSWORD = process.env.APP_PASSWORD || 'propromanager'
 
 const OUT = process.env.SHOT_DIR || '/tmp/ppm-shots'
 const BASE = process.env.BASE_URL || 'http://localhost:5173'
@@ -21,6 +24,8 @@ await page.goto(`${BASE}/login`, { waitUntil: 'networkidle', timeout: 90000 })
 await page.waitForTimeout(1200)
 await page.screenshot({ path: `${OUT}/00-login.png` })
 
+await page.locator('#login-email').fill(ADMIN_EMAIL)
+await page.locator('#login-password').fill(ADMIN_PASSWORD)
 await page.getByRole('button', { name: 'Accedi' }).click()
 await page.waitForTimeout(2500)
 

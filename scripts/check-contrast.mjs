@@ -10,6 +10,9 @@
  * ogni superficie tinta risulterebbe un falso positivo.
  */
 import { chromium } from 'playwright'
+/* Il modulo di accesso parte vuoto: le credenziali vanno inserite. */
+const ADMIN_EMAIL = process.env.APP_EMAIL || 'aurea.consulting.marketing@gmail.com'
+const ADMIN_PASSWORD = process.env.APP_PASSWORD || 'propromanager'
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:5173'
 const b = await chromium.launch({
   executablePath: process.env.CHROME_PATH || undefined,
@@ -17,6 +20,8 @@ const b = await chromium.launch({
 })
 const page = await (await b.newContext({viewport:{width:1500,height:950},locale:'it-IT'})).newPage()
 await page.goto(`${BASE}/login`,{waitUntil:'networkidle',timeout:60000})
+await page.locator('#login-email').fill(ADMIN_EMAIL)
+await page.locator('#login-password').fill(ADMIN_PASSWORD)
 await page.getByRole('button',{name:'Accedi'}).click(); await page.waitForTimeout(2500)
 
 const audit = async (theme) => {
