@@ -1,4 +1,9 @@
-# Deploy su Cloudflare Pages:  npm run deploy
-name = "propromanager"
-pages_build_output_dir = "dist"
+# Worker di soli asset statici: pubblica dist/ (SPA React Router) senza codice
+# server. "not_found_handling" fa da fallback su index.html per le rotte
+# dell'app (/appartamenti, /magazzini, ...) cosi' un link diretto non da 404.
+name = "calendario-pulizie"
 compatibility_date = "2026-09-02"
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
