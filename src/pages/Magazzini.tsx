@@ -289,6 +289,7 @@ export default function Magazzini() {
   const warehouses = useStore((s) => s.warehouses)
   const extras = useStore((s) => s.extraCatalog)
   const requests = useStore((s) => s.requests)
+  const apartments = useStore((s) => s.apartments)
   const deleteWarehouse = useStore((s) => s.deleteWarehouse)
   const upsertWarehouse = useStore((s) => s.upsertWarehouse)
   const upsertExtra = useStore((s) => s.upsertExtra)
@@ -309,11 +310,11 @@ export default function Magazzini() {
   const tableRef = React.useRef<HTMLElement>(null)
 
   const considered = React.useMemo(() => {
-    const scoped = scopeRequests(requests, user)
+    const scoped = scopeRequests(requests, user, apartments)
     if (basis === 'all') return scoped
     if (basis === 'open') return scoped.filter((r) => OPEN_STATUSES.includes(r.status))
     return scoped.filter((r) => !CANCELLED_STATUSES.includes(r.status))
-  }, [requests, user, basis])
+  }, [requests, user, apartments, basis])
 
   /* Le richieste citano gli extra per nome, non per id: l'incrocio col catalogo passa da lì. */
   const qtyByName = React.useMemo(() => {

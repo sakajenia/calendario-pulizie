@@ -124,7 +124,10 @@ export const useStore = create<State>()(
         const user = get().users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase())
         if (!user) return { ok: false, error: 'Nessun utente trovato per questa email' }
         if (!user.active) return { ok: false, error: 'Utente non attivo' }
-        if (password.length < 6) return { ok: false, error: 'Password errata fornita per questo utente' }
+        /* Dove la password e' impostata vale quella; gli altri account
+           accettano ancora una password qualsiasi di almeno 6 caratteri. */
+        const wrong = user.password ? password !== user.password : password.length < 6
+        if (wrong) return { ok: false, error: 'Password errata fornita per questo utente' }
         set({ currentUserId: user.id })
         return { ok: true }
       },
@@ -241,7 +244,7 @@ export const useStore = create<State>()(
     {
       name: 'propromanager-state',
       /** Alzata quando cambiano forma dei dati o assegnazioni del seed: i dati locali ripartono puliti. */
-      version: 6,
+      version: 7,
       migrate: () => ({ ...baseData(), filters: emptyFilters, currentUserId: null }),
       partialize: (s) => ({
         currentUserId: s.currentUserId,
@@ -270,15 +273,33 @@ export const useCurrentUser = (): User | null => {
 
 export const useIsAdmin = () => useCurrentUser()?.role === 'admin'
 
-/** Un host vede solo i propri appartamenti; l'admin li vede tutti. */
+/**
+ * L'admin vede tutto; un host solo i propri appartamenti; un account pulizie
+ * legato a una ditta solo le case affidate a quella ditta.
+ */
 export function scopeApartments(apartments: Apartment[], user: User | null): Apartment[] {
   if (!user || user.role === 'admin') return apartments
   if (user.role === 'host') return apartments.filter((a) => a.ownerId === user.id)
+  if (user.companyId) return apartments.filter((a) => a.companyId === user.companyId)
   return apartments
 }
 
-export function scopeRequests(requests: CleaningRequest[], user: User | null): CleaningRequest[] {
+/**
+ * Le pulizie di una ditta comprendono anche i turni non ancora presi in
+ * carico, percio' servono gli appartamenti: il filtro passa dalla casa, non
+ * dall'assegnatario. Senza l'elenco un account di ditta non vede nulla -
+ * errore evidente, invece di mostrargli le case di un'altra ditta.
+ */
+export function scopeRequests(
+  requests: CleaningRequest[], user: User | null, apartments: Apartment[] = [],
+): CleaningRequest[] {
   if (!user || user.role === 'admin') return requests
   if (user.role === 'host') return requests.filter((r) => r.hostId === user.id)
+  if (user.companyId) {
+    const mine = new Set(
+      apartments.filter((a) => a.companyId === user.companyId).map((a) => a.id),
+    )
+    return requests.filter((r) => mine.has(r.apartmentId))
+  }
   return requests.filter((r) => r.assigneeId === user.id)
 }

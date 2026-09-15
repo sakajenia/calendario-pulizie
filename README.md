@@ -32,13 +32,14 @@ system reale di ProProManager, estratto dal sito ufficiale del brand.
 | **Dashboard** | Report mensile per i proprietari: per ogni casa pulizie completate, controlli sul posto, problemi risolti, costi extra, elenco degli interventi e andamento a sei mesi; export PDF (dalla stampa del browser) e CSV |
 | **Utenti** | Ruoli admin/host/operatore, attivazione, azioni bulk, migrazione dati fra host |
 | **Fogli di Lavoro** | Modelli di schede di lavoro componibili dal catalogo task |
-| **Catalogo Task** | Task atomici con stima in minuti e tracciamento dell'uso |
+| **Catalogo Task** | Registro delle verifiche messe nel Calendario Controlli, col tag di chi le esegue, la casa e il giorno; si aggiorna da solo e si spunta anche da qui |
 | **Compensi** | Solo amministratore: quanto versare a fine mese a ogni ditta di pulizie, coi costi fissi per intervento |
 | **Notifiche** | Feed eventi con collegamento diretto alla richiesta |
 | **Impostazioni** | Profilo, tema chiaro/scuro, statistiche personali, export ed eventuale ripristino dati |
 
 Tre ruoli, con visibilità differenziata: l'**admin** vede tutto, l'**host** solo i propri
-appartamenti e richieste, l'**operatore** solo gli interventi che gli sono assegnati.
+appartamenti e richieste, l'**operatore** solo le case della ditta di pulizie a cui
+appartiene.
 
 ## Design system
 
@@ -77,7 +78,10 @@ Due account, uno per tipologia:
 | Tipologia | Email | Password |
 | --- | --- | --- |
 | Manager (amministratore) | `aurea.consulting.marketing@gmail.com` | almeno 6 caratteri |
-| Addetto alle pulizie | `pulizie@propromanager.it` | almeno 6 caratteri |
+| Pulizie — Comfy Host | `comfy@propromanager.it` | `123456` |
+| Pulizie — Angela | `angela@propromanager.it` | `123456` |
+
+Ogni account pulizie vede solo gli appartamenti affidati alla propria ditta.
 
 Il selettore in alto a destra permette di passare da un profilo all'altro per vedere
 l'app con occhi diversi.

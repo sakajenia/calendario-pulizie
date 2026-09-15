@@ -119,7 +119,7 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
     [apartmentById],
   )
 
-  const scoped = React.useMemo(() => scopeRequests(allRequests, user), [allRequests, user])
+  const scoped = React.useMemo(() => scopeRequests(allRequests, user, allApartments), [allRequests, user, allApartments])
   const detail = React.useMemo(
     () => (detailId ? scoped.find((r) => r.id === detailId) ?? null : null),
     [detailId, scoped],

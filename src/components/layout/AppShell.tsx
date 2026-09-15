@@ -5,7 +5,7 @@ import {
   Bell, Building2, CalendarDays, ClipboardList, KeyRound, LayoutDashboard, ListChecks,
   LogOut, Moon, Receipt, Search, Settings, Sun, Users, Menu, X,
 } from 'lucide-react'
-import { Logo, LogoMark } from '@/components/brand/Logo'
+import { Logo } from '@/components/brand/Logo'
 import { CommandPalette } from '@/components/CommandPalette'
 import { Button, Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui'
 import { useCurrentUser, useStore } from '@/data/store'
@@ -30,10 +30,10 @@ const PRIMARY: NavEntry[] = [
   /* Gli accessi servono anche a chi va sul posto: nessuna restrizione. */
   { to: '/accessi', label: 'Accessi', icon: KeyRound },
   { to: '/appartamenti', label: 'Appartamenti', icon: Building2, managerOnly: true },
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: true },
 ]
 
 const ADMIN: NavEntry[] = [
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: true },
   { to: '/utenti', label: 'Utenti', icon: Users, adminOnly: true },
   { to: '/fogli-di-lavoro', label: 'Fogli di Lavoro', icon: ListChecks, adminOnly: true },
   { to: '/catalogo-task', label: 'Catalogo Task', icon: ClipboardList, adminOnly: true },
@@ -92,7 +92,7 @@ export function AppShell() {
   const sidebar = (
     <div className="flex h-full flex-col bg-sidebar">
       <div className="flex h-16 shrink-0 items-center gap-2 border-b border-sidebar-border px-4">
-        <Logo invert />
+        <Logo panel />
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto p-3 no-scrollbar">
@@ -138,7 +138,7 @@ export function AppShell() {
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileOpen((v) => !v)} aria-label="Menu">
             {mobileOpen ? <X /> : <Menu />}
           </Button>
-          <LogoMark className="size-7 lg:hidden" />
+          <Logo className="h-8 lg:hidden" />
 
           <div className="ml-auto flex items-center gap-1">
             <button

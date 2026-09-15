@@ -395,6 +395,7 @@ export default function Extra() {
   const extraCatalog = useStore((s) => s.extraCatalog)
   const warehouses = useStore((s) => s.warehouses)
   const requests = useStore((s) => s.requests)
+  const apartments = useStore((s) => s.apartments)
   const upsertExtra = useStore((s) => s.upsertExtra)
   const deleteExtra = useStore((s) => s.deleteExtra)
   const toast = useToast()
@@ -411,7 +412,7 @@ export default function Extra() {
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = React.useState<string[] | null>(null)
 
-  const scoped = React.useMemo(() => scopeRequests(requests, currentUser), [requests, currentUser])
+  const scoped = React.useMemo(() => scopeRequests(requests, currentUser, apartments), [requests, currentUser, apartments])
 
   const usage = React.useMemo(() => {
     const map = new Map<string, Usage>()

@@ -442,7 +442,9 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
   const periodInspections = React.useMemo(() => base.filter(inPeriod), [base, inPeriod])
 
   const countByPerson = React.useMemo(() => {
-    const acc = { manuel: 0, mark: 0 } as Record<InspectorId, number>
+    /* Le chiavi si costruiscono dall'elenco: fissarle a mano lasciava a
+       undefined chi veniva aggiunto dopo, e il contatore diventava NaN. */
+    const acc = Object.fromEntries(INSPECTORS.map((p) => [p, 0])) as Record<InspectorId, number>
     for (const i of periodSearched) acc[i.inspectorId] += 1
     return acc
   }, [periodSearched])

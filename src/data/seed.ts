@@ -17,8 +17,16 @@ const rnd = mulberry32(20260831)
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(rnd() * xs.length)]
 const int = (min: number, max: number) => min + Math.floor(rnd() * (max - min + 1))
 
-/** Riferimento temporale dell'app: la recon è stata fatta il 31-08-2026. */
-export const TODAY = new Date(2026, 7, 31, 9, 0, 0)
+/**
+ * Riferimento temporale dell'app: il giorno corrente. Tutto il dataset si
+ * dispone intorno a questa data, cosi' aprendo un calendario si atterra sul
+ * mese in corso invece che su un mese storico.
+ */
+export const TODAY = (() => {
+  const d = new Date()
+  d.setHours(9, 0, 0, 0)
+  return d
+})()
 
 const iso = (d: Date) => d.toISOString()
 const day = (offset: number, h = 10, m = 0) => {
@@ -28,11 +36,15 @@ const day = (offset: number, h = 10, m = 0) => {
   return d
 }
 
+/** Ogni ditta di pulizie ha il proprio accesso e vede solo le proprie case. */
 export const users: User[] = [
   { id: 'u-admin', name: 'ProProManager', email: 'aurea.consulting.marketing@gmail.com', phone: '+39 340 118 2277', role: 'admin', active: true, createdAt: iso(day(-420)) },
-  /* Un solo account per le pulizie: e' la squadra che opera sul campo. */
-  { id: 'u-pulizie', name: 'Pulizie', email: 'pulizie@propromanager.it', phone: '+39 349 772 1188', role: 'operator', active: true, createdAt: iso(day(-260)) },
+  { id: 'u-pulizie-comfy', name: 'Comfy', email: 'comfy@propromanager.it', phone: '+39 349 772 1188', role: 'operator', companyId: 'comfy', password: '123456', active: true, createdAt: iso(day(-260)) },
+  { id: 'u-pulizie-angela', name: 'Angela', email: 'angela@propromanager.it', phone: '+39 348 551 9042', role: 'operator', companyId: 'angela', password: '123456', active: true, createdAt: iso(day(-255)) },
 ]
+
+/** Chi prende in carico le pulizie di un appartamento: l'account della sua ditta. */
+const CLEANER_BY_COMPANY = { comfy: 'u-pulizie-comfy', angela: 'u-pulizie-angela' } as const
 
 const MATR: BedType = 'Letto Matrimoniale'
 const SING: BedType = 'Letto Singolo'
@@ -251,9 +263,9 @@ function bedsFor(ap: Apartment, count: number): RequestBed[] {
   }))
 }
 
-/** C'e' un solo account pulizie: ogni turno preso in carico va a lui. */
-function pickAssignee(status: RequestStatus): string | undefined {
-  return status === 'in_attesa' ? undefined : 'u-pulizie'
+/** Un turno preso in carico va all'account della ditta che segue quella casa. */
+function pickAssignee(status: RequestStatus, ap: Apartment): string | undefined {
+  return status === 'in_attesa' ? undefined : CLEANER_BY_COMPANY[ap.companyId]
 }
 
 function buildRequests(): CleaningRequest[] {
@@ -307,7 +319,7 @@ function buildRequests(): CleaningRequest[] {
         ],
         notes: pick(REQUEST_NOTES),
         workSheetId: rnd() < 0.75 ? 'ws-standard' : pick(['ws-rapida', 'ws-profonda'] as const),
-        assigneeId: pickAssignee(status),
+        assigneeId: pickAssignee(status, ap),
       })
     }
   }
@@ -351,25 +363,28 @@ const inspectionTasks = (names: string[], doneCount: number, at: Date): Inspecti
   }))
 
 /**
- * Un controllo per riga: giorno rispetto a TODAY, appartamento, chi controlla,
- * quante verifiche sono gia' spuntate. Il 15 settembre 2026 (martedi') ne ha
- * tre, di cui uno chiuso: serve a vedere il cuore accanto ai pallini.
+ * Un controllo per riga: giorno rispetto a oggi, appartamento, chi controlla,
+ * quante verifiche e quante gia' spuntate. Le quattro persone della squadra
+ * compaiono tutte, e su oggi ce ne sono tre - una chiusa - per vedere subito
+ * il cuore accanto ai pallini.
  */
 const INSPECTION_PLAN: [offset: number, hour: number, apartmentId: string, inspectorId: InspectorId, taskCount: number, doneCount: number][] = [
-  [-6, 10, 'ap-livraghi', 'manuel', 4, 4],
-  [-4, 15, 'ap-consoli', 'mark', 3, 3],
-  [-2, 11, 'ap-giuliana', 'manuel', 4, 2],
-  [-1, 16, 'ap-labicana', 'mark', 3, 0],
-  [1, 9, 'ap-trionfale', 'manuel', 5, 0],
-  [3, 14, 'ap-scala', 'mark', 4, 1],
-  [6, 10, 'ap-consoli', 'manuel', 3, 0],
-  [9, 11, 'ap-livraghi', 'mark', 4, 0],
-  /* martedi' 15 settembre 2026 */
-  [15, 9, 'ap-labicana', 'manuel', 4, 4],
-  [15, 12, 'ap-giuliana', 'mark', 3, 1],
-  [15, 16, 'ap-trionfale', 'manuel', 3, 0],
-  [18, 10, 'ap-scala', 'mark', 4, 0],
-  [22, 15, 'ap-consoli', 'manuel', 3, 0],
+  [-13, 10, 'ap-livraghi', 'manuel', 4, 4],
+  [-11, 15, 'ap-consoli', 'mark', 3, 3],
+  [-9, 11, 'ap-giuliana', 'michelle', 4, 2],
+  [-7, 16, 'ap-labicana', 'gianluca', 3, 3],
+  [-5, 9, 'ap-marsi', 'mark', 3, 1],
+  [-3, 14, 'ap-scala', 'michelle', 4, 4],
+  [-1, 10, 'ap-appia', 'gianluca', 3, 0],
+  /* oggi */
+  [0, 9, 'ap-labicana', 'manuel', 4, 4],
+  [0, 12, 'ap-giuliana', 'mark', 3, 1],
+  [0, 16, 'ap-trionfale', 'michelle', 3, 0],
+  [2, 10, 'ap-scala', 'gianluca', 4, 0],
+  [4, 15, 'ap-consoli', 'manuel', 3, 0],
+  [7, 11, 'ap-marsi', 'michelle', 4, 0],
+  [10, 10, 'ap-livraghi', 'mark', 3, 0],
+  [13, 16, 'ap-appia', 'gianluca', 4, 0],
 ]
 
 export const inspections: Inspection[] = INSPECTION_PLAN.map(
@@ -396,16 +411,16 @@ export const inspections: Inspection[] = INSPECTION_PLAN.map(
  * che e' zero.
  */
 const INTERVENTION_PLAN: [apartmentId: string, dayOffset: number, title: string, cost: number | undefined, coveredBy: string | undefined][] = [
-  ['ap-marsi', -24, 'Sistemato allagamento lavatrice', undefined, undefined],
-  ['ap-marsi', -19, 'Sistemato tubo del lavandino', undefined, undefined],
-  ['ap-marsi', -14, 'Sistemato frigo in blocco', undefined, undefined],
-  ['ap-marsi', -9, 'Intervento per internet non funzionante', undefined, undefined],
-  ['ap-marsi', -4, 'Risolto problema di accesso degli ospiti', undefined, undefined],
+  ['ap-marsi', -12, 'Sistemato allagamento lavatrice', undefined, undefined],
+  ['ap-marsi', -10, 'Sistemato tubo del lavandino', undefined, undefined],
+  ['ap-marsi', -8, 'Sistemato frigo in blocco', undefined, undefined],
+  ['ap-marsi', -5, 'Intervento per internet non funzionante', undefined, undefined],
+  ['ap-marsi', -2, 'Risolto problema di accesso degli ospiti', undefined, undefined],
 
-  ['ap-labicana', -22, 'Intervento per formiche', undefined, undefined],
-  ['ap-labicana', -16, 'Intervento per doccia rotta', undefined, undefined],
-  ['ap-labicana', -11, 'Sostituzione bicchieri rotti', 0, 'Aircover'],
-  ['ap-labicana', -5, 'Sistemato accesso ospiti: tastierino non funzionante', undefined, undefined],
+  ['ap-labicana', -11, 'Intervento per formiche', undefined, undefined],
+  ['ap-labicana', -9, 'Intervento per doccia rotta', undefined, undefined],
+  ['ap-labicana', -6, 'Sostituzione bicchieri rotti', 0, 'Aircover'],
+  ['ap-labicana', -3, 'Sistemato accesso ospiti: tastierino non funzionante', undefined, undefined],
 ]
 
 export const interventions: Intervention[] = INTERVENTION_PLAN.map(

@@ -72,6 +72,8 @@
        quindi si separano anche per luminosita': Manuel scuro, Mark chiaro. */
     --inspector-manuel: 224 76% 44%;
     --inspector-mark: 194 88% 38%;
+    --inspector-michelle: 322 76% 45%;
+    --inspector-gianluca: 142 62% 30%;
 
     /* Verde di conferma: segnala la posizione corrente fra due viste. */
     --success: 152 62% 30%;
@@ -133,6 +135,8 @@
 
     --inspector-manuel: 224 90% 72%;
     --inspector-mark: 194 88% 52%;
+    --inspector-michelle: 322 84% 66%;
+    --inspector-gianluca: 142 54% 48%;
 
     --success: 152 52% 46%;
     --success-foreground: 152 40% 8%;

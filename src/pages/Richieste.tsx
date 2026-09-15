@@ -322,7 +322,7 @@ export default function Richieste() {
   const closeForm = React.useCallback(() => { setFormOpen(false); setEditingId(null) }, [])
   const closePendingDelete = React.useCallback(() => setPendingDelete(null), [])
 
-  const scoped = React.useMemo(() => scopeRequests(allRequests, user), [allRequests, user])
+  const scoped = React.useMemo(() => scopeRequests(allRequests, user, allApartments), [allRequests, user, allApartments])
   const apartments = React.useMemo(() => scopeApartments(allApartments, user), [allApartments, user])
 
   const rows = React.useMemo<Row[]>(() => {

@@ -667,7 +667,7 @@ export default function Appartamenti() {
   const [pendingDelete, setPendingDelete] = React.useState<string[] | null>(null)
 
   const scoped = React.useMemo(() => scopeApartments(allApartments, user), [allApartments, user])
-  const scopedRequests = React.useMemo(() => scopeRequests(allRequests, user), [allRequests, user])
+  const scopedRequests = React.useMemo(() => scopeRequests(allRequests, user, allApartments), [allRequests, user, allApartments])
 
   /**
    * Proprietari selezionabili: gli account manager (amministratori e host).

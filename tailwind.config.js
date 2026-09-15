@@ -42,6 +42,8 @@ export default {
         inspector: {
           manuel: 'hsl(var(--inspector-manuel))',
           mark: 'hsl(var(--inspector-mark))',
+          michelle: 'hsl(var(--inspector-michelle))',
+          gianluca: 'hsl(var(--inspector-gianluca))',
         },
         success: { DEFAULT: 'hsl(var(--success))', foreground: 'hsl(var(--success-foreground))' },
         /* Le due ditte di pulizie a cui sono affidati gli appartamenti. */

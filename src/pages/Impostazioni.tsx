@@ -89,7 +89,7 @@ export default function Impostazioni() {
 
   const { dark, apply: applyTheme } = useTheme()
 
-  const myRequests = React.useMemo(() => scopeRequests(requests, user), [requests, user])
+  const myRequests = React.useMemo(() => scopeRequests(requests, user, apartments), [requests, user, apartments])
   const myApartments = React.useMemo(() => scopeApartments(apartments, user), [apartments, user])
 
   const byStatus = React.useMemo(() => {

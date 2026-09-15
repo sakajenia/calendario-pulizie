@@ -183,6 +183,7 @@ function NotificationRow({
 export default function Notifiche() {
   const notifications = useStore((s) => s.notifications)
   const requests = useStore((s) => s.requests)
+  const apartments = useStore((s) => s.apartments)
   const markNotification = useStore((s) => s.markNotification)
   const markAllNotificationsRead = useStore((s) => s.markAllNotificationsRead)
   const user = useCurrentUser()
@@ -200,9 +201,9 @@ export default function Notifiche() {
      in quel caso vale come richiesta non piu' disponibile. */
   const requestById = React.useMemo(() => {
     const map = new Map<string, CleaningRequest>()
-    for (const r of scopeRequests(requests, user)) map.set(r.id, r)
+    for (const r of scopeRequests(requests, user, apartments)) map.set(r.id, r)
     return map
-  }, [requests, user])
+  }, [requests, user, apartments])
 
   const byText = React.useMemo(() => {
     const q = norm(text.trim())

@@ -475,6 +475,7 @@ export default function FogliDiLavoro() {
   const workSheets = useStore((s) => s.workSheets)
   const taskCatalog = useStore((s) => s.taskCatalog)
   const requests = useStore((s) => s.requests)
+  const apartments = useStore((s) => s.apartments)
   const upsertWorkSheet = useStore((s) => s.upsertWorkSheet)
   const deleteWorkSheet = useStore((s) => s.deleteWorkSheet)
   const upsertRequest = useStore((s) => s.upsertRequest)
@@ -493,7 +494,7 @@ export default function FogliDiLavoro() {
     const byId = new Map(taskCatalog.map((t) => [t.id, t]))
     const usage = new Map<string, { count: number; last: string | null }>()
 
-    for (const r of scopeRequests(requests, currentUser)) {
+    for (const r of scopeRequests(requests, currentUser, apartments)) {
       if (!r.workSheetId) continue
       const cur = usage.get(r.workSheetId) ?? { count: 0, last: null }
       cur.count += 1
@@ -515,7 +516,7 @@ export default function FogliDiLavoro() {
         lastUsedAt: u?.last ?? null,
       }
     })
-  }, [workSheets, taskCatalog, requests, currentUser])
+  }, [workSheets, taskCatalog, requests, currentUser, apartments])
 
   const filtered = React.useMemo(() => {
     const q = norm(text.trim())

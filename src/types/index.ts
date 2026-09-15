@@ -34,6 +34,13 @@ export interface User {
   phone?: string
   role: UserRole
   active: boolean
+  /**
+   * Per gli account pulizie: la ditta di cui fanno parte. Vedono solo gli
+   * appartamenti affidati a quella ditta.
+   */
+  companyId?: CleaningCompanyId
+  /** Se impostata, l'accesso la richiede esatta. */
+  password?: string
   /** Host di riferimento per operatori e collaboratori. */
   refHostId?: string
   createdAt: string
@@ -216,7 +223,7 @@ export interface CleaningRequest {
  * fatte sugli appartamenti dopo le pulizie. Chi controlla non e' un account
  * dell'app, e' una persona della squadra interna.
  */
-export const INSPECTORS = ['manuel', 'mark'] as const
+export const INSPECTORS = ['manuel', 'mark', 'michelle', 'gianluca'] as const
 export type InspectorId = (typeof INSPECTORS)[number]
 
 export interface InspectorMeta {
@@ -244,6 +251,20 @@ export const INSPECTOR_META: Record<InspectorId, InspectorMeta> = {
     text: 'text-inspector-mark',
     chip: 'bg-inspector-mark/12 text-inspector-mark ring-1 ring-inset ring-inspector-mark/25',
     ring: 'ring-inspector-mark/40',
+  },
+  michelle: {
+    id: 'michelle', label: 'Michelle',
+    dot: 'bg-inspector-michelle',
+    text: 'text-inspector-michelle',
+    chip: 'bg-inspector-michelle/12 text-inspector-michelle ring-1 ring-inset ring-inspector-michelle/25',
+    ring: 'ring-inspector-michelle/40',
+  },
+  gianluca: {
+    id: 'gianluca', label: 'Gianluca',
+    dot: 'bg-inspector-gianluca',
+    text: 'text-inspector-gianluca',
+    chip: 'bg-inspector-gianluca/12 text-inspector-gianluca ring-1 ring-inset ring-inspector-gianluca/25',
+    ring: 'ring-inspector-gianluca/40',
   },
 }
 
