@@ -77,7 +77,7 @@ Due account, uno per tipologia:
 
 | Tipologia | Email | Password |
 | --- | --- | --- |
-| Manager (amministratore) | `aurea.consulting.marketing@gmail.com` | almeno 6 caratteri |
+| Manager (amministratore) | `m2ab.srl@gmail.com` | almeno 6 caratteri |
 | Pulizie — Comfy Host | `comfy@propromanager.it` | `123456` |
 | Pulizie — Angela | `angela@propromanager.it` | `123456` |
 

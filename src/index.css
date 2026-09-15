@@ -160,6 +160,8 @@
       padding: 0;
     }
     .no-print { display: none !important; }
+    /* Esportando una casa sola, le altre restano fuori dal PDF. */
+    .print-hidden { display: none !important; }
     /* Il riquadro del grafico resta agganciato all'ultimo passaggio del mouse. */
     .recharts-tooltip-wrapper { display: none !important; }
     /* Un blocco per casa: non deve spezzarsi a meta' fra due pagine. */

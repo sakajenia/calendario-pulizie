@@ -116,29 +116,50 @@ function Stat({
 /* ------------------------------------------------- scheda di un immobile */
 
 function ApartmentReport({
-  apartment, stats, trend, palette, mayEdit, onAdd, onDelete,
+  apartment, stats, trend, palette, month, mayEdit, hidden, onAdd, onDelete, onExport,
 }: {
   apartment: Apartment
   stats: MonthStats
   trend: { mese: string; Pulizie: number; Controlli: number; Interventi: number }[]
   palette: Palette
+  month: Date
   mayEdit: boolean
+  /** Fuori dalla stampa quando si esporta un'altra casa. */
+  hidden: boolean
   onAdd: (a: Apartment) => void
   onDelete: (i: Intervention) => void
+  onExport: (a: Apartment) => void
 }) {
   return (
-    <Card className="print-block overflow-hidden">
-      <div className="flex flex-wrap items-start gap-3 border-b border-border p-4">
-        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-brand">
-          <Building2 className="size-4" />
+    <Card className={cn('print-block overflow-hidden', hidden && 'print-hidden')}>
+      {/* Il mese sta nell'intestazione della casa: il PDF di un singolo
+          appartamento deve spiegarsi da solo, senza il riepilogo generale. */}
+      <div className="flex flex-wrap items-start gap-3 border-b-2 border-primary/20 bg-muted/30 p-4">
+        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-brand">
+          <Building2 className="size-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="font-display text-base font-bold leading-snug">{apartment.name}</h2>
+          <h2 className="font-display text-lg font-bold leading-tight">{apartment.name}</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {apartment.address} · {apartment.district} · {apartment.city}
           </p>
+          <p className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <Badge className="bg-primary/10 px-2 py-0.5 text-[11px] font-semibold capitalize text-brand ring-1 ring-inset ring-primary/20">
+              {fmtMonthYear(month)}
+            </Badge>
+            <CompanyBadge companyId={apartment.companyId} />
+          </p>
         </div>
-        <CompanyBadge companyId={apartment.companyId} />
+        <Button
+          variant="outline"
+          size="sm"
+          className="no-print shrink-0"
+          onClick={() => onExport(apartment)}
+          aria-label={`Esporta il PDF di ${apartment.name}`}
+          title={`Esporta il PDF di ${apartment.name}`}
+        >
+          <Printer /> <span className="hidden sm:inline">PDF</span>
+        </Button>
       </div>
 
       <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -459,6 +480,30 @@ export default function Dashboard() {
      senza trascinarsi dietro una libreria di impaginazione. */
   const exportPdf = () => window.print()
 
+  /*
+   * Esportare una casa sola: si nascondono le altre, si lascia al browser un
+   * istante per ridisegnare e poi si apre la stampa. Senza l'attesa il dialogo
+   * fotograferebbe la pagina prima che le altre schede spariscano.
+   */
+  const [printingId, setPrintingId] = React.useState<string | null>(null)
+  React.useEffect(() => {
+    if (!printingId) return
+    /* Si rientra a stampa finita, non subito dopo `print()`: non tutti i
+       browser bloccano su quella chiamata, e chiudere prima rimetterebbe le
+       altre schede nel PDF. La rete di sicurezza copre chi non annuncia la
+       fine; intanto a schermo non cambia nulla, `print-hidden` vale solo in
+       stampa. */
+    const done = () => setPrintingId(null)
+    window.addEventListener('afterprint', done)
+    const start = window.setTimeout(() => window.print(), 60)
+    const safety = window.setTimeout(done, 60_000)
+    return () => {
+      window.clearTimeout(start)
+      window.clearTimeout(safety)
+      window.removeEventListener('afterprint', done)
+    }
+  }, [printingId])
+
   const exportCsv = () => {
     const data = rows.flatMap((r) =>
       r.stats.interventions.length === 0
@@ -514,7 +559,9 @@ export default function Dashboard() {
             </Button>
             <Button onClick={exportPdf} disabled={rows.length === 0}>
               <Printer />
-              <span className="hidden sm:inline">Esporta PDF</span>
+              <span className="hidden sm:inline">
+                {only === 'all' ? 'Esporta tutte' : 'Esporta PDF'}
+              </span>
             </Button>
           </>
         }
@@ -545,7 +592,7 @@ export default function Dashboard() {
 
       {/* Solo questo blocco finisce nel PDF. */}
       <div id="report-stampa" className="space-y-4 p-4">
-        <div className="print-block rounded-xl border border-border bg-card p-4">
+        <div className={cn('print-block rounded-xl border border-border bg-card p-4', printingId && 'print-hidden')}>
           <h1 className="font-display text-lg font-bold">
             Report operativo · <span className="capitalize">{monthLabel}</span>
           </h1>
@@ -575,9 +622,12 @@ export default function Dashboard() {
               stats={r.stats}
               trend={trendFor(r.apartment.id)}
               palette={palette}
+              month={cursor}
               mayEdit={mayEdit}
+              hidden={printingId !== null && printingId !== r.apartment.id}
               onAdd={setAdding}
               onDelete={removeIntervention}
+              onExport={(a) => setPrintingId(a.id)}
             />
           ))
         )}

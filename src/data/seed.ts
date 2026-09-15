@@ -38,7 +38,7 @@ const day = (offset: number, h = 10, m = 0) => {
 
 /** Ogni ditta di pulizie ha il proprio accesso e vede solo le proprie case. */
 export const users: User[] = [
-  { id: 'u-admin', name: 'ProProManager', email: 'aurea.consulting.marketing@gmail.com', phone: '+39 340 118 2277', role: 'admin', active: true, createdAt: iso(day(-420)) },
+  { id: 'u-admin', name: 'ProProManager', email: 'm2ab.srl@gmail.com', phone: '+39 340 118 2277', role: 'admin', active: true, createdAt: iso(day(-420)) },
   { id: 'u-pulizie-comfy', name: 'Comfy', email: 'comfy@propromanager.it', phone: '+39 349 772 1188', role: 'operator', companyId: 'comfy', password: '123456', active: true, createdAt: iso(day(-260)) },
   { id: 'u-pulizie-angela', name: 'Angela', email: 'angela@propromanager.it', phone: '+39 348 551 9042', role: 'operator', companyId: 'angela', password: '123456', active: true, createdAt: iso(day(-255)) },
 ]
@@ -82,7 +82,7 @@ export const apartments: Apartment[] = [
     prices: { base: 40, min: 40, max: 40 },
     access: {
       entries: [
-        { id: 'ac-tri-1', label: 'Portone', value: 'App VKI' },
+        { id: 'ac-tri-1', label: 'Portone', value: 'App Vikey' },
         { id: 'ac-tri-2', label: 'Cassetta in casa (porta pulizie)', value: '1405' },
       ],
     },
@@ -97,7 +97,7 @@ export const apartments: Apartment[] = [
     prices: { base: 50, min: 50, max: 50 },
     access: {
       entries: [
-        { id: 'ac-liv-1', label: 'Portone', value: 'App VKI' },
+        { id: 'ac-liv-1', label: 'Portone', value: 'App Vikey' },
         { id: 'ac-liv-2', label: 'Cassetta inferiore (addetti pulizie)', value: '1405' },
         { id: 'ac-liv-3', label: 'Cassetta superiore (ospiti)', value: '2307' },
       ],
@@ -149,8 +149,11 @@ export const apartments: Apartment[] = [
     prices: { base: 75, min: 75, max: 75 },
     access: {
       entries: [
-        { id: 'ac-con-1', label: 'Accesso', value: 'App VKI' },
+        { id: 'ac-con-1', label: 'Citofono', value: 'Tasto 110 + OK' },
+        { id: 'ac-con-2', label: 'Accesso', value: 'App Vikey' },
+        { id: 'ac-con-3', label: 'Chiave porta pulizie', value: 'In cassetta 1405' },
       ],
+      notes: 'Prima il tasto 110 sul citofono, poi si apre con l’app Vikey.',
     },
     cleaningFrequencyDays: 4, createdAt: iso(day(-350)),
   },
