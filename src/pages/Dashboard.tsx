@@ -7,6 +7,10 @@
  * responsabile operativo aggiunge gli interventi, poi esporta il PDF e lo
  * manda al proprietario: serve a far vedere che sulla casa si lavora davvero.
  *
+ * I costi extra non arrivano solo dagli interventi: comprendono le spese
+ * amministrative classificate "Spese Extra". Quelle coperte da Aircover restano
+ * a noi e da qui non passano mai.
+ *
  * L'esportazione passa dal dialogo di stampa del browser ("Salva come PDF"):
  * le regole `@media print` in index.css lasciano visibile solo il report.
  */
@@ -34,7 +38,7 @@ import { TODAY } from '@/data/seed'
 import { asDate, downloadFile, fmtDate, fmtEur, fmtMonthYear, fmtNum, plural, toCsv } from '@/lib/format'
 import {
   COMPANY_META,
-  type Apartment, type CleaningCompanyId, type Intervention,
+  type AdminExpense, type Apartment, type CleaningCompanyId, type Intervention,
 } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -82,7 +86,9 @@ interface MonthStats {
   cleanings: number
   inspections: number
   interventions: Intervention[]
-  /** Somma dei costi noti. */
+  /** Solo le spese da mettere al proprietario: le Aircover restano fuori. */
+  expenses: AdminExpense[]
+  /** Somma dei costi noti: interventi piu' spese extra. */
   cost: number
   /** Interventi ancora senza costo indicato. */
   costMissing: number
@@ -172,7 +178,9 @@ function ApartmentReport({
           hint={
             stats.costMissing > 0
               ? `${plural(stats.costMissing, 'intervento senza costo', 'interventi senza costo')}`
-              : 'Interventi e pezzi sostitutivi'
+              : stats.expenses.length > 0
+                ? `Interventi e ${plural(stats.expenses.length, 'spesa extra', 'spese extra')}`
+                : 'Interventi e pezzi sostitutivi'
           }
           icon={Wallet}
         />
@@ -244,6 +252,31 @@ function ApartmentReport({
           </ul>
         )}
       </div>
+
+      {/* Le spese arrivano dalla pagina Spese Amministrative: qui si leggono e
+          basta, e ci sono solo quelle da mettere al proprietario. */}
+      {stats.expenses.length > 0 && (
+        <div className="border-t border-border p-4">
+          <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+            Spese extra del mese
+          </h3>
+          <ul className="space-y-1">
+            {stats.expenses.map((e) => (
+              <li
+                key={e.id}
+                className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-border/60 py-1.5 last:border-0"
+              >
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{fmtDate(e.at)}</span>
+                <span className="min-w-0 flex-1 text-sm">{e.title}</span>
+                <Badge className="bg-muted px-2 py-0.5 text-[10px] text-muted-foreground ring-1 ring-inset ring-border">
+                  {e.place}
+                </Badge>
+                <span className="shrink-0 text-sm font-medium tabular-nums">{fmtEur(e.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="border-t border-border p-4">
         <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
@@ -407,6 +440,7 @@ export default function Dashboard() {
   const requests = useStore((s) => s.requests)
   const inspections = useStore((s) => s.inspections)
   const interventions = useStore((s) => s.interventions)
+  const expenses = useStore((s) => s.adminExpenses)
   const deleteIntervention = useStore((s) => s.deleteIntervention)
   const upsertIntervention = useStore((s) => s.upsertIntervention)
   const toast = useToast()
@@ -428,19 +462,30 @@ export default function Dashboard() {
       const own = interventions
         .filter((i) => i.apartmentId === apartmentId && inMonth(i.at))
         .sort((a, b) => asDate(a.at).getTime() - asDate(b.at).getTime())
+      /* Solo le spese extra: quelle coperte da Aircover non vanno mostrate al
+         proprietario, e nel suo totale non devono entrare. */
+      const spese = expenses
+        .filter((e) =>
+          e.apartmentId === apartmentId && e.classification === 'extra' && inMonth(e.at))
+        .sort((a, b) => asDate(a.at).getTime() - asDate(b.at).getTime())
       return {
         cleanings: requests.filter(
           (r) => r.apartmentId === apartmentId && r.status === 'completata' && inMonth(r.checkOutAt),
         ).length,
+        /* Nel calendario interno ci sono anche task operative e gestione
+           interna: al proprietario si riportano i controlli veri. */
         inspections: inspections.filter(
-          (i) => i.apartmentId === apartmentId && inMonth(i.scheduledAt),
+          (i) => i.kind === 'controllo' && i.apartmentId === apartmentId && inMonth(i.scheduledAt),
         ).length,
         interventions: own,
-        cost: own.reduce((n, i) => n + (i.cost ?? 0), 0),
+        expenses: spese,
+        cost:
+          own.reduce((n, i) => n + (i.cost ?? 0), 0) +
+          spese.reduce((n, e) => n + e.amount, 0),
         costMissing: own.filter((i) => i.cost === undefined).length,
       }
     },
-    [requests, inspections, interventions],
+    [requests, inspections, interventions, expenses],
   )
 
   const trendFor = React.useCallback(
@@ -505,26 +550,37 @@ export default function Dashboard() {
   }, [printingId])
 
   const exportCsv = () => {
-    const data = rows.flatMap((r) =>
-      r.stats.interventions.length === 0
-        ? [{
-            Mese: monthLabel,
-            Appartamento: r.apartment.name,
-            'Pulizie completate': r.stats.cleanings,
-            'Controlli sul posto': r.stats.inspections,
-            Data: '', Intervento: '', Costo: '', 'Coperto da': '',
-          }]
-        : r.stats.interventions.map((i) => ({
-            Mese: monthLabel,
-            Appartamento: r.apartment.name,
-            'Pulizie completate': r.stats.cleanings,
-            'Controlli sul posto': r.stats.inspections,
-            Data: fmtDate(i.at),
-            Intervento: i.title,
-            Costo: i.cost ?? '',
-            'Coperto da': i.coveredBy ?? '',
-          })),
-    )
+    const data = rows.flatMap((r) => {
+      const testa = {
+        Mese: monthLabel,
+        Appartamento: r.apartment.name,
+        'Pulizie completate': r.stats.cleanings,
+        'Controlli sul posto': r.stats.inspections,
+      }
+      const righe = [
+        ...r.stats.interventions.map((i) => ({
+          ...testa,
+          Voce: 'Intervento',
+          Data: fmtDate(i.at),
+          Descrizione: i.title,
+          Costo: i.cost ?? '',
+          'Coperto da': i.coveredBy ?? '',
+        })),
+        ...r.stats.expenses.map((e) => ({
+          ...testa,
+          Voce: 'Spesa extra',
+          Data: fmtDate(e.at),
+          Descrizione: `${e.title} (${e.place})`,
+          Costo: e.amount,
+          'Coperto da': '',
+        })),
+      ]
+      /* Una casa senza righe resta comunque nel file: i suoi numeri di pulizie
+         e controlli servono lo stesso. */
+      return righe.length > 0
+        ? righe
+        : [{ ...testa, Voce: '', Data: '', Descrizione: '', Costo: '', 'Coperto da': '' }]
+    })
     downloadFile(`report-${format(startOfMonth(cursor), 'yyyy-MM')}.csv`, toCsv(data))
   }
 

@@ -15,6 +15,7 @@ import CatalogoTask from '@/pages/CatalogoTask'
 import Extra from '@/pages/Extra'
 import Magazzini from '@/pages/Magazzini'
 import Compensi from '@/pages/Compensi'
+import SpeseAmministrative from '@/pages/SpeseAmministrative'
 import Accessi from '@/pages/Accessi'
 import Notifiche from '@/pages/Notifiche'
 import Impostazioni from '@/pages/Impostazioni'
@@ -60,6 +61,7 @@ export default function App() {
           <Route path="/extra" element={<Protected adminOnly><Extra /></Protected>} />
           <Route path="/magazzini" element={<Protected adminOnly><Magazzini /></Protected>} />
           <Route path="/compensi" element={<Protected adminOnly><Compensi /></Protected>} />
+          <Route path="/spese-amministrative" element={<Protected adminOnly><SpeseAmministrative /></Protected>} />
         </Route>
         <Route path="*" element={<Navigate to="/calendario" replace />} />
       </Routes>

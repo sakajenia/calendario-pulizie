@@ -1,9 +1,11 @@
 /*
- * Calendario controlli: le verifiche interne fatte sugli appartamenti dopo le
- * pulizie. Vive nella stessa voce di menu del calendario pulizie e ne riusa
- * struttura e gesti (mese/settimana, clic sul giorno, elenco a lato), ma i
- * pallini sono colorati per persona invece che per stato, e diventano un cuore
- * quando tutte le verifiche del controllo sono spuntate.
+ * Calendario interno delle task operative. Raccoglie tre cose diverse: i
+ * controlli sugli appartamenti dopo le pulizie, le task operative in casa che
+ * verifiche non sono, e la gestione interna della squadra, che un appartamento
+ * non ce l'ha proprio. Vive nella stessa voce di menu del calendario pulizie e
+ * ne riusa struttura e gesti (mese/settimana, clic sul giorno, elenco a lato),
+ * ma i pallini sono colorati per persona invece che per stato, e diventano un
+ * cuore quando tutte le verifiche della voce sono spuntate.
  *
  * E' riservato all'area manager: l'account pulizie non ci arriva nemmeno
  * scrivendo l'indirizzo a mano (vedi il wrapper in Calendario.tsx).
@@ -15,8 +17,8 @@ import {
 } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
-  CalendarCheck, CalendarDays, ChevronLeft, ChevronRight, Heart, MapPin, Pencil,
-  Plus, Search, SearchX, ShieldCheck, Trash2, X,
+  CalendarCheck, CalendarDays, ChevronLeft, ChevronRight, Heart, ListChecks, MapPin,
+  Pencil, Plus, Search, SearchX, ShieldCheck, Trash2, Users, X,
 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/AppShell'
 import {
@@ -32,8 +34,9 @@ import { useToast } from '@/components/feedback/Toast'
 import { TODAY } from '@/data/seed'
 import { fmtDayLong, fmtMonthYear, fmtTime, norm, plural } from '@/lib/format'
 import {
-  INSPECTION_STATUS_META, INSPECTORS, INSPECTOR_META, inspectionStatus,
-  type Apartment, type Inspection, type InspectorId,
+  INSPECTION_KINDS, INSPECTION_KIND_META, INSPECTION_STATUS_META, INSPECTORS,
+  INSPECTOR_META, inspectionStatus,
+  type Apartment, type Inspection, type InspectionKind, type InspectorId,
 } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -44,6 +47,30 @@ function InspectionMark({ inspection, className }: { inspection: Inspection; cla
     return <Heart className={cn('size-2.5 shrink-0 fill-current', meta.text, className)} aria-hidden />
   }
   return <span aria-hidden className={cn('inline-block size-2 shrink-0 rounded-full', meta.dot, className)} />
+}
+
+/**
+ * Come si chiama la voce in elenco. Un controllo prende il nome della casa,
+ * perche' e' quello che si cerca; una task operativa ha un titolo proprio e la
+ * casa resta sotto; la gestione interna ha solo il titolo.
+ */
+function inspectionLabel(i: Inspection, apartment: Apartment | undefined): string {
+  if (i.kind === 'controllo') return apartment?.name ?? 'Appartamento non disponibile'
+  if (i.title?.trim()) return i.title.trim()
+  return INSPECTION_KIND_META[i.kind].label
+}
+
+const KIND_ICON: Record<InspectionKind, typeof ShieldCheck> = {
+  controllo: ShieldCheck,
+  task_operativa: ListChecks,
+  gestione_interna: Users,
+}
+
+function KindBadge({ kind, className }: { kind: InspectionKind; className?: string }) {
+  const meta = INSPECTION_KIND_META[kind]
+  return (
+    <Badge className={cn(meta.chip, 'px-2 py-0.5 text-[11px]', className)}>{meta.label}</Badge>
+  )
 }
 
 function InspectorBadge({ id, className }: { id: InspectorId; className?: string }) {
@@ -90,6 +117,8 @@ function InspectionCard({
   const removeTask = useStore((s) => s.removeInspectionTask)
   const meta = INSPECTOR_META[inspection.inspectorId]
   const completed = inspectionStatus(inspection) === 'completata'
+  const KindIcon = KIND_ICON[inspection.kind]
+  const heading = inspectionLabel(inspection, apartment)
   const [draft, setDraft] = React.useState('')
   const inputId = React.useId()
 
@@ -101,8 +130,12 @@ function InspectionCard({
   }
 
   /* Il nome e' commerciale ("Stazione Centrale Roma"): chi va sul posto cerca
-     la via, quindi indirizzo e zona stanno sotto al nome. */
-  const zone = [apartment?.address, apartment?.district, apartment?.city].filter(Boolean).join(' · ')
+     la via, quindi indirizzo e zona stanno sotto al nome. Sulle task operative
+     il titolo sta in testa e la casa scende qui, insieme alla via. */
+  const zone = [
+    inspection.kind === 'task_operativa' ? apartment?.name : undefined,
+    apartment?.address, apartment?.district, apartment?.city,
+  ].filter(Boolean).join(' · ')
 
   return (
     <Card className={cn('overflow-hidden ring-1 ring-inset', meta.ring)}>
@@ -115,19 +148,18 @@ function InspectionCard({
         >
           {completed
             ? <Heart className={cn('size-5 fill-current', meta.text)} aria-hidden />
-            : <ShieldCheck className={cn('size-5', meta.text)} aria-hidden />}
+            : <KindIcon className={cn('size-5', meta.text)} aria-hidden />}
         </span>
 
         <div className="min-w-0 flex-1">
-          <h3 className="truncate font-display text-sm font-bold leading-snug">
-            {apartment?.name ?? 'Appartamento non disponibile'}
-          </h3>
+          <h3 className="truncate font-display text-sm font-bold leading-snug">{heading}</h3>
           {zone && (
             <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
               <MapPin className="size-3.5 shrink-0" /> {zone}
             </p>
           )}
           <p className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <KindBadge kind={inspection.kind} />
             <InspectorBadge id={inspection.inspectorId} />
             <InspectionStatusBadge inspection={inspection} />
             <span className="text-[11px] tabular-nums text-muted-foreground">{fmtTime(inspection.scheduledAt)}</span>
@@ -142,17 +174,17 @@ function InspectionCard({
               variant="ghost"
               size="icon"
               className="size-8 shrink-0"
-              aria-label={`Azioni sul controllo di ${apartment?.name ?? 'appartamento'}`}
+              aria-label={`Azioni su ${heading}`}
             >
               <Pencil className="size-4" />
             </Button>
           }
         >
           <DropdownItem onClick={() => onEdit(inspection)}>
-            <Pencil /> Modifica controllo
+            <Pencil /> Modifica voce
           </DropdownItem>
           <DropdownItem danger onClick={() => onDelete(inspection)}>
-            <Trash2 /> Elimina controllo
+            <Trash2 /> Elimina voce
           </DropdownItem>
         </Dropdown>
       </div>
@@ -160,7 +192,7 @@ function InspectionCard({
       <div className="space-y-1 p-3">
         {inspection.tasks.length === 0 ? (
           <p className="px-1 py-2 text-xs text-muted-foreground">
-            Nessuna verifica inserita: aggiungi cosa va controllato in questa casa.
+            Nessuna verifica inserita: aggiungi cosa c’è da fare in questa voce.
           </p>
         ) : (
           inspection.tasks.map((t) => (
@@ -172,7 +204,7 @@ function InspectionCard({
                 <Checkbox
                   checked={t.done}
                   onChange={(v) => setTaskDone(inspection.id, t.id, v)}
-                  label={`${t.name} — ${apartment?.name ?? ''}`}
+                  label={`${t.name} — ${heading}`}
                 />
               </span>
               <span
@@ -202,7 +234,7 @@ function InspectionCard({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="Nuova verifica…"
-            aria-label={`Aggiungi una verifica al controllo di ${apartment?.name ?? 'appartamento'}`}
+            aria-label={`Aggiungi una verifica a ${heading}`}
             className="h-9 text-sm"
           />
           <Button type="submit" variant="outline" size="sm" className="shrink-0" disabled={!draft.trim()}>
@@ -240,7 +272,9 @@ function InspectionForm({
     const at = defaultDate ? new Date(defaultDate) : new Date(TODAY)
     if (defaultDate) at.setHours(10, 0, 0, 0)
     return {
+      kind: 'controllo' as InspectionKind,
       apartmentId: apartments[0]?.id ?? '',
+      title: '',
       inspectorId: 'manuel' as InspectorId,
       scheduledAt: format(at, "yyyy-MM-dd'T'HH:mm"),
       notes: '',
@@ -258,25 +292,38 @@ function InspectionForm({
     setDraft(
       initial
         ? {
-            apartmentId: initial.apartmentId,
+            kind: initial.kind,
+            apartmentId: initial.apartmentId ?? apartments[0]?.id ?? '',
+            title: initial.title ?? '',
             inspectorId: initial.inspectorId,
             scheduledAt: toLocalInput(initial.scheduledAt),
             notes: initial.notes ?? '',
           }
         : blank(),
     )
-  }, [open, initial, blank])
+  }, [open, initial, blank, apartments])
+
+  const kindMeta = INSPECTION_KIND_META[draft.kind]
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!draft.apartmentId) return setError('Scegli l’appartamento da controllare')
+    /* Senza appartamento la voce ha bisogno di un titolo proprio, altrimenti
+       in elenco resterebbe una riga anonima. */
+    if (kindMeta.needsApartment && !draft.apartmentId) {
+      return setError('Scegli l’appartamento')
+    }
+    if (!kindMeta.needsApartment && !draft.title.trim()) {
+      return setError('Dai un titolo alla voce di gestione interna')
+    }
     const at = new Date(draft.scheduledAt)
     if (Number.isNaN(at.getTime())) return setError('Inserisci una data valida')
 
     const now = new Date().toISOString()
     upsert({
       id: initial?.id ?? `insp-${Date.now()}`,
-      apartmentId: draft.apartmentId,
+      kind: draft.kind,
+      apartmentId: kindMeta.needsApartment ? draft.apartmentId : undefined,
+      title: draft.title.trim() || undefined,
       inspectorId: draft.inspectorId,
       scheduledAt: at.toISOString(),
       tasks: initial?.tasks ?? [],
@@ -285,8 +332,8 @@ function InspectionForm({
     })
     onClose()
     toast({
-      title: initial ? 'Controllo aggiornato' : 'Controllo creato',
-      description: initial ? undefined : 'Aggiungi le verifiche dalla scheda del controllo.',
+      title: initial ? 'Voce aggiornata' : `${kindMeta.label} creata`,
+      description: initial ? undefined : 'Aggiungi le verifiche dalla scheda della voce.',
     })
   }
 
@@ -294,32 +341,66 @@ function InspectionForm({
     <Dialog
       open={open}
       onClose={onClose}
-      title={initial ? 'Modifica controllo' : 'Nuovo controllo'}
-      description="Chi controlla quale casa, e in che giorno."
+      title={initial ? 'Modifica voce' : 'Nuova voce'}
+      description="Che tipo di voce, chi la esegue e in che giorno."
       size="md"
       footer={
         <>
           <Button variant="outline" onClick={onClose}>Annulla</Button>
           <Button form="form-controllo" type="submit">
-            {initial ? 'Salva' : 'Crea controllo'}
+            {initial ? 'Salva' : 'Crea voce'}
           </Button>
         </>
       }
     >
       <form id="form-controllo" onSubmit={submit} className="space-y-4" noValidate>
-        <Field label="Appartamento" htmlFor="controllo-appartamento">
+        <Field label="Tipo di voce" htmlFor="controllo-tipo" hint={kindMeta.hint}>
           <Select
-            id="controllo-appartamento"
-            value={draft.apartmentId}
-            onChange={(e) => setDraft((d) => ({ ...d, apartmentId: e.target.value }))}
-            options={apartments.map((a) => ({
-              value: a.id,
-              label: [a.name, a.district].filter(Boolean).join(' · '),
+            id="controllo-tipo"
+            value={draft.kind}
+            onChange={(e) => setDraft((d) => ({ ...d, kind: e.target.value as InspectionKind }))}
+            options={INSPECTION_KINDS.map((k) => ({
+              value: k, label: INSPECTION_KIND_META[k].label,
             }))}
           />
         </Field>
 
-        <Field label="Chi esegue il controllo" htmlFor="controllo-persona">
+        {kindMeta.needsApartment && (
+          <Field label="Appartamento" htmlFor="controllo-appartamento">
+            <Select
+              id="controllo-appartamento"
+              value={draft.apartmentId}
+              onChange={(e) => setDraft((d) => ({ ...d, apartmentId: e.target.value }))}
+              options={apartments.map((a) => ({
+                value: a.id,
+                label: [a.name, a.district].filter(Boolean).join(' · '),
+              }))}
+            />
+          </Field>
+        )}
+
+        <Field
+          label={kindMeta.needsApartment ? 'Titolo' : 'Titolo della voce'}
+          htmlFor="controllo-titolo"
+          hint={
+            draft.kind === 'controllo'
+              ? 'Facoltativo: senza titolo vale il nome della casa.'
+              : undefined
+          }
+        >
+          <Input
+            id="controllo-titolo"
+            value={draft.title}
+            placeholder={
+              draft.kind === 'gestione_interna'
+                ? 'Es. Riunione squadra e turni del mese'
+                : 'Es. Cambio materasso camera matrimoniale'
+            }
+            onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+          />
+        </Field>
+
+        <Field label="Chi la esegue" htmlFor="controllo-persona">
           <Select
             id="controllo-persona"
             value={draft.inspectorId}
@@ -370,6 +451,7 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
   const [selectedDay, setSelectedDay] = React.useState<Date | null>(TODAY)
   const [text, setText] = React.useState('')
   const [people, setPeople] = React.useState<InspectorId[]>([])
+  const [kind, setKind] = React.useState<InspectionKind | 'all'>('all')
   const [dayDialogOpen, setDayDialogOpen] = React.useState(false)
   const [formOpen, setFormOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<Inspection | null>(null)
@@ -383,9 +465,11 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
     const q = norm(text.trim())
     if (!q) return allInspections
     return allInspections.filter((i) => {
-      const ap = apartmentById.get(i.apartmentId)
+      const ap = i.apartmentId ? apartmentById.get(i.apartmentId) : undefined
       const hay = norm(
         [
+          i.title ?? '',
+          INSPECTION_KIND_META[i.kind].label,
           ap?.name ?? '', ap?.address ?? '', ap?.district ?? '', ap?.city ?? '',
           INSPECTOR_META[i.inspectorId].label,
           i.tasks.map((t) => t.name).join(' '),
@@ -395,10 +479,12 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
     })
   }, [allInspections, text, apartmentById])
 
-  const base = React.useMemo(
-    () => (people.length ? searched.filter((i) => people.includes(i.inspectorId)) : searched),
-    [searched, people],
-  )
+  const base = React.useMemo(() => {
+    const byPerson = people.length
+      ? searched.filter((i) => people.includes(i.inspectorId))
+      : searched
+    return kind === 'all' ? byPerson : byPerson.filter((i) => i.kind === kind)
+  }, [searched, people, kind])
 
   const byDay = React.useMemo(() => {
     const m = new Map<string, Inspection[]>()
@@ -456,7 +542,7 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
 
   const doneCount = visible.filter((i) => inspectionStatus(i) === 'completata').length
   const todayCount = byDay.get(dayKey(TODAY))?.length ?? 0
-  const filtersOn = text.trim().length > 0 || people.length > 0
+  const filtersOn = text.trim().length > 0 || people.length > 0 || kind !== 'all'
 
   /* ---- azioni ---- */
 
@@ -490,6 +576,12 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
   const togglePerson = (p: InspectorId) =>
     setPeople((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]))
 
+  const clearFilters = () => {
+    setText('')
+    setPeople([])
+    setKind('all')
+  }
+
   const closeForm = React.useCallback(() => { setFormOpen(false); setEditing(null) }, [])
   const closeDayDialog = React.useCallback(() => setDayDialogOpen(false), [])
   const closePendingDelete = React.useCallback(() => setPendingDelete(null), [])
@@ -511,7 +603,7 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
     deleteInspections([removed.id])
     setPendingDelete(null)
     toast({
-      title: 'Controllo eliminato',
+      title: 'Voce eliminata',
       description: 'Puoi rimetterlo come era finché questa notifica resta a schermo.',
       action: { label: 'Annulla', onClick: () => upsertInspection(removed) },
     })
@@ -519,7 +611,7 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
 
   const periodTitle =
     view === 'mese'
-      ? `Tutti i controlli di ${fmtMonthYear(cursor)}`
+      ? `Tutte le voci di ${fmtMonthYear(cursor)}`
       : `Settimana ${format(periodStart, 'd MMM', { locale: it })} – ${format(periodEnd, 'd MMM yyyy', { locale: it })}`
 
   const cards = (list: Inspection[]) =>
@@ -527,7 +619,7 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
       <InspectionCard
         key={i.id}
         inspection={i}
-        apartment={apartmentById.get(i.apartmentId)}
+        apartment={i.apartmentId ? apartmentById.get(i.apartmentId) : undefined}
         onEdit={openEdit}
         onDelete={setPendingDelete}
       />
@@ -536,18 +628,18 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
   return (
     <div className="flex h-full min-h-0 flex-col">
       <PageHeader
-        title="Calendario Controlli"
+        title="Task Operative"
         subtitle={
           <span>
             <span className="capitalize">{fmtMonthYear(cursor)}</span> ·{' '}
-            {plural(periodInspections.length, 'controllo', 'controlli')} nel periodo · {todayCount} in data odierna
+            {plural(periodInspections.length, 'voce', 'voci')} nel periodo · {todayCount} in data odierna
           </span>
         }
         aside={modeSwitch}
         actions={
           <div className="hidden items-center gap-2 lg:flex">
             <Button onClick={openNew}>
-              <Plus /> Nuovo controllo
+              <Plus /> Nuova voce
             </Button>
           </div>
         }
@@ -614,8 +706,8 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
                       onClick={() => pickDay(d)}
                       aria-pressed={isSelected}
                       aria-haspopup={isDesktop ? undefined : 'dialog'}
-                      aria-label={`${fmtDayLong(d)} · ${plural(list.length, 'controllo', 'controlli')}${
-                        closed ? `, ${closed} completati` : ''
+                      aria-label={`${fmtDayLong(d)} · ${plural(list.length, 'voce', 'voci')}${
+                        closed ? `, ${closed} completate` : ''
                       }`}
                       className={cn(
                         'flex min-h-[52px] flex-col items-start gap-1.5 rounded-lg border border-transparent p-1.5 text-left transition-colors focus-ring',
@@ -690,15 +782,16 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
 
                       <div className="min-w-0 space-y-1.5">
                         {list.map((i) => {
-                          const ap = apartmentById.get(i.apartmentId)
+                          const ap = i.apartmentId ? apartmentById.get(i.apartmentId) : undefined
                           const done = i.tasks.filter((t) => t.done).length
+                          const label = inspectionLabel(i, ap)
                           return (
                             <button
                               key={i.id}
                               type="button"
                               onClick={() => openEdit(i)}
-                              title={`${ap?.name ?? ''} · ${INSPECTOR_META[i.inspectorId].label}`}
-                              aria-label={`${ap?.name ?? 'Appartamento'} · ${fmtTime(i.scheduledAt)} · ${INSPECTOR_META[i.inspectorId].label} · ${done} di ${i.tasks.length} verifiche`}
+                              title={`${label} · ${INSPECTOR_META[i.inspectorId].label}`}
+                              aria-label={`${label} · ${fmtTime(i.scheduledAt)} · ${INSPECTION_KIND_META[i.kind].label} · ${INSPECTOR_META[i.inspectorId].label} · ${done} di ${i.tasks.length} verifiche`}
                               className="flex w-full min-w-0 flex-col gap-0.5 overflow-hidden rounded-md border border-border bg-card p-2 text-left shadow-card transition-shadow hover:shadow-raised focus-ring"
                             >
                               <span className="flex w-full min-w-0 items-center gap-1.5">
@@ -707,17 +800,16 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
                                   {fmtTime(i.scheduledAt)}
                                 </span>
                               </span>
-                              <span className="block w-full min-w-0 truncate text-xs font-medium">
-                                {ap?.name ?? 'Appartamento non disponibile'}
-                              </span>
+                              <span className="block w-full min-w-0 truncate text-xs font-medium">{label}</span>
                               <span className="block w-full min-w-0 truncate text-[11px] text-muted-foreground">
-                                {INSPECTOR_META[i.inspectorId].label} · {done}/{i.tasks.length} verifiche
+                                {INSPECTION_KIND_META[i.kind].label} · {INSPECTOR_META[i.inspectorId].label} ·{' '}
+                                {done}/{i.tasks.length} verifiche
                               </span>
                             </button>
                           )
                         })}
                         {list.length === 0 && (
-                          <p className="py-6 text-center text-[11px] text-muted-foreground">Nessun controllo</p>
+                          <p className="py-6 text-center text-[11px] text-muted-foreground">Nessuna voce</p>
                         )}
                       </div>
                     </div>
@@ -762,7 +854,7 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
               )
             })}
             <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2 text-[11px] text-muted-foreground">
-              <Heart className="size-3 fill-current" aria-hidden /> controllo completato
+              <Heart className="size-3 fill-current" aria-hidden /> voce completata
             </span>
           </div>
         </Card>
@@ -791,13 +883,42 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
               )}
             </div>
 
+            {/* Tre cose diverse nello stesso calendario: il filtro per tipo
+                permette di guardarne una sola. */}
+            <div className="no-scrollbar flex items-center gap-1 overflow-x-auto">
+              {([['all', 'Tutte'], ...INSPECTION_KINDS.map((k) => [k, INSPECTION_KIND_META[k].label] as const)] as const).map(
+                ([value, label]) => {
+                  const on = kind === value
+                  const n = value === 'all'
+                    ? periodSearched.length
+                    : periodSearched.filter((i) => i.kind === value).length
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => setKind(value as InspectionKind | 'all')}
+                      className={cn(
+                        'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors focus-ring',
+                        on ? 'bg-muted text-foreground ring-1 ring-inset ring-border' : 'text-muted-foreground hover:bg-muted',
+                        !on && n === 0 && 'opacity-45',
+                      )}
+                    >
+                      {label}
+                      <span className="tabular-nums">{n}</span>
+                    </button>
+                  )
+                },
+              )}
+            </div>
+
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="font-display text-sm font-bold leading-snug">
                   {selectedDay ? fmtDayLong(selectedDay) : periodTitle}
                   <span className="font-normal text-muted-foreground">
                     {' · '}
-                    {plural(visible.length, 'controllo', 'controlli')}
+                    {plural(visible.length, 'voce', 'voci')}
                   </span>
                 </h2>
                 <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -812,7 +933,7 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
 
               {selectedDay && (
                 <Button variant="ghost" size="sm" className="shrink-0" onClick={() => setSelectedDay(null)}>
-                  <X /> Tutti i controlli
+                  <X /> Tutte le voci
                 </Button>
               )}
             </div>
@@ -821,10 +942,7 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  setText('')
-                  setPeople([])
-                }}
+                onClick={clearFilters}
               >
                 Cancella filtri
               </Button>
@@ -837,16 +955,10 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
                 {filtersOn ? (
                   <EmptyState
                     icon={SearchX}
-                    title="Nessun controllo trovato"
-                    description="Nessun risultato per i filtri attivi. Prova a cambiare la ricerca o la persona selezionata."
+                    title="Nessuna voce trovata"
+                    description="Nessun risultato per i filtri attivi. Prova a cambiare la ricerca, il tipo o la persona."
                     action={
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setText('')
-                          setPeople([])
-                        }}
-                      >
+                      <Button variant="outline" onClick={clearFilters}>
                         Cancella filtri
                       </Button>
                     }
@@ -854,15 +966,15 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
                 ) : (
                   <EmptyState
                     icon={CalendarDays}
-                    title={selectedDay ? 'Nessun controllo in questa data' : 'Nessun controllo nel periodo'}
+                    title={selectedDay ? 'Nessuna voce in questa data' : 'Nessuna voce nel periodo'}
                     description={
                       selectedDay
-                        ? `Non ci sono controlli programmati per ${fmtDayLong(selectedDay)}.`
-                        : 'Naviga fra i periodi oppure programma un nuovo controllo.'
+                        ? `Non c’è niente in programma per ${fmtDayLong(selectedDay)}.`
+                        : 'Naviga fra i periodi oppure aggiungi una nuova voce.'
                     }
                     action={
                       <Button onClick={openNew}>
-                        <Plus /> Nuovo controllo
+                        <Plus /> Nuova voce
                       </Button>
                     }
                   />
@@ -880,8 +992,8 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
         <Button
           size="icon"
           onClick={openNew}
-          title="Nuovo controllo"
-          aria-label="Nuovo controllo"
+          title="Nuova voce"
+          aria-label="Nuova voce"
           className="h-14 w-14 rounded-full"
         >
           <Plus className="size-5" />
@@ -892,7 +1004,7 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
         open={dayDialogOpen && selectedDay !== null && !isDesktop}
         onClose={closeDayDialog}
         title={selectedDay ? fmtDayLong(selectedDay) : ''}
-        description={plural(visible.length, 'controllo', 'controlli')}
+        description={plural(visible.length, 'voce', 'voci')}
         size="md"
         footer={
           <>
@@ -903,7 +1015,7 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
                 openNew()
               }}
             >
-              <Plus /> Nuovo controllo
+              <Plus /> Nuova voce
             </Button>
           </>
         }
@@ -911,8 +1023,8 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
         {visible.length === 0 ? (
           <EmptyState
             icon={CalendarDays}
-            title="Nessun controllo in questa data"
-            description={selectedDay ? `Non ci sono controlli programmati per ${fmtDayLong(selectedDay)}.` : ''}
+            title="Nessuna voce in questa data"
+            description={selectedDay ? `Non c’è niente in programma per ${fmtDayLong(selectedDay)}.` : ''}
           />
         ) : (
           <div className="space-y-3">{cards(visible)}</div>
@@ -930,7 +1042,7 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
       <Dialog
         open={pendingDelete !== null}
         onClose={closePendingDelete}
-        title="Elimina controllo"
+        title="Elimina voce"
         size="sm"
         footer={
           <>
@@ -942,8 +1054,13 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
         }
       >
         <p className="text-sm">
-          Stai per eliminare il controllo di{' '}
-          {pendingDelete ? (apartmentById.get(pendingDelete.apartmentId)?.name ?? 'questo appartamento') : ''}
+          Stai per eliminare{' '}
+          {pendingDelete
+            ? inspectionLabel(
+                pendingDelete,
+                pendingDelete.apartmentId ? apartmentById.get(pendingDelete.apartmentId) : undefined,
+              )
+            : ''}
           {pendingDelete ? ` del ${fmtDayLong(pendingDelete.scheduledAt)}` : ''}.
           Potrai annullare dalla notifica per qualche secondo.
         </p>

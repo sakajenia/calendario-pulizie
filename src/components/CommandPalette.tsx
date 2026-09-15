@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowRight, Bell, Boxes, Building2, CalendarDays, ClipboardList, Command, LayoutDashboard,
-  ListChecks, Moon, PackageOpen, Search, Settings, Sun, UserRound, Users,
+  Moon, PackageOpen, Search, Settings, Sun, UserRound, Users, Wallet,
 } from 'lucide-react'
 import { useCurrentUser, useStore } from '@/data/store'
 import { canCreateRequest, isManager } from '@/lib/permissions'
@@ -55,7 +55,7 @@ export function CommandPalette() {
       { id: 'n-apt', label: 'Appartamenti', hint: 'Anagrafica, letti, prezzi', group: 'Vai a', icon: Building2, run: go('/appartamenti'), managerOnly: true },
       { id: 'n-dash', label: 'Dashboard', hint: 'Andamento e budget', group: 'Vai a', icon: LayoutDashboard, run: go('/dashboard'), adminOnly: true },
       { id: 'n-usr', label: 'Utenti', group: 'Vai a', icon: Users, run: go('/utenti'), adminOnly: true },
-      { id: 'n-ws', label: 'Fogli di Lavoro', group: 'Vai a', icon: ListChecks, run: go('/fogli-di-lavoro'), adminOnly: true },
+      { id: 'n-spese', label: 'Spese Amministrative', group: 'Vai a', icon: Wallet, run: go('/spese-amministrative'), adminOnly: true },
       { id: 'n-task', label: 'Catalogo Task', group: 'Vai a', icon: ClipboardList, run: go('/catalogo-task'), adminOnly: true },
       { id: 'n-extra', label: 'Extra', group: 'Vai a', icon: PackageOpen, run: go('/extra'), adminOnly: true },
       { id: 'n-wh', label: 'Magazzini', group: 'Vai a', icon: Boxes, run: go('/magazzini'), adminOnly: true },

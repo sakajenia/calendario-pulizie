@@ -1,10 +1,12 @@
 /*
- * Catalogo Task: il registro di tutte le verifiche messe nel Calendario
- * Controlli.
+ * Catalogo Task: il registro di tutte le verifiche messe nel calendario delle
+ * task operative.
  *
- * Non e' un elenco a parte da tenere aggiornato a mano: legge i controlli e
- * ne estrae le task, ognuna col tag di chi la esegue, la casa e il giorno.
- * Aggiungendo una verifica dal calendario, la riga compare qui da sola.
+ * Non e' un elenco a parte da tenere aggiornato a mano: legge le voci del
+ * calendario e ne estrae le task, ognuna col tag di chi la esegue, il tipo di
+ * voce, la casa e il giorno. Aggiungendo una verifica dal calendario, la riga
+ * compare qui da sola. La gestione interna non ha una casa: in quella colonna
+ * resta il titolo della voce.
  */
 import * as React from 'react'
 import { PageHeader } from '@/components/layout/AppShell'
@@ -18,8 +20,8 @@ import {
 import { useStore } from '@/data/store'
 import { downloadFile, fmtDate, fmtDateTime, fmtNum, norm, plural, toCsv } from '@/lib/format'
 import {
-  INSPECTORS, INSPECTOR_META, inspectionStatus,
-  type InspectorId,
+  INSPECTION_KIND_META, INSPECTORS, INSPECTOR_META, inspectionStatus,
+  type InspectionKind, type InspectorId,
 } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -39,6 +41,8 @@ interface Row {
   taskId: string
   name: string
   inspectorId: InspectorId
+  kind: InspectionKind
+  /** Nome della casa, o titolo della voce quando la casa non c'e'. */
   apartmentName: string
   /** ISO del controllo a cui la task appartiene. */
   at: string
@@ -54,6 +58,11 @@ function PersonBadge({ id }: { id: InspectorId }) {
       {meta.label}
     </Badge>
   )
+}
+
+function KindBadge({ kind }: { kind: InspectionKind }) {
+  const meta = INSPECTION_KIND_META[kind]
+  return <Badge className={cn(meta.chip, 'px-2 py-0.5 text-[11px]')}>{meta.label}</Badge>
 }
 
 function StateBadge({ done }: { done: boolean }) {
@@ -87,19 +96,23 @@ export default function CatalogoTask() {
 
   const rows = React.useMemo<Row[]>(
     () =>
-      inspections.flatMap((i) =>
-        i.tasks.map((t) => ({
+      inspections.flatMap((i) => {
+        const where = i.apartmentId
+          ? (apartmentById.get(i.apartmentId)?.name ?? 'Appartamento non disponibile')
+          : (i.title?.trim() || INSPECTION_KIND_META[i.kind].label)
+        return i.tasks.map((t) => ({
           key: `${i.id}:${t.id}`,
           inspectionId: i.id,
           taskId: t.id,
           name: t.name,
           inspectorId: i.inspectorId,
-          apartmentName: apartmentById.get(i.apartmentId)?.name ?? 'Appartamento non disponibile',
+          kind: i.kind,
+          apartmentName: where,
           at: i.scheduledAt,
           done: t.done,
           doneAt: t.doneAt,
-        })),
-      ),
+        }))
+      }),
     [inspections, apartmentById],
   )
 
@@ -110,7 +123,9 @@ export default function CatalogoTask() {
       if (state === 'done' && !r.done) return false
       if (state === 'open' && r.done) return false
       if (!q) return true
-      return norm(`${r.name} ${r.apartmentName} ${INSPECTOR_META[r.inspectorId].label}`).includes(q)
+      return norm(
+        `${r.name} ${r.apartmentName} ${INSPECTOR_META[r.inspectorId].label} ${INSPECTION_KIND_META[r.kind].label}`,
+      ).includes(q)
     })
     const ms = (v: string) => new Date(v).getTime()
     switch (sort) {
@@ -149,6 +164,7 @@ export default function CatalogoTask() {
       `catalogo-task-${fmtDate(new Date())}.csv`,
       toCsv(filtered.map((r) => ({
         Task: r.name,
+        Tipo: INSPECTION_KIND_META[r.kind].label,
         Persona: INSPECTOR_META[r.inspectorId].label,
         Appartamento: r.apartmentName,
         Quando: fmtDateTime(r.at),
@@ -168,8 +184,8 @@ export default function CatalogoTask() {
         title="Catalogo Task"
         subtitle={
           <span>
-            {plural(rows.length, 'task dai controlli', 'task dai controlli')} ·{' '}
-            {plural(openInspections, 'controllo aperto', 'controlli aperti')}
+            {plural(rows.length, 'task dal calendario', 'task dal calendario')} ·{' '}
+            {plural(openInspections, 'voce aperta', 'voci aperte')}
           </span>
         }
         actions={
@@ -272,7 +288,7 @@ export default function CatalogoTask() {
               <EmptyState
                 icon={ClipboardList}
                 title="Nessuna task"
-                description="Le task compaiono qui quando le aggiungi a un controllo nel Calendario Controlli."
+                description="Le task compaiono qui quando le aggiungi a una voce del calendario Task Operative."
               />
             ) : (
               <EmptyState
@@ -302,6 +318,7 @@ export default function CatalogoTask() {
                   />
                 }
                 fields={[
+                  { label: 'Tipo', value: <KindBadge kind={r.kind} /> },
                   { label: 'Persona', value: <PersonBadge id={r.inspectorId} /> },
                   { label: 'Quando', value: fmtDateTime(r.at) },
                   { label: 'Stato', value: <StateBadge done={r.done} /> },
@@ -311,11 +328,12 @@ export default function CatalogoTask() {
           </div>
 
           <TableScroller innerClassName="overflow-x-auto">
-            <Table className="hidden min-w-[820px] md:table">
+            <Table className="hidden min-w-[940px] md:table">
               <thead>
                 <tr>
                   <Th className="w-10"><span className="sr-only">Fatta</span></Th>
                   <Th>Task</Th>
+                  <Th>Tipo</Th>
                   <Th>Persona</Th>
                   <Th>Appartamento</Th>
                   <Th>Quando</Th>
@@ -335,6 +353,7 @@ export default function CatalogoTask() {
                     <Td className={cn('font-medium', r.done && 'text-muted-foreground line-through')}>
                       {r.name}
                     </Td>
+                    <Td><KindBadge kind={r.kind} /></Td>
                     <Td><PersonBadge id={r.inspectorId} /></Td>
                     <Td className="text-muted-foreground">{r.apartmentName}</Td>
                     <Td className="whitespace-nowrap tabular-nums text-muted-foreground">
@@ -351,7 +370,7 @@ export default function CatalogoTask() {
 
           <div className="mt-auto flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3 md:sticky md:bottom-0 md:z-10">
             <span className="text-sm text-muted-foreground">
-              Le task arrivano dal Calendario Controlli e si aggiornano da sole.
+              Le task arrivano dal calendario Task Operative e si aggiornano da sole.
             </span>
             <span className="text-sm text-muted-foreground">
               (Task elencate: {fmtNum(filtered.length)} | Fatte: {fmtNum(doneCount)})

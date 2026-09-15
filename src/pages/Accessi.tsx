@@ -410,6 +410,19 @@ export default function Accessi() {
         }
       />
 
+      {/* Vale per tutte le case con Vikey, non per una sola: sta in testa alla
+          pagina, in rosso, prima ancora della ricerca. */}
+      <div className="border-b border-border bg-card px-5 pt-4">
+        <p className="flex items-start gap-2.5 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm leading-snug text-status-cancelled">
+          <span aria-hidden className="text-base leading-none">🔒</span>
+          <span>
+            <strong className="font-semibold">N.B.</strong> Tutti gli accessi con Vikey: quando sulla
+            porta di casa c’è la serratura automatica, oltre all’app si entra col codice sorgente{' '}
+            <strong className="font-mono font-semibold">23071405</strong> Lucchetto.
+          </span>
+        </p>
+      </div>
+
       <div className="border-b border-border bg-card px-5 py-3">
         <div className="relative max-w-md">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />

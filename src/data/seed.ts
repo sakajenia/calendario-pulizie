@@ -1,7 +1,7 @@
 import type {
   Apartment, AppNotification, CleaningRequest, ExtraCatalogItem, RequestStatus,
   TaskCatalogItem, User, Warehouse, WorkSheet, BedType, RequestBed,
-  Inspection, InspectionTask, InspectorId, Intervention,
+  AdminExpense, Inspection, InspectionKind, InspectionTask, InspectorId, Intervention,
 } from '@/types'
 
 /** PRNG deterministico: il seed non deve cambiare fra un reload e l'altro. */
@@ -366,44 +366,87 @@ const inspectionTasks = (names: string[], doneCount: number, at: Date): Inspecti
   }))
 
 /**
- * Un controllo per riga: giorno rispetto a oggi, appartamento, chi controlla,
- * quante verifiche e quante gia' spuntate. Le quattro persone della squadra
- * compaiono tutte, e su oggi ce ne sono tre - una chiusa - per vedere subito
- * il cuore accanto ai pallini.
+ * Una voce per riga: giorno rispetto a oggi, chi la esegue, quante verifiche e
+ * quante gia' spuntate. Non sono tutti controlli agli appartamenti: ci sono
+ * task operative sulla casa e voci di gestione interna, che una casa non ce
+ * l'hanno. Le quattro persone della squadra compaiono tutte, e su oggi ci sono
+ * tre controlli - uno chiuso - per vedere subito il cuore accanto ai pallini.
  */
-const INSPECTION_PLAN: [offset: number, hour: number, apartmentId: string, inspectorId: InspectorId, taskCount: number, doneCount: number][] = [
-  [-13, 10, 'ap-livraghi', 'manuel', 4, 4],
-  [-11, 15, 'ap-consoli', 'mark', 3, 3],
-  [-9, 11, 'ap-giuliana', 'michelle', 4, 2],
-  [-7, 16, 'ap-labicana', 'gianluca', 3, 3],
-  [-5, 9, 'ap-marsi', 'mark', 3, 1],
-  [-3, 14, 'ap-scala', 'michelle', 4, 4],
-  [-1, 10, 'ap-appia', 'gianluca', 3, 0],
+interface InspectionSeed {
+  offset: number
+  hour: number
+  inspectorId: InspectorId
+  taskCount: number
+  doneCount: number
+  kind?: InspectionKind
+  apartmentId?: string
+  title?: string
+}
+
+const INSPECTION_PLAN: InspectionSeed[] = [
+  { offset: -13, hour: 10, apartmentId: 'ap-livraghi', inspectorId: 'manuel', taskCount: 4, doneCount: 4 },
+  { offset: -11, hour: 15, apartmentId: 'ap-consoli', inspectorId: 'mark', taskCount: 3, doneCount: 3 },
+  { offset: -9, hour: 11, apartmentId: 'ap-giuliana', inspectorId: 'michelle', taskCount: 4, doneCount: 2 },
+  { offset: -7, hour: 16, apartmentId: 'ap-labicana', inspectorId: 'gianluca', taskCount: 3, doneCount: 3 },
+  { offset: -5, hour: 9, apartmentId: 'ap-marsi', inspectorId: 'mark', taskCount: 3, doneCount: 1 },
+  { offset: -3, hour: 14, apartmentId: 'ap-scala', inspectorId: 'michelle', taskCount: 4, doneCount: 4 },
+  { offset: -1, hour: 10, apartmentId: 'ap-appia', inspectorId: 'gianluca', taskCount: 3, doneCount: 0 },
   /* oggi */
-  [0, 9, 'ap-labicana', 'manuel', 4, 4],
-  [0, 12, 'ap-giuliana', 'mark', 3, 1],
-  [0, 16, 'ap-trionfale', 'michelle', 3, 0],
-  [2, 10, 'ap-scala', 'gianluca', 4, 0],
-  [4, 15, 'ap-consoli', 'manuel', 3, 0],
-  [7, 11, 'ap-marsi', 'michelle', 4, 0],
-  [10, 10, 'ap-livraghi', 'mark', 3, 0],
-  [13, 16, 'ap-appia', 'gianluca', 4, 0],
+  { offset: 0, hour: 9, apartmentId: 'ap-labicana', inspectorId: 'manuel', taskCount: 4, doneCount: 4 },
+  { offset: 0, hour: 12, apartmentId: 'ap-giuliana', inspectorId: 'mark', taskCount: 3, doneCount: 1 },
+  { offset: 0, hour: 16, apartmentId: 'ap-trionfale', inspectorId: 'michelle', taskCount: 3, doneCount: 0 },
+  { offset: 2, hour: 10, apartmentId: 'ap-scala', inspectorId: 'gianluca', taskCount: 4, doneCount: 0 },
+  { offset: 4, hour: 15, apartmentId: 'ap-consoli', inspectorId: 'manuel', taskCount: 3, doneCount: 0 },
+  { offset: 7, hour: 11, apartmentId: 'ap-marsi', inspectorId: 'michelle', taskCount: 4, doneCount: 0 },
+  { offset: 10, hour: 10, apartmentId: 'ap-livraghi', inspectorId: 'mark', taskCount: 3, doneCount: 0 },
+  { offset: 13, hour: 16, apartmentId: 'ap-appia', inspectorId: 'gianluca', taskCount: 4, doneCount: 0 },
+
+  /* task operative: lavoro in casa che non e' una verifica */
+  {
+    offset: -4, hour: 11, kind: 'task_operativa', apartmentId: 'ap-trionfale',
+    inspectorId: 'manuel', taskCount: 2, doneCount: 2,
+    title: 'Cambio materasso camera matrimoniale',
+  },
+  {
+    offset: 1, hour: 15, kind: 'task_operativa', apartmentId: 'ap-appia',
+    inspectorId: 'gianluca', taskCount: 3, doneCount: 0,
+    title: 'Montaggio nuove tende soggiorno',
+  },
+  {
+    offset: 5, hour: 9, kind: 'task_operativa', apartmentId: 'ap-livraghi',
+    inspectorId: 'michelle', taskCount: 2, doneCount: 0,
+    title: 'Ritiro pacco amenities e rifornimento armadio',
+  },
+
+  /* gestione interna: nessun appartamento */
+  {
+    offset: -2, hour: 17, kind: 'gestione_interna', inspectorId: 'manuel',
+    taskCount: 3, doneCount: 3, title: 'Riunione squadra e turni del mese',
+  },
+  {
+    offset: 0, hour: 18, kind: 'gestione_interna', inspectorId: 'mark',
+    taskCount: 2, doneCount: 0, title: 'Ordine materiali di consumo',
+  },
+  {
+    offset: 6, hour: 10, kind: 'gestione_interna', inspectorId: 'michelle',
+    taskCount: 2, doneCount: 0, title: 'Aggiornamento schede accessi appartamenti',
+  },
 ]
 
-export const inspections: Inspection[] = INSPECTION_PLAN.map(
-  ([offset, hour, apartmentId, inspectorId, taskCount, doneCount], i) => {
-    const at = day(offset, hour)
-    const names = INSPECTION_TASKS.slice(i % 4, (i % 4) + taskCount)
-    return {
-      id: `insp-${i}`,
-      apartmentId,
-      inspectorId,
-      scheduledAt: iso(at),
-      tasks: inspectionTasks(names, doneCount, at),
-      createdAt: iso(day(offset - 7, 9)),
-    }
-  },
-)
+export const inspections: Inspection[] = INSPECTION_PLAN.map((row, i) => {
+  const at = day(row.offset, row.hour)
+  const names = INSPECTION_TASKS.slice(i % 4, (i % 4) + row.taskCount)
+  return {
+    id: `insp-${i}`,
+    kind: row.kind ?? 'controllo',
+    apartmentId: row.apartmentId,
+    title: row.title,
+    inspectorId: row.inspectorId,
+    scheduledAt: iso(at),
+    tasks: inspectionTasks(names, row.doneCount, at),
+    createdAt: iso(day(row.offset - 7, 9)),
+  }
+})
 
 /* ------------------------------------------------ interventi sul posto ---- */
 
@@ -435,6 +478,42 @@ export const interventions: Intervention[] = INTERVENTION_PLAN.map(
     cost,
     coveredBy,
     createdAt: iso(day(dayOffset, 18)),
+    createdById: 'u-admin',
+  }),
+)
+
+/* -------------------------------------------- spese amministrative ---- */
+
+/**
+ * Spese anticipate dall'amministrazione nel mese corrente. Quelle coperte da
+ * Aircover restano a noi e non arrivano al proprietario; le altre entrano nei
+ * costi extra del foglio di fine mese di quella casa.
+ */
+const EXPENSE_PLAN: [
+  apartmentId: string, dayOffset: number, title: string, amount: number,
+  place: string, classification: 'aircover' | 'extra',
+][] = [
+  ['ap-marsi', -12, 'Tubo flessibile lavatrice', 18.9, 'Amazon', 'extra'],
+  ['ap-marsi', -8, 'Termostato frigorifero', 34.5, 'Amazon', 'extra'],
+  ['ap-labicana', -11, 'Trattamento antiformiche', 22, 'Negozio fisico', 'extra'],
+  ['ap-labicana', -6, 'Set di bicchieri sostitutivi', 26.4, 'Amazon', 'aircover'],
+  ['ap-labicana', -3, 'Tastierino serratura di ricambio', 59, 'Amazon', 'extra'],
+  ['ap-appia', -5, 'Tende soggiorno', 78.5, 'Negozio fisico', 'extra'],
+  ['ap-trionfale', -4, 'Materasso matrimoniale', 199, 'Amazon', 'extra'],
+  ['ap-scala', -7, 'Piumone danneggiato dagli ospiti', 45, 'Amazon', 'aircover'],
+  ['ap-livraghi', -2, 'Amenities e cialde caffè', 31.2, 'Amazon', 'extra'],
+]
+
+export const adminExpenses: AdminExpense[] = EXPENSE_PLAN.map(
+  ([apartmentId, dayOffset, title, amount, place, classification], i) => ({
+    id: `spe-${i}`,
+    apartmentId,
+    at: iso(day(dayOffset, 12)),
+    title,
+    amount,
+    place,
+    classification,
+    createdAt: iso(day(dayOffset, 19)),
     createdById: 'u-admin',
   }),
 )

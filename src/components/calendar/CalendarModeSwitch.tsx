@@ -2,14 +2,16 @@
  * Interruttore fra i due calendari. Vive in testata, sopra la griglia, ed e'
  * visibile solo all'area manager: il calendario controlli e' interno.
  */
-import { ShieldCheck, Sparkles } from 'lucide-react'
+import { ListChecks, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export type CalendarMode = 'pulizie' | 'controlli'
 
 const MODES: { value: CalendarMode; label: string; icon: typeof Sparkles }[] = [
   { value: 'pulizie', label: 'Pulizie', icon: Sparkles },
-  { value: 'controlli', label: 'Controlli', icon: ShieldCheck },
+  /* Nel calendario interno non ci sono solo controlli: il tasto dice "Task
+     Operative", che e' il nome dell'insieme. */
+  { value: 'controlli', label: 'Task Operative', icon: ListChecks },
 ]
 
 export function CalendarModeSwitch({

@@ -2,8 +2,8 @@ import * as React from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import {
-  Bell, Building2, CalendarDays, ClipboardList, KeyRound, LayoutDashboard, ListChecks,
-  LogOut, Moon, Receipt, Search, Settings, Sun, Users, Menu, X,
+  Bell, Building2, CalendarDays, ClipboardList, KeyRound, LayoutDashboard,
+  LogOut, Moon, Receipt, Search, Settings, Sun, Users, Wallet, Menu, X,
 } from 'lucide-react'
 import { Logo } from '@/components/brand/Logo'
 import { CommandPalette } from '@/components/CommandPalette'
@@ -35,7 +35,7 @@ const PRIMARY: NavEntry[] = [
 const ADMIN: NavEntry[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: true },
   { to: '/utenti', label: 'Utenti', icon: Users, adminOnly: true },
-  { to: '/fogli-di-lavoro', label: 'Fogli di Lavoro', icon: ListChecks, adminOnly: true },
+  { to: '/spese-amministrative', label: 'Spese Amministrative', icon: Wallet, adminOnly: true },
   { to: '/catalogo-task', label: 'Catalogo Task', icon: ClipboardList, adminOnly: true },
   { to: '/compensi', label: 'Compensi', icon: Receipt, adminOnly: true },
 ]

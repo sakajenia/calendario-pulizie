@@ -268,6 +268,48 @@ export const INSPECTOR_META: Record<InspectorId, InspectorMeta> = {
   },
 }
 
+/**
+ * Nel calendario interno non finiscono solo i controlli agli appartamenti:
+ * ci sono task operative sulla casa (che non sono verifiche) e voci di
+ * gestione interna, che a un appartamento non appartengono affatto.
+ */
+export const INSPECTION_KINDS = ['controllo', 'task_operativa', 'gestione_interna'] as const
+export type InspectionKind = (typeof INSPECTION_KINDS)[number]
+
+export interface InspectionKindMeta {
+  id: InspectionKind
+  label: string
+  /** Frase breve per il modulo: spiega quando si usa. */
+  hint: string
+  chip: string
+  /** Le voci di gestione interna non hanno una casa. */
+  needsApartment: boolean
+}
+
+export const INSPECTION_KIND_META: Record<InspectionKind, InspectionKindMeta> = {
+  controllo: {
+    id: 'controllo',
+    label: 'Controllo',
+    hint: 'Verifica sul posto dopo la pulizia.',
+    chip: 'bg-status-progress/12 text-status-progress ring-1 ring-inset ring-status-progress/25',
+    needsApartment: true,
+  },
+  task_operativa: {
+    id: 'task_operativa',
+    label: 'Task Operativa',
+    hint: 'Lavoro da fare in casa che non è una verifica.',
+    chip: 'bg-status-pending/12 text-status-pending ring-1 ring-inset ring-status-pending/25',
+    needsApartment: true,
+  },
+  gestione_interna: {
+    id: 'gestione_interna',
+    label: 'Gestione Interna',
+    hint: 'Attività della squadra, senza appartamento.',
+    chip: 'bg-status-verify/12 text-status-verify ring-1 ring-inset ring-status-verify/25',
+    needsApartment: false,
+  },
+}
+
 /** Una singola verifica da spuntare dentro un controllo, es. "nessuna formica". */
 export interface InspectionTask {
   id: string
@@ -279,7 +321,11 @@ export interface InspectionTask {
 
 export interface Inspection {
   id: string
-  apartmentId: string
+  /** Assente sulle voci di gestione interna: non riguardano una casa. */
+  apartmentId?: string
+  kind: InspectionKind
+  /** Titolo proprio: obbligatorio senza appartamento, altrimenti facoltativo. */
+  title?: string
   inspectorId: InspectorId
   /** ISO datetime: giorno e ora del controllo. */
   scheduledAt: string
@@ -331,6 +377,57 @@ export interface Intervention {
   cost?: number
   /** Chi copre la spesa quando non e' a nostro carico, es. "Aircover". */
   coveredBy?: string
+  createdAt: string
+  createdById?: string
+}
+
+/* -------------------------------------------- spese amministrative ---- */
+
+/**
+ * Le spese che l'amministrazione anticipa per una casa. La classificazione
+ * decide chi le paga davvero: quelle coperte da Aircover restano nostre e non
+ * vanno mostrate al proprietario, le altre entrano nei costi extra del foglio
+ * di fine mese di quell'appartamento.
+ */
+export const EXPENSE_CLASSES = ['aircover', 'extra'] as const
+export type ExpenseClass = (typeof EXPENSE_CLASSES)[number]
+
+export const EXPENSE_CLASS_META: Record<
+  ExpenseClass,
+  { id: ExpenseClass; label: string; hint: string; chip: string; dot: string }
+> = {
+  aircover: {
+    id: 'aircover',
+    label: 'Aircover',
+    hint: 'Coperta da Aircover: non va al proprietario.',
+    chip: 'bg-status-accepted/12 text-status-accepted ring-1 ring-inset ring-status-accepted/25',
+    dot: 'bg-status-accepted',
+  },
+  extra: {
+    id: 'extra',
+    label: 'Spese Extra',
+    hint: 'Entra nel foglio di fine mese dell’appartamento.',
+    chip: 'bg-status-pending/12 text-status-pending ring-1 ring-inset ring-status-pending/25',
+    dot: 'bg-status-pending',
+  },
+}
+
+/** Tag di partenza per il luogo d'acquisto: l'elenco cresce con quelli usati. */
+export const EXPENSE_PLACES = ['Amazon', 'Negozio fisico'] as const
+
+export interface AdminExpense {
+  id: string
+  /** Cosa e' stato comprato, in una riga. */
+  title: string
+  /** Importo in euro, IVA inclusa. */
+  amount: number
+  apartmentId: string
+  /** Dove e' stata fatta: Amazon, negozio fisico o un tag aggiunto a mano. */
+  place: string
+  classification: ExpenseClass
+  /** ISO datetime del giorno della spesa. */
+  at: string
+  notes?: string
   createdAt: string
   createdById?: string
 }
