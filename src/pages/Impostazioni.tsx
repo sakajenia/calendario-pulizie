@@ -9,7 +9,7 @@ import {
   EmptyState, Field, Input,
 } from '@/components/ui'
 import { StatusChip } from '@/components/StatusChip'
-import { scopeApartments, scopeRequests, useCurrentUser, useStore } from '@/data/store'
+import { scopeApartments, scopeRequests, useCurrentUser, useNotifications, useStore } from '@/data/store'
 import { downloadFile, fmtDate, fmtNum, plural } from '@/lib/format'
 import { REQUEST_STATUSES, ROLE_META, STATUS_META, type RequestStatus } from '@/types'
 import { useTheme } from '@/hooks/useTheme'
@@ -71,7 +71,7 @@ export default function Impostazioni() {
   const workSheets = useStore((s) => s.workSheets)
   const extraCatalog = useStore((s) => s.extraCatalog)
   const warehouses = useStore((s) => s.warehouses)
-  const notifications = useStore((s) => s.notifications)
+  const notifications = useNotifications()
   const upsertUser = useStore((s) => s.upsertUser)
   const resetData = useStore((s) => s.resetData)
 

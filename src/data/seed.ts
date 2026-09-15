@@ -329,14 +329,67 @@ function buildRequests(): CleaningRequest[] {
   return out.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
 }
 
-export const requests: CleaningRequest[] = buildRequests()
+/**
+ * Due cose che le notifiche devono poter mostrare e che il caso non garantisce:
+ * qualche pulizia ferma a ridosso dell'intervento, una per ditta, e il momento
+ * in cui le accettate sono state prese in carico.
+ */
+function withNotifiableCases(list: CleaningRequest[]): CleaningRequest[] {
+  const ferme: CleaningRequest[] = [
+    ['ap-giuliana', 1],
+    ['ap-marsi', 2],
+    ['ap-scala', 0],
+  ].map(([apartmentId, offset], n) => {
+    const ap = apartments.find((a) => a.id === apartmentId)!
+    const checkOut = day(offset as number, 11, 0)
+    const created = day((offset as number) - 9, 10, 0)
+    return {
+      id: `req-ferma-${n}`,
+      apartmentId: ap.id,
+      hostId: ap.ownerId,
+      status: 'in_attesa' as RequestStatus,
+      createdAt: iso(created),
+      checkOutAt: iso(checkOut),
+      checkInAt: iso(day(offset as number, 15, 0)),
+      checkOutPeople: 2,
+      checkInPeople: 3,
+      beds: bedsFor(ap, 1),
+      perPersonExtras: [
+        { name: 'Asciugamano Viso', qty: 3 },
+        { name: 'Asciugamano Bidet', qty: 3 },
+        { name: 'Asciugamano Corpo', qty: 3 },
+      ],
+      apartmentExtras: [
+        { name: 'Carta igienica', qty: 2 },
+        { name: 'Sacchi immondizia', qty: 3 },
+      ],
+      workSheetId: 'ws-standard',
+    }
+  })
 
-export const notifications: AppNotification[] = [
-  { id: 'n-1', kind: 'cleaningCreated', title: 'Nuova richiesta di pulizia', body: 'Via della Scala 9 · check-out 03-09-2026 10:00', createdAt: iso(day(0, 8, 12)), read: false, requestId: requests[0]?.id },
-  { id: 'n-2', kind: 'cleaningChanged', title: 'Richiesta aggiornata', body: 'Via Trionfale 20 · ospiti in arrivo passati da 2 a 3', createdAt: iso(day(-1, 17, 40)), read: false, requestId: requests[1]?.id },
-  { id: 'n-3', kind: 'cleaningCancelled', title: 'Richiesta cancellata da Guesty', body: 'Piazza dei Consoli, 51 · prenotazione annullata dall’ospite', createdAt: iso(day(-2, 11, 5)), read: true },
-  { id: 'n-4', kind: 'system', title: 'Scorte in esaurimento', body: 'Magazzino Prati: lenzuola matrimoniali sotto la soglia minima', createdAt: iso(day(-3, 9, 30)), read: true },
-]
+  /* Le accettate portano il momento della presa in carico: senza quello la
+     notifica non saprebbe a quando datarsi. Si prende in carico nei giorni
+     prima dell'intervento, non mesi prima: bastano gli ultimi giorni. */
+  let k = 0
+  const stamped = list.map((r) => {
+    if (r.status !== 'accettata' || r.updatedAt) return r
+    k += 1
+    return { ...r, updatedAt: iso(day(-((k % 5) + 1), 9, 30)) }
+  })
+
+  return [...ferme, ...stamped].sort(
+    (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt),
+  )
+}
+
+export const requests: CleaningRequest[] = withNotifiableCases(buildRequests())
+
+/*
+ * Nessuna notifica salvata: si deducono dallo stato delle richieste e del
+ * calendario (vedi lib/notifications.ts). Resta l'elenco vuoto perche' lo
+ * store continua a esporre il campo.
+ */
+export const notifications: AppNotification[] = []
 
 /* ------------------------------------------------- controlli interni ---- */
 
@@ -357,12 +410,13 @@ const INSPECTION_TASKS = [
 const dayKeyOf = (d: Date) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
 
 /** Giorno + ora del controllo, a partire dallo scarto in giorni da TODAY. */
-const inspectionTasks = (names: string[], doneCount: number, at: Date): InspectionTask[] =>
+const inspectionTasks = (names: string[], doneCount: number, at: Date, createdAt?: string): InspectionTask[] =>
   names.map((name, i) => ({
     id: `it-${dayKeyOf(at)}-${i}`,
     name,
     done: i < doneCount,
     doneAt: i < doneCount ? iso(at) : undefined,
+    createdAt,
   }))
 
 /**
@@ -433,7 +487,7 @@ const INSPECTION_PLAN: InspectionSeed[] = [
   },
 ]
 
-export const inspections: Inspection[] = INSPECTION_PLAN.map((row, i) => {
+const plannedInspections: Inspection[] = INSPECTION_PLAN.map((row, i) => {
   const at = day(row.offset, row.hour)
   const names = INSPECTION_TASKS.slice(i % 4, (i % 4) + row.taskCount)
   return {
@@ -443,10 +497,131 @@ export const inspections: Inspection[] = INSPECTION_PLAN.map((row, i) => {
     title: row.title,
     inspectorId: row.inspectorId,
     scheduledAt: iso(at),
-    tasks: inspectionTasks(names, row.doneCount, at),
+    tasks: inspectionTasks(names, row.doneCount, at, iso(day(row.offset - 7, 9))),
     createdAt: iso(day(row.offset - 7, 9)),
   }
 })
+
+
+/* ------------------------------------------- scadenze fisse del mese ---- */
+
+/**
+ * Le scadenze che tornano ogni mese: compilare le spese, i bonifici, l'F24, i
+ * pagamenti alla ditta, le chiusure contabili. Non si inseriscono a mano - si
+ * generano dal calendario, con un identificativo costruito sul mese, cosi' che
+ * rigenerarle non crei doppioni e spuntarle resti valido.
+ */
+interface RecurringRule {
+  /** Entra nell'id: cambiarlo scollega le voci gia' spuntate. */
+  slug: string
+  inspectorId: InspectorId
+  title: string
+  tasks: string[]
+  hour: number
+  /** Il giorno del mese su cui cade la scadenza. */
+  when: (month: Date) => Date
+}
+
+const dayOfMonth = (month: Date, n: number) =>
+  new Date(month.getFullYear(), month.getMonth(), n)
+
+const lastDayOfMonth = (month: Date) =>
+  new Date(month.getFullYear(), month.getMonth() + 1, 0)
+
+/** L'ultimo venerdi' del mese: si parte dall'ultimo giorno e si torna indietro. */
+const lastFriday = (month: Date) => {
+  const d = lastDayOfMonth(month)
+  while (d.getDay() !== 5) d.setDate(d.getDate() - 1)
+  return d
+}
+
+export const RECURRING_RULES: RecurringRule[] = [
+  {
+    slug: 'spese-amministrative',
+    inspectorId: 'manuel',
+    title: 'Compila Spese Amministrative',
+    tasks: ['Raccogli scontrini e fatture del mese', 'Classifica Aircover o Spese Extra'],
+    hour: 17,
+    when: lastDayOfMonth,
+  },
+  {
+    slug: 'amministrazione-proprietari',
+    inspectorId: 'michelle',
+    title: 'Amministrazione Proprietari',
+    tasks: ['Creazione Dashboard', 'Contabilità', 'Bilanci mese'],
+    hour: 10,
+    when: lastFriday,
+  },
+  {
+    slug: 'bonifici',
+    inspectorId: 'michelle',
+    title: 'Bonifici mensili',
+    tasks: ['Prepara la distinta', 'Invia i bonifici'],
+    hour: 10,
+    when: (m) => dayOfMonth(m, 3),
+  },
+  {
+    slug: 'comfy-6',
+    inspectorId: 'michelle',
+    title: 'Pagamento Comfy Host',
+    tasks: ['Controlla il conteggio dei compensi', 'Esegui il pagamento'],
+    hour: 10,
+    when: (m) => dayOfMonth(m, 6),
+  },
+  {
+    slug: 'f24',
+    inspectorId: 'michelle',
+    title: 'Pagamento F24',
+    tasks: ['Verifica gli importi', 'Esegui il pagamento'],
+    hour: 10,
+    when: (m) => dayOfMonth(m, 15),
+  },
+  {
+    slug: 'comfy-16',
+    inspectorId: 'michelle',
+    title: 'Pagamento Comfy Host',
+    tasks: ['Controlla il conteggio dei compensi', 'Esegui il pagamento'],
+    hour: 10,
+    when: (m) => dayOfMonth(m, 16),
+  },
+]
+
+const monthKey = (d: Date) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`
+
+/**
+ * Le voci ricorrenti da `back` mesi indietro a `ahead` mesi avanti rispetto al
+ * giorno indicato. L'id nasce da slug e mese: ricalcolarle ridà le stesse.
+ */
+export function recurringInspections(from: Date, back = 3, ahead = 12): Inspection[] {
+  const out: Inspection[] = []
+  for (let k = -back; k <= ahead; k += 1) {
+    const month = new Date(from.getFullYear(), from.getMonth() + k, 1)
+    for (const rule of RECURRING_RULES) {
+      const at = rule.when(month)
+      at.setHours(rule.hour, 0, 0, 0)
+      const createdAt = new Date(month)
+      createdAt.setHours(9, 0, 0, 0)
+      out.push({
+        id: `ric-${rule.slug}-${monthKey(month)}`,
+        kind: 'task_operativa',
+        title: rule.title,
+        inspectorId: rule.inspectorId,
+        scheduledAt: iso(at),
+        recurring: true,
+        tasks: rule.tasks.map((name, i) => ({
+          id: `ric-${rule.slug}-${monthKey(month)}-t${i}`,
+          name,
+          done: false,
+          createdAt: iso(createdAt),
+        })),
+        createdAt: iso(createdAt),
+      })
+    }
+  }
+  return out
+}
+
+export const inspections: Inspection[] = [...plannedInspections, ...recurringInspections(TODAY)]
 
 /* ------------------------------------------------ interventi sul posto ---- */
 

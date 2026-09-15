@@ -282,8 +282,12 @@ export interface InspectionKindMeta {
   /** Frase breve per il modulo: spiega quando si usa. */
   hint: string
   chip: string
-  /** Le voci di gestione interna non hanno una casa. */
-  needsApartment: boolean
+  /**
+   * Quanto conta la casa: un controllo senza casa non esiste, una task
+   * operativa puo' riguardarla o essere amministrativa, la gestione interna
+   * non la riguarda mai.
+   */
+  apartment: 'obbligatorio' | 'facoltativo' | 'assente'
 }
 
 export const INSPECTION_KIND_META: Record<InspectionKind, InspectionKindMeta> = {
@@ -292,21 +296,21 @@ export const INSPECTION_KIND_META: Record<InspectionKind, InspectionKindMeta> = 
     label: 'Controllo',
     hint: 'Verifica sul posto dopo la pulizia.',
     chip: 'bg-status-progress/12 text-status-progress ring-1 ring-inset ring-status-progress/25',
-    needsApartment: true,
+    apartment: 'obbligatorio',
   },
   task_operativa: {
     id: 'task_operativa',
     label: 'Task Operativa',
-    hint: 'Lavoro da fare in casa che non è una verifica.',
+    hint: 'Lavoro da fare, in casa o amministrativo.',
     chip: 'bg-status-pending/12 text-status-pending ring-1 ring-inset ring-status-pending/25',
-    needsApartment: true,
+    apartment: 'facoltativo',
   },
   gestione_interna: {
     id: 'gestione_interna',
     label: 'Gestione Interna',
     hint: 'Attività della squadra, senza appartamento.',
     chip: 'bg-status-verify/12 text-status-verify ring-1 ring-inset ring-status-verify/25',
-    needsApartment: false,
+    apartment: 'assente',
   },
 }
 
@@ -317,6 +321,8 @@ export interface InspectionTask {
   done: boolean
   /** Momento in cui e' stata spuntata. */
   doneAt?: string
+  /** Quando e' stata aggiunta: serve alle notifiche. */
+  createdAt?: string
 }
 
 export interface Inspection {
@@ -331,6 +337,11 @@ export interface Inspection {
   scheduledAt: string
   tasks: InspectionTask[]
   notes?: string
+  /**
+   * Scadenza fissa rigenerata ogni mese (bonifici, F24, chiusure): non e' una
+   * novita' da notificare, e torna anche se la si cancella.
+   */
+  recurring?: boolean
   createdAt: string
   updatedAt?: string
   updatedById?: string
@@ -467,7 +478,15 @@ export interface Warehouse {
   notes?: string
 }
 
-export type NotificationKind = 'cleaningCreated' | 'cleaningChanged' | 'cleaningCancelled' | 'system'
+/**
+ * Le notifiche non sono un archivio di eventi: sono le tre cose su cui c'e'
+ * ancora da fare qualcosa. Le nuove richieste, da sole, non avvisano nessuno -
+ * arrivano a decine e non chiedono niente.
+ */
+export type NotificationKind = 'daAccettare' | 'accettata' | 'taskAggiunta'
+
+/** Quanti giorni prima dell'intervento una richiesta non accettata diventa un problema. */
+export const ACCEPT_DEADLINE_DAYS = 2
 
 export interface AppNotification {
   id: string

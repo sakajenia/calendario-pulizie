@@ -8,7 +8,7 @@ import {
 import { Logo } from '@/components/brand/Logo'
 import { CommandPalette } from '@/components/CommandPalette'
 import { Button, Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui'
-import { useCurrentUser, useStore } from '@/data/store'
+import { useCurrentUser, useNotifications, useStore } from '@/data/store'
 import { isManager } from '@/lib/permissions'
 import { ROLE_META } from '@/types'
 import { useTheme } from '@/hooks/useTheme'
@@ -75,7 +75,8 @@ function NavItem({ entry, onNavigate }: { entry: NavEntry; onNavigate?: () => vo
 export function AppShell() {
   const user = useCurrentUser()
   const logout = useStore((s) => s.logout)
-  const notifications = useStore((s) => s.notifications)
+  const notifications = useNotifications()
+  const ensureRecurring = useStore((s) => s.ensureRecurringInspections)
   const users = useStore((s) => s.users)
   const switchUser = useStore((s) => s.switchUser)
   const navigate = useNavigate()
@@ -83,6 +84,10 @@ export function AppShell() {
   const [mobileOpen, setMobileOpen] = React.useState(false)
 
   const unread = notifications.filter((n) => !n.read).length
+
+  /* Le scadenze fisse dei prossimi mesi devono esserci sempre: si rimettono
+     all'apertura, non quando qualcuno si ricorda di crearle. */
+  React.useEffect(() => { ensureRecurring() }, [ensureRecurring])
   const isAdmin = user?.role === 'admin'
   const manager = isManager(user)
   const allowed = (e: NavEntry) => (!e.adminOnly || isAdmin) && (!e.managerOnly || manager)

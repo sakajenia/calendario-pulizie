@@ -1,10 +1,13 @@
+import * as React from 'react'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type {
-  AdminExpense, Apartment, AppNotification, CleaningRequest, ExtraCatalogItem, Inspection,
+  AdminExpense, Apartment, CleaningRequest, ExtraCatalogItem, Inspection,
   InspectionTask, Intervention, RequestStatus, TaskCatalogItem, User, Warehouse, WorkSheet,
 } from '@/types'
 import * as seed from './seed'
+import { buildNotifications } from '@/lib/notifications'
+import type { AppNotification } from '@/types'
 
 export interface RequestFilters {
   text: string
@@ -30,7 +33,11 @@ interface State {
   workSheets: WorkSheet[]
   extraCatalog: ExtraCatalogItem[]
   warehouses: Warehouse[]
-  notifications: AppNotification[]
+  /**
+   * Le notifiche non si salvano: si deducono dai dati (vedi lib/notifications).
+   * Di ognuna resta solo se e' stata letta, per identificativo.
+   */
+  readNotifications: string[]
   /** Controlli interni sugli appartamenti: li vede solo l'area manager. */
   inspections: Inspection[]
   /** Problemi risolti in casa: alimentano il report mensile ai proprietari. */
@@ -71,6 +78,12 @@ interface State {
   deleteWarehouse: (id: string) => void
 
   upsertInspection: (i: Inspection) => void
+  /**
+   * Rimette in calendario le scadenze fisse mancanti dei prossimi mesi. Si
+   * chiama all'avvio: sono voci che devono esserci sempre, quindi tornano
+   * anche se qualcuno le cancella.
+   */
+  ensureRecurringInspections: () => void
   deleteInspections: (ids: string[]) => void
   /** Spunta o rimette in sospeso una singola verifica del controllo. */
   setInspectionTaskDone: (inspectionId: string, taskId: string, done: boolean) => void
@@ -84,7 +97,8 @@ interface State {
   deleteAdminExpense: (id: string) => void
 
   markNotification: (id: string, read: boolean) => void
-  markAllNotificationsRead: () => void
+  /** Le notifiche sono dedotte: gli identificativi da segnare arrivano da fuori. */
+  markAllNotificationsRead: (ids: string[]) => void
 
   resetData: () => void
 }
@@ -97,7 +111,7 @@ const baseData = () => ({
   workSheets: seed.workSheets,
   extraCatalog: seed.extraCatalog,
   warehouses: seed.warehouses,
-  notifications: seed.notifications,
+  readNotifications: [] as string[],
   inspections: seed.inspections,
   interventions: seed.interventions,
   adminExpenses: seed.adminExpenses,
@@ -186,6 +200,13 @@ export const useStore = create<State>()(
       upsertWarehouse: (w) => set((s) => ({ warehouses: upsertBy(s.warehouses, w) })),
       deleteWarehouse: (id) => set((s) => ({ warehouses: s.warehouses.filter((w) => w.id !== id) })),
 
+      ensureRecurringInspections: () =>
+        set((s) => {
+          const have = new Set(s.inspections.map((i) => i.id))
+          const missing = seed.recurringInspections(new Date()).filter((i) => !have.has(i.id))
+          return missing.length ? { inspections: [...missing, ...s.inspections] } : {}
+        }),
+
       upsertInspection: (i) =>
         set((s) => ({
           inspections: upsertBy(s.inspections, {
@@ -213,7 +234,12 @@ export const useStore = create<State>()(
         set((s) => {
           const trimmed = name.trim()
           if (!trimmed) return {}
-          const task: InspectionTask = { id: `it-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: trimmed, done: false }
+          const task: InspectionTask = {
+            id: `it-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            name: trimmed,
+            done: false,
+            createdAt: nowIso(),
+          }
           return {
             inspections: s.inspections.map((i) =>
               i.id === inspectionId
@@ -250,16 +276,20 @@ export const useStore = create<State>()(
         set((s) => ({ adminExpenses: s.adminExpenses.filter((e) => e.id !== id) })),
 
       markNotification: (id, read) =>
-        set((s) => ({ notifications: s.notifications.map((n) => (n.id === id ? { ...n, read } : n)) })),
-      markAllNotificationsRead: () =>
-        set((s) => ({ notifications: s.notifications.map((n) => ({ ...n, read: true })) })),
+        set((s) => ({
+          readNotifications: read
+            ? [...s.readNotifications.filter((x) => x !== id), id]
+            : s.readNotifications.filter((x) => x !== id),
+        })),
+      markAllNotificationsRead: (ids) =>
+        set((s) => ({ readNotifications: [...new Set([...s.readNotifications, ...ids])] })),
 
       resetData: () => set({ ...baseData(), filters: emptyFilters }),
     }),
     {
       name: 'propromanager-state',
       /** Alzata quando cambiano forma dei dati o assegnazioni del seed: i dati locali ripartono puliti. */
-      version: 8,
+      version: 9,
       migrate: () => ({ ...baseData(), filters: emptyFilters, currentUserId: null }),
       partialize: (s) => ({
         currentUserId: s.currentUserId,
@@ -270,7 +300,7 @@ export const useStore = create<State>()(
         workSheets: s.workSheets,
         extraCatalog: s.extraCatalog,
         warehouses: s.warehouses,
-        notifications: s.notifications,
+        readNotifications: s.readNotifications,
         inspections: s.inspections,
         interventions: s.interventions,
         adminExpenses: s.adminExpenses,
@@ -318,4 +348,29 @@ export function scopeRequests(
     return requests.filter((r) => mine.has(r.apartmentId))
   }
   return requests.filter((r) => r.assigneeId === user.id)
+}
+
+/**
+ * Le notifiche del momento per chi e' collegato. Si ricalcolano dai dati: non
+ * esiste un elenco salvato, solo il segno di quali sono gia' state lette.
+ */
+export function useNotifications(): AppNotification[] {
+  const requests = useStore((s) => s.requests)
+  const apartments = useStore((s) => s.apartments)
+  const inspections = useStore((s) => s.inspections)
+  const read = useStore((s) => s.readNotifications)
+  const user = useCurrentUser()
+
+  return React.useMemo(
+    () =>
+      buildNotifications({
+        /* L'account di una ditta vede solo le richieste delle proprie case. */
+        requests: scopeRequests(requests, user, apartments),
+        apartments,
+        inspections,
+        user,
+        read,
+      }),
+    [requests, apartments, inspections, user, read],
+  )
 }

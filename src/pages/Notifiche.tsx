@@ -1,7 +1,12 @@
+/*
+ * Notifiche: non un archivio di eventi, ma le cose su cui c'e' ancora da fare
+ * qualcosa. L'elenco si deduce dai dati a ogni apertura (lib/notifications.ts);
+ * qui resta il modo di leggerle, filtrarle e segnarle come lette.
+ */
 import * as React from 'react'
 import {
-  AlertCircle, Bell, CheckCheck, ChevronRight, Eye, Filter, Info, Mail, MailOpen,
-  MoreVertical, Pencil, Plus, Search, X, type LucideIcon,
+  AlertCircle, Bell, CalendarClock, CheckCheck, ChevronRight, Eye, Filter, ListChecks,
+  Mail, MailOpen, MoreVertical, Search, ThumbsUp, X, type LucideIcon,
 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/AppShell'
 import {
@@ -11,10 +16,11 @@ import {
 import { StatusChip } from '@/components/StatusChip'
 import { RequestDetail } from '@/components/requests/RequestDetail'
 import { useToast } from '@/components/feedback/Toast'
-import { scopeRequests, useCurrentUser, useStore } from '@/data/store'
+import { scopeRequests, useCurrentUser, useNotifications, useStore } from '@/data/store'
 import {
   asDate, fmtDate, fmtDateTime, fmtDayLong, fmtNum, fmtRelative, norm, plural, sameDay,
 } from '@/lib/format'
+import { isManager } from '@/lib/permissions'
 import type { AppNotification, CleaningRequest, NotificationKind } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -30,29 +36,24 @@ interface KindMeta {
 }
 
 const KIND_META: Record<NotificationKind, KindMeta> = {
-  cleaningCreated: {
-    label: 'Nuova richiesta',
-    icon: Plus,
-    circle: 'bg-status-accepted/12 text-status-accepted ring-1 ring-inset ring-status-accepted/25',
-  },
-  cleaningChanged: {
-    label: 'Aggiornamento',
-    icon: Pencil,
-    circle: 'bg-status-progress/12 text-status-progress ring-1 ring-inset ring-status-progress/25',
-  },
-  cleaningCancelled: {
-    label: 'Cancellazione',
-    icon: X,
+  daAccettare: {
+    label: 'Da accettare',
+    icon: CalendarClock,
     circle: 'bg-status-cancelled/12 text-status-cancelled ring-1 ring-inset ring-status-cancelled/25',
   },
-  system: {
-    label: 'Sistema',
-    icon: Info,
-    circle: 'bg-status-pending/12 text-status-pending ring-1 ring-inset ring-status-pending/25',
+  accettata: {
+    label: 'Accettata',
+    icon: ThumbsUp,
+    circle: 'bg-status-accepted/12 text-status-accepted ring-1 ring-inset ring-status-accepted/25',
+  },
+  taskAggiunta: {
+    label: 'Task e controlli',
+    icon: ListChecks,
+    circle: 'bg-status-progress/12 text-status-progress ring-1 ring-inset ring-status-progress/25',
   },
 }
 
-const KIND_ORDER: NotificationKind[] = ['cleaningCreated', 'cleaningChanged', 'cleaningCancelled', 'system']
+const KIND_ORDER: NotificationKind[] = ['daAccettare', 'accettata', 'taskAggiunta']
 
 const dayLabel = (v: string) => {
   const now = new Date()
@@ -181,7 +182,7 @@ function NotificationRow({
 /* ------------------------------------------------------------------ pagina */
 
 export default function Notifiche() {
-  const notifications = useStore((s) => s.notifications)
+  const notifications = useNotifications()
   const requests = useStore((s) => s.requests)
   const apartments = useStore((s) => s.apartments)
   const markNotification = useStore((s) => s.markNotification)
@@ -227,7 +228,7 @@ export default function Notifiche() {
 
   const kindCounts = React.useMemo(() => {
     const base = byText.filter(matchesTab)
-    const acc = { cleaningCreated: 0, cleaningChanged: 0, cleaningCancelled: 0, system: 0 }
+    const acc = { daAccettare: 0, accettata: 0, taskAggiunta: 0 }
     for (const n of base) acc[n.kind] += 1
     return { all: base.length, ...acc }
   }, [byText, matchesTab])
@@ -281,7 +282,7 @@ export default function Notifiche() {
   /* Un clic segna tutto: senza rientro, un tocco di troppo cancella la lista delle cose da leggere. */
   const markAllRead = () => {
     const unread = notifications.filter((n) => !n.read).map((n) => n.id)
-    markAllNotificationsRead()
+    markAllNotificationsRead(unread)
     toast({
       title: plural(unread.length, 'notifica segnata come letta', 'notifiche segnate come lette'),
       action: { label: 'Annulla', onClick: () => unread.forEach((id) => markNotification(id, false)) },
@@ -316,7 +317,7 @@ export default function Notifiche() {
                 : plural(unreadTotal, 'notifica da leggere', 'notifiche da leggere')}
             </span>
             <span aria-hidden className="text-border">|</span>
-            <span>{fmtNum(notifications.length)} in archivio</span>
+            <span>{fmtNum(notifications.length)} in elenco</span>
           </span>
         }
         actions={
@@ -430,7 +431,11 @@ export default function Notifiche() {
           <EmptyState
             icon={Bell}
             title="Non hai ancora nessuna notifica"
-            description="Qui compaiono le nuove richieste di pulizia, le modifiche, le cancellazioni e gli avvisi di sistema."
+            description={
+              isManager(user)
+                ? 'Qui compaiono le pulizie ferme a due giorni dall’intervento, quelle appena accettate e le task messe in calendario.'
+                : 'Qui compaiono le pulizie da accettare quando mancano meno di due giorni all’intervento.'
+            }
           />
         ) : rows.length === 0 ? (
           <EmptyState

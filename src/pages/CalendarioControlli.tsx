@@ -256,6 +256,9 @@ function InspectionCard({
 
 const toLocalInput = (iso: string) => format(new Date(iso), "yyyy-MM-dd'T'HH:mm")
 
+/** Valore del menu appartamenti per una task che non riguarda nessuna casa. */
+const SENZA_CASA = '__nessuno__' 
+
 function InspectionForm({
   open, onClose, initial, apartments, defaultDate,
 }: {
@@ -274,6 +277,9 @@ function InspectionForm({
     return {
       kind: 'controllo' as InspectionKind,
       apartmentId: apartments[0]?.id ?? '',
+      /* Una task operativa puo' essere amministrativa: la casa e' facoltativa,
+         e "nessuna" e' una scelta, non un campo lasciato vuoto. */
+      senzaCasa: false,
       title: '',
       inspectorId: 'manuel' as InspectorId,
       scheduledAt: format(at, "yyyy-MM-dd'T'HH:mm"),
@@ -294,6 +300,7 @@ function InspectionForm({
         ? {
             kind: initial.kind,
             apartmentId: initial.apartmentId ?? apartments[0]?.id ?? '',
+            senzaCasa: initial.kind === 'task_operativa' && !initial.apartmentId,
             title: initial.title ?? '',
             inspectorId: initial.inspectorId,
             scheduledAt: toLocalInput(initial.scheduledAt),
@@ -307,13 +314,15 @@ function InspectionForm({
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
+    const conCasa =
+      kindMeta.apartment === 'obbligatorio' ||
+      (kindMeta.apartment === 'facoltativo' && !draft.senzaCasa)
+
     /* Senza appartamento la voce ha bisogno di un titolo proprio, altrimenti
        in elenco resterebbe una riga anonima. */
-    if (kindMeta.needsApartment && !draft.apartmentId) {
-      return setError('Scegli l’appartamento')
-    }
-    if (!kindMeta.needsApartment && !draft.title.trim()) {
-      return setError('Dai un titolo alla voce di gestione interna')
+    if (conCasa && !draft.apartmentId) return setError('Scegli l’appartamento')
+    if (!conCasa && !draft.title.trim()) {
+      return setError('Dai un titolo alla voce: senza appartamento non avrebbe nome')
     }
     const at = new Date(draft.scheduledAt)
     if (Number.isNaN(at.getTime())) return setError('Inserisci una data valida')
@@ -322,7 +331,7 @@ function InspectionForm({
     upsert({
       id: initial?.id ?? `insp-${Date.now()}`,
       kind: draft.kind,
-      apartmentId: kindMeta.needsApartment ? draft.apartmentId : undefined,
+      apartmentId: conCasa ? draft.apartmentId : undefined,
       title: draft.title.trim() || undefined,
       inspectorId: draft.inspectorId,
       scheduledAt: at.toISOString(),
@@ -365,22 +374,32 @@ function InspectionForm({
           />
         </Field>
 
-        {kindMeta.needsApartment && (
+        {kindMeta.apartment !== 'assente' && (
           <Field label="Appartamento" htmlFor="controllo-appartamento">
             <Select
               id="controllo-appartamento"
-              value={draft.apartmentId}
-              onChange={(e) => setDraft((d) => ({ ...d, apartmentId: e.target.value }))}
-              options={apartments.map((a) => ({
-                value: a.id,
-                label: [a.name, a.district].filter(Boolean).join(' · '),
-              }))}
+              value={draft.senzaCasa ? SENZA_CASA : draft.apartmentId}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  senzaCasa: e.target.value === SENZA_CASA,
+                  apartmentId: e.target.value === SENZA_CASA ? d.apartmentId : e.target.value,
+                }))}
+              options={[
+                ...apartments.map((a) => ({
+                  value: a.id,
+                  label: [a.name, a.district].filter(Boolean).join(' · '),
+                })),
+                ...(kindMeta.apartment === 'facoltativo'
+                  ? [{ value: SENZA_CASA, label: 'Nessuno · task amministrativa' }]
+                  : []),
+              ]}
             />
           </Field>
         )}
 
         <Field
-          label={kindMeta.needsApartment ? 'Titolo' : 'Titolo della voce'}
+          label={kindMeta.apartment === 'obbligatorio' ? 'Titolo' : 'Titolo della voce'}
           htmlFor="controllo-titolo"
           hint={
             draft.kind === 'controllo'
