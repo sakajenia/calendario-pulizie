@@ -3,7 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import {
   Bell, Boxes, Building2, CalendarDays, ClipboardList, LayoutDashboard, ListChecks,
-  LogOut, Moon, PackageOpen, Search, Settings, Sun, Users, Menu, X,
+  LogOut, Moon, PackageOpen, Receipt, Search, Settings, Sun, Users, Menu, X,
 } from 'lucide-react'
 import { Logo, LogoMark } from '@/components/brand/Logo'
 import { CommandPalette } from '@/components/CommandPalette'
@@ -37,6 +37,7 @@ const ADMIN: NavEntry[] = [
   { to: '/catalogo-task', label: 'Catalogo Task', icon: ClipboardList, adminOnly: true },
   { to: '/extra', label: 'Extra', icon: PackageOpen, adminOnly: true },
   { to: '/magazzini', label: 'Magazzini', icon: Boxes, adminOnly: true },
+  { to: '/compensi', label: 'Compensi', icon: Receipt, adminOnly: true },
 ]
 
 function NavItem({ entry, onNavigate }: { entry: NavEntry; onNavigate?: () => void }) {

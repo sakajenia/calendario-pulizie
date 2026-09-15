@@ -14,8 +14,10 @@ import { isManager } from '@/lib/permissions'
 import {
   asDate, downloadFile, fmtDate, fmtDateTime, fmtEur, fmtNum, norm, plural, toCsv,
 } from '@/lib/format'
-import type {
-  Apartment, ApartmentVisibility, Bed, BedType, CleaningRequest, ListingProvider, User,
+import {
+  CLEANING_COMPANIES, COMPANY_META,
+  type Apartment, type ApartmentVisibility, type Bed, type BedType, type CleaningCompanyId,
+  type CleaningRequest, type ListingProvider, type User,
 } from '@/types'
 import { useToast } from '@/components/feedback/Toast'
 import { cn } from '@/lib/utils'
@@ -60,6 +62,17 @@ function bedSummary(beds: Bed[]): string {
   const counts = new Map<BedType, number>()
   for (const b of beds) counts.set(b.type, (counts.get(b.type) ?? 0) + 1)
   return Array.from(counts, ([type, n]) => `${n}× ${type}`).join(', ')
+}
+
+/** Tag della ditta di pulizie a cui e' affidato l'appartamento. */
+function CompanyBadge({ companyId, className }: { companyId: CleaningCompanyId; className?: string }) {
+  const meta = COMPANY_META[companyId]
+  return (
+    <Badge className={cn(meta.chip, 'px-2 py-0.5 text-[11px]', className)}>
+      <span className={cn('size-1.5 rounded-full', meta.dot)} />
+      {meta.label}
+    </Badge>
+  )
 }
 
 function ProviderBadge({ provider, listingId }: { provider: ListingProvider; listingId?: string }) {
@@ -203,6 +216,7 @@ function ApartmentDetail({
             <DetailRow label="Indirizzo" value={apartment.address} />
             <DetailRow label="Località" value={`${apartment.district} · ${apartment.city}`} />
             <DetailRow label="Proprietario" value={ownerName} />
+            <DetailRow label="Ditta pulizie" value={<CompanyBadge companyId={apartment.companyId} />} />
             <DetailRow
               label="Provider"
               value={apartment.provider === 'none' ? 'Nessuno' : PROVIDER_LABEL[apartment.provider]}
@@ -332,6 +346,7 @@ interface Draft {
   district: string
   city: string
   ownerId: string
+  companyId: CleaningCompanyId
   visibility: ApartmentVisibility
   provider: ListingProvider
   providerListingId: string
@@ -350,6 +365,7 @@ const makeDraft = (a: Apartment | null, fallbackOwnerId: string): Draft => ({
   district: a?.district ?? '',
   city: a?.city ?? 'Roma',
   ownerId: a?.ownerId ?? fallbackOwnerId,
+  companyId: a?.companyId ?? 'comfy',
   visibility: a?.visibility ?? 'official',
   provider: a?.provider ?? 'none',
   providerListingId: a?.providerListingId ?? '',
@@ -413,6 +429,7 @@ function ApartmentForm({
       district: draft.district.trim(),
       city: draft.city.trim(),
       ownerId: draft.ownerId,
+      companyId: draft.companyId,
       beds: draft.beds,
       notes: draft.notes.trim() || undefined,
       visibility: draft.visibility,
@@ -490,6 +507,14 @@ function ApartmentForm({
                 { value: '', label: 'Seleziona un proprietario' },
                 ...hosts.map((h) => ({ value: h.id, label: h.name })),
               ]}
+            />
+          </Field>
+
+          <Field label="Ditta di pulizie" hint="Determina a chi spetta il compenso di fine mese.">
+            <Select
+              value={draft.companyId}
+              onChange={(e) => setDraft((d) => ({ ...d, companyId: e.target.value as CleaningCompanyId }))}
+              options={CLEANING_COMPANIES.map((c) => ({ value: c, label: COMPANY_META[c].label }))}
             />
           </Field>
 
@@ -750,6 +775,7 @@ export default function Appartamenti() {
       'Cap/Quartiere': r.apt.district,
       'Città': r.apt.city,
       Proprietario: r.ownerName,
+      'Ditta pulizie': COMPANY_META[r.apt.companyId].label,
       Letti: r.apt.beds.length,
       'Tipologie letti': bedSummary(r.apt.beds),
       Provider: PROVIDER_LABEL[r.apt.provider],
@@ -916,9 +942,9 @@ export default function Appartamenti() {
                     />
                   }
                   fields={[
+                    { label: 'Ditta pulizie', value: <CompanyBadge companyId={r.apt.companyId} /> },
                     { label: 'Letti', value: fmtNum(r.apt.beds.length) },
                     { label: 'Prezzo base', value: fmtEur(r.apt.prices.base) },
-                    { label: 'Proprietario', value: r.ownerName },
                     { label: 'Richieste', value: fmtNum(r.requestCount) },
                   ]}
                 />
@@ -941,6 +967,7 @@ export default function Appartamenti() {
                 <Th>Indirizzo</Th>
                 <Th>Cap/Quartiere</Th>
                 <Th>Città</Th>
+                <Th>Ditta pulizie</Th>
                 <SortHeader label="Letti" sortKey="beds" current={sortKey} dir={sortDir} onSort={sortBy} className="text-right" />
                 <Th>Provider</Th>
                 <SortHeader label="Prezzo base" sortKey="price" current={sortKey} dir={sortDir} onSort={sortBy} className="text-right" />
@@ -992,6 +1019,10 @@ export default function Appartamenti() {
 
                     <Td className="whitespace-nowrap text-muted-foreground">{r.apt.district}</Td>
                     <Td className="whitespace-nowrap text-muted-foreground">{r.apt.city}</Td>
+
+                    <Td className="whitespace-nowrap">
+                      <CompanyBadge companyId={r.apt.companyId} />
+                    </Td>
 
                     <Td className="text-right font-medium tabular-nums">
                       {r.apt.beds.length === 0 ? (

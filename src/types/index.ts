@@ -65,6 +65,43 @@ export interface ApartmentPrices {
   perGuest?: Record<number, number>
 }
 
+/**
+ * Le pulizie sono affidate a due ditte esterne. Il compenso di fine mese si
+ * calcola per ditta, e Comfy Host aggiunge un costo fisso per il canovaccio.
+ */
+export const CLEANING_COMPANIES = ['comfy', 'angela'] as const
+export type CleaningCompanyId = (typeof CLEANING_COMPANIES)[number]
+
+export interface CleaningCompanyMeta {
+  id: CleaningCompanyId
+  label: string
+  chip: string
+  dot: string
+  text: string
+  /** Costo fisso per ogni pulizia, oltre al prezzo dell'appartamento. */
+  perCleaningFee: number
+  /** Cosa copre il costo fisso: compare nel riepilogo dei compensi. */
+  perCleaningFeeLabel?: string
+}
+
+export const COMPANY_META: Record<CleaningCompanyId, CleaningCompanyMeta> = {
+  comfy: {
+    id: 'comfy', label: 'Comfy Host',
+    chip: 'bg-company-comfy/12 text-company-comfy ring-1 ring-inset ring-company-comfy/25',
+    dot: 'bg-company-comfy',
+    text: 'text-company-comfy',
+    perCleaningFee: 0.5,
+    perCleaningFeeLabel: 'Canovaccio',
+  },
+  angela: {
+    id: 'angela', label: 'Angela',
+    chip: 'bg-company-angela/12 text-company-angela ring-1 ring-inset ring-company-angela/25',
+    dot: 'bg-company-angela',
+    text: 'text-company-angela',
+    perCleaningFee: 0,
+  },
+}
+
 export interface Apartment {
   id: string
   name: string
@@ -72,6 +109,8 @@ export interface Apartment {
   district: string
   city: string
   ownerId: string
+  /** Ditta di pulizie a cui e' affidato l'appartamento. */
+  companyId: CleaningCompanyId
   beds: Bed[]
   notes?: string
   visibility: ApartmentVisibility
@@ -323,3 +362,7 @@ export const STATUS_META: Record<RequestStatus, StatusMeta> = {
     chip: 'bg-status-cancelled/12 text-status-cancelled ring-1 ring-inset ring-status-cancelled/25',
   },
 }
+
+/** Prezzo della pulizia per quel numero di ospiti, con rientro sul prezzo base. */
+export const priceForGuests = (a: Apartment, guests: number): number =>
+  a.prices.perGuest?.[guests] ?? a.prices.base

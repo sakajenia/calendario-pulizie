@@ -100,7 +100,9 @@ function InspectionCard({
     setDraft('')
   }
 
-  const zone = [apartment?.district, apartment?.city].filter(Boolean).join(' · ')
+  /* Il nome e' commerciale ("Stazione Centrale Roma"): chi va sul posto cerca
+     la via, quindi indirizzo e zona stanno sotto al nome. */
+  const zone = [apartment?.address, apartment?.district, apartment?.city].filter(Boolean).join(' · ')
 
   return (
     <Card className={cn('overflow-hidden ring-1 ring-inset', meta.ring)}>

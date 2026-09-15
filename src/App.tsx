@@ -14,6 +14,7 @@ import FogliDiLavoro from '@/pages/FogliDiLavoro'
 import CatalogoTask from '@/pages/CatalogoTask'
 import Extra from '@/pages/Extra'
 import Magazzini from '@/pages/Magazzini'
+import Compensi from '@/pages/Compensi'
 import Notifiche from '@/pages/Notifiche'
 import Impostazioni from '@/pages/Impostazioni'
 
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="/catalogo-task" element={<Protected adminOnly><CatalogoTask /></Protected>} />
           <Route path="/extra" element={<Protected adminOnly><Extra /></Protected>} />
           <Route path="/magazzini" element={<Protected adminOnly><Magazzini /></Protected>} />
+          <Route path="/compensi" element={<Protected adminOnly><Compensi /></Protected>} />
         </Route>
         <Route path="*" element={<Navigate to="/calendario" replace />} />
       </Routes>

@@ -32,7 +32,10 @@ export function CalendarModeSwitch({
             onClick={() => onChange(m.value)}
             className={cn(
               'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all focus-ring',
-              on ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+              /* Verde su dove siamo: fra due calendari quasi identici la
+                 posizione corrente deve saltare all'occhio, non solo staccarsi
+                 dal fondo. */
+              on ? 'bg-success text-success-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
             )}
           >
             <Icon className="size-4" />

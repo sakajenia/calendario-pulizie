@@ -68,10 +68,18 @@
     --status-done: 346 72% 31%;
     --status-cancelled: 358 68% 46%;
 
-    /* Chi esegue il controllo interno. Giallo e arancione sono vicini di tinta,
-       quindi si separano per luminosita': Manuel piu' chiaro, Mark piu' scuro. */
-    --inspector-manuel: 45 96% 38%;
-    --inspector-mark: 22 90% 46%;
+    /* Chi esegue il controllo interno. Blu e celeste sono vicini di tinta,
+       quindi si separano anche per luminosita': Manuel scuro, Mark chiaro. */
+    --inspector-manuel: 224 76% 44%;
+    --inspector-mark: 194 88% 38%;
+
+    /* Verde di conferma: segnala la posizione corrente fra due viste. */
+    --success: 152 62% 30%;
+    --success-foreground: 152 60% 99%;
+
+    /* Le due ditte di pulizie. */
+    --company-comfy: 168 66% 30%;
+    --company-angela: 282 54% 46%;
 
     /* Curve di uscita esponenziali: nessun rimbalzo, nessun elastico. */
     --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
@@ -123,8 +131,14 @@
     --status-done: 346 58% 56%;
     --status-cancelled: 358 74% 62%;
 
-    --inspector-manuel: 45 92% 60%;
-    --inspector-mark: 22 94% 60%;
+    --inspector-manuel: 224 90% 72%;
+    --inspector-mark: 194 88% 52%;
+
+    --success: 152 52% 46%;
+    --success-foreground: 152 40% 8%;
+
+    --company-comfy: 168 58% 48%;
+    --company-angela: 282 68% 72%;
   }
 
   * { @apply border-border; }

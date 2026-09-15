@@ -38,65 +38,89 @@ const MATR: BedType = 'Letto Matrimoniale'
 const SING: BedType = 'Letto Singolo'
 const DIVM: BedType = 'Divano letto Matrimoniale'
 
-/** I 6 appartamenti reali osservati nella tabella Appartamenti di ComfyHost. */
+/**
+ * Gli 8 appartamenti in gestione, divisi fra le due ditte di pulizie.
+ * `prices.base` e' la tariffa della pulizia; `perGuest` la sovrascrive solo
+ * dove la tariffa cambia col numero di ospiti (per ora solo a 4 pax).
+ */
 export const apartments: Apartment[] = [
+  /* ---- Comfy Host ---- */
   {
-    id: 'ap-livraghi', name: 'Via Giovanni Livraghi 2', address: 'Via Giovanni Livraghi 2',
-    district: 'Trastevere', city: 'Roma', ownerId: 'u-admin', visibility: 'official', provider: 'guesty',
-    providerListingId: 'GY-88213', beds: [
-      { id: 'b-liv-1', type: MATR }, { id: 'b-liv-2', type: DIVM },
-    ],
-    notes: '- Accesso con chiavi nella keybox a destra del portone.\n- Codice cassetta pulizie: 1405\n- Piano 1, interno 3.',
-    prices: { base: 45, min: 35, max: 70, perGuest: { 1: 40, 2: 45, 3: 52, 4: 60 } },
-    cleaningFrequencyDays: 3, createdAt: iso(day(-360)),
-  },
-  {
-    id: 'ap-consoli', name: 'Piazza dei Consoli, 51', address: 'Piazza dei Consoli, 50',
-    district: 'Tuscolana', city: 'Roma', ownerId: 'u-admin', visibility: 'official', provider: 'hostaway',
-    providerListingId: 'HA-40917', beds: [
-      { id: 'b-con-1', type: MATR }, { id: 'b-con-2', type: SING }, { id: 'b-con-3', type: SING },
-    ],
-    notes: 'Citofono "Consoli 51". Ascensore fino al piano 4.\nRifornimenti nel ripostiglio, lucchetto 0000.',
-    prices: { base: 50, min: 40, max: 78, perGuest: { 1: 42, 2: 50, 3: 58, 4: 66, 5: 74 } },
-    cleaningFrequencyDays: 4, createdAt: iso(day(-350)),
-  },
-  {
-    id: 'ap-giuliana', name: 'Via della Giuliana 35', address: 'Via della Giuliana 35',
-    district: 'Prati', city: 'Roma', ownerId: 'u-admin', visibility: 'official', provider: 'guesty',
-    providerListingId: 'GY-88240', beds: [
-      { id: 'b-giu-1', type: MATR }, { id: 'b-giu-2', type: DIVM },
-    ],
+    id: 'ap-giuliana', name: '3 minuti Vaticano', address: 'Via della Giuliana 35',
+    district: 'Prati', city: 'Roma', ownerId: 'u-admin', companyId: 'comfy',
+    visibility: 'official', provider: 'guesty', providerListingId: 'GY-88240',
+    beds: [{ id: 'b-giu-1', type: MATR }, { id: 'b-giu-2', type: DIVM }],
     notes: '1) Mettere di nostro:\n   Amenities, cialde (1 a persona).\n   Tutti i refill si trovano nel vostro armadio, codice 0000\n2) Controllare sempre le chiavi nelle rispettive keybox.',
-    prices: { base: 48, min: 38, max: 72, perGuest: { 1: 42, 2: 48, 3: 55, 4: 63 } },
+    prices: { base: 50, min: 50, max: 60, perGuest: { 4: 60 } },
     cleaningFrequencyDays: 3, createdAt: iso(day(-320)),
   },
   {
-    id: 'ap-labicana', name: 'Via di Porta Labicana 19', address: 'Via di Porta Labicana 19',
-    district: 'San Giovanni', city: 'Roma', ownerId: 'u-admin', visibility: 'official', provider: 'guesty',
-    providerListingId: 'GY-88266', beds: [
-      { id: 'b-lab-1', type: MATR }, { id: 'b-lab-2', type: MATR }, { id: 'b-lab-3', type: SING },
-    ],
-    notes: '1) Mettere di nostro:\n   Amenities\n   Cialde (1 a persona).\n   Tutti i refill si trovano nel vostro armadio, codice 0000\n\n2) Spegnere i riscaldamenti: nel corridoio, sul termostato premere OFF (IMPORTANTE)\n\n3) Controllare sempre se le chiavi sono nelle rispettive keybox\n   Cassetta ospiti: 2307 · Cassetta pulizie: 1405\n   NON scambiarle per favore.',
-    prices: { base: 55, min: 45, max: 85, perGuest: { 1: 46, 2: 55, 3: 64, 4: 72, 5: 80 } },
-    cleaningFrequencyDays: 2, createdAt: iso(day(-300)),
-  },
-  {
-    id: 'ap-trionfale', name: 'Via Trionfale 20', address: 'Via Trionfale 20',
-    district: 'Prati', city: 'Roma', ownerId: 'u-admin', visibility: 'official', provider: 'hostaway',
-    providerListingId: 'HA-40952', beds: [{ id: 'b-tri-1', type: MATR }],
+    id: 'ap-trionfale', name: 'Green House in Vaticano', address: 'Via Trionfale 20',
+    district: 'Prati', city: 'Roma', ownerId: 'u-admin', companyId: 'comfy',
+    visibility: 'official', provider: 'hostaway', providerListingId: 'HA-40952',
+    beds: [{ id: 'b-tri-1', type: MATR }],
     notes: '1) Mettere di nostro:\n   - la saponetta + shampoo\n   - carta igienica\n   - the vari e zucchero\n\n   Tutti i refill si trovano nel vostro armadietto, codice lucchetto 140.',
-    prices: { base: 40, min: 32, max: 62, perGuest: { 1: 36, 2: 40 } },
+    prices: { base: 40, min: 40, max: 40 },
     cleaningFrequencyDays: 3, createdAt: iso(day(-280)),
   },
   {
-    id: 'ap-scala', name: 'Via della Scala 9', address: 'Via della Scala 9',
-    district: 'Trastevere', city: 'Roma', ownerId: 'u-admin', visibility: 'official', provider: 'guesty',
-    providerListingId: 'GY-88301', beds: [
-      { id: 'b-sca-1', type: MATR }, { id: 'b-sca-2', type: DIVM },
-    ],
+    id: 'ap-livraghi', name: 'Small Red House', address: 'Via Giovanni Livraghi 2',
+    district: 'Trastevere', city: 'Roma', ownerId: 'u-admin', companyId: 'comfy',
+    visibility: 'official', provider: 'guesty', providerListingId: 'GY-88213',
+    beds: [{ id: 'b-liv-1', type: MATR }, { id: 'b-liv-2', type: DIVM }],
+    notes: '- Accesso con chiavi nella keybox a destra del portone.\n- Codice cassetta pulizie: 1405\n- Piano 1, interno 3.',
+    prices: { base: 50, min: 50, max: 50 },
+    cleaningFrequencyDays: 3, createdAt: iso(day(-360)),
+  },
+  {
+    id: 'ap-scala', name: 'Trastevere Butterfly', address: 'Via della Scala 9',
+    district: 'Trastevere', city: 'Roma', ownerId: 'u-admin', companyId: 'comfy',
+    visibility: 'official', provider: 'guesty', providerListingId: 'GY-88301',
+    beds: [{ id: 'b-sca-1', type: MATR }, { id: 'b-sca-2', type: DIVM }],
     notes: '- Accesso con chiavi, si trovano al portone esterno.\n- Codice cassetta superiore 1405 (nostre chiavi - pulizie)\n- Codice cassetta inferiore 2307 (controllare se ci sono chiavi ospiti)\n- Piano 2 Butterfly House',
-    prices: { base: 52, min: 42, max: 80, perGuest: { 1: 44, 2: 52, 3: 60, 4: 68 } },
+    prices: { base: 50, min: 50, max: 60, perGuest: { 4: 60 } },
     cleaningFrequencyDays: 2, createdAt: iso(day(-250)),
+  },
+
+  /* ---- Angela ---- */
+  {
+    id: 'ap-marsi', name: 'KlaFrà', address: 'Via dei Marsi 10',
+    district: 'San Giovanni', city: 'Roma', ownerId: 'u-admin', companyId: 'angela',
+    visibility: 'official', provider: 'guesty', providerListingId: 'GY-88355',
+    beds: [{ id: 'b-mar-1', type: MATR }, { id: 'b-mar-2', type: SING }],
+    notes: 'Citofono KlaFrà. Chiavi nella keybox accanto al portone.',
+    prices: { base: 55, min: 55, max: 55 },
+    cleaningFrequencyDays: 3, createdAt: iso(day(-340)),
+  },
+  {
+    id: 'ap-consoli', name: 'Consoli', address: 'Piazza dei Consoli 50',
+    district: 'Don Bosco', city: 'Roma', ownerId: 'u-admin', companyId: 'angela',
+    visibility: 'official', provider: 'hostaway', providerListingId: 'HA-40917',
+    beds: [{ id: 'b-con-1', type: MATR }, { id: 'b-con-2', type: SING }, { id: 'b-con-3', type: SING }],
+    notes: 'Citofono "Consoli". Ascensore fino al piano 4.\nRifornimenti nel ripostiglio, lucchetto 0000.',
+    prices: { base: 75, min: 75, max: 75 },
+    cleaningFrequencyDays: 4, createdAt: iso(day(-350)),
+  },
+  {
+    id: 'ap-labicana', name: 'Stazione Centrale Roma', address: 'Via di Porta Labicana 19',
+    district: 'Termini', city: 'Roma', ownerId: 'u-admin', companyId: 'angela',
+    visibility: 'official', provider: 'guesty', providerListingId: 'GY-88266',
+    beds: [{ id: 'b-lab-1', type: MATR }, { id: 'b-lab-2', type: MATR }, { id: 'b-lab-3', type: SING }],
+    notes: '1) Mettere di nostro:\n   Amenities\n   Cialde (1 a persona).\n   Tutti i refill si trovano nel vostro armadio, codice 0000\n\n2) Spegnere i riscaldamenti: nel corridoio, sul termostato premere OFF (IMPORTANTE)\n\n3) Controllare sempre se le chiavi sono nelle rispettive keybox\n   Cassetta ospiti: 2307 - Cassetta pulizie: 1405\n   NON scambiarle per favore.',
+    prices: { base: 55, min: 55, max: 55 },
+    cleaningFrequencyDays: 2, createdAt: iso(day(-300)),
+  },
+  {
+    id: 'ap-appia', name: 'Villa', address: 'Via Appia Pignatelli 198',
+    district: 'Appia', city: 'Roma', ownerId: 'u-admin', companyId: 'angela',
+    visibility: 'official', provider: 'hostaway', providerListingId: 'HA-41020',
+    beds: [
+      { id: 'b-app-1', type: MATR }, { id: 'b-app-2', type: MATR },
+      { id: 'b-app-3', type: SING }, { id: 'b-app-4', type: SING }, { id: 'b-app-5', type: DIVM },
+    ],
+    notes: 'Villa indipendente con giardino. Cancello con telecomando nel mobile d’ingresso.\nControllare la piscina solo a vista, la manutenzione è esterna.',
+    prices: { base: 140, min: 140, max: 140 },
+    cleaningFrequencyDays: 4, createdAt: iso(day(-200)),
   },
 ]
 

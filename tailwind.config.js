@@ -43,6 +43,12 @@ export default {
           manuel: 'hsl(var(--inspector-manuel))',
           mark: 'hsl(var(--inspector-mark))',
         },
+        success: { DEFAULT: 'hsl(var(--success))', foreground: 'hsl(var(--success-foreground))' },
+        /* Le due ditte di pulizie a cui sono affidati gli appartamenti. */
+        company: {
+          comfy: 'hsl(var(--company-comfy))',
+          angela: 'hsl(var(--company-angela))',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',

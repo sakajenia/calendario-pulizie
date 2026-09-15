@@ -11,8 +11,9 @@ export function LogoMark({ className, gradient = true }: { className?: string; g
         </linearGradient>
       </defs>
       <path d="M50 3 93 27v46L50 97 7 73V27z" fill={gradient ? 'url(#ppm-hex)' : 'currentColor'} />
-      <path d="M50 25 75 39.5v35.5h-9.5V45L50 36 34.5 45v30H25V39.5z" fill="#fff" />
-      <path d="M50 51.5l8.5 5V75h-17V56.5z" fill="#fff" />
+      <path d="M50 25 75 39.5v32.5h-9.5V45L50 36 34.5 45v27H25V39.5z" fill="#fff" />
+      {/* Il pilastro centrale scende piu' in basso delle gambe dell'arcata. */}
+      <path d="M50 51.5l8.5 5V84h-17V56.5z" fill="#fff" />
     </svg>
   )
 }
@@ -28,7 +29,7 @@ export function Logo({
         <span
           className={cn(
             'font-display text-[15px] font-extrabold tracking-[0.16em]',
-            invert ? 'text-white' : 'text-foreground',
+            invert ? 'text-primary-foreground' : 'text-foreground',
           )}
         >
           PROPRO
@@ -37,7 +38,7 @@ export function Logo({
         <span
           className={cn(
             'font-serif text-[13px] tracking-[0.30em] -mt-0.5',
-            invert ? 'text-white/80' : 'text-foreground/80',
+            invert ? 'text-primary-foreground/80' : 'text-foreground/80',
           )}
         >
           manager

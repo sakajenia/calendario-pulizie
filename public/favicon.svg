@@ -2,7 +2,7 @@
   <defs><linearGradient id="g" x1="1" y1="0" x2="0" y2="1">
     <stop offset="0" stop-color="#B91C3C"/><stop offset="1" stop-color="#6B1128"/>
   </linearGradient></defs>
-  <path d="M50 4 92 27v46L50 96 8 73V27z" fill="url(#g)"/>
-  <path d="M50 26 74 40v34h-9V45l-15-9-15 9v29h-9V40z" fill="#fff"/>
-  <path d="M50 52l8 5v17h-16V57z" fill="#fff"/>
+  <path d="M50 3 93 27v46L50 97 7 73V27z" fill="url(#g)"/>
+  <path d="M50 25 75 39.5v32.5h-9.5V45L50 36 34.5 45v27H25V39.5z" fill="#fff"/>
+  <path d="M50 51.5l8.5 5V84h-17V56.5z" fill="#fff"/>
 </svg>
