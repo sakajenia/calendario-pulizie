@@ -176,6 +176,18 @@
     text-rendering: optimizeLegibility;
   }
 
+  /*
+   * Sul telefono la pagina non deve scorrere di lato: gli unici scorrimenti
+   * orizzontali sono quelli voluti (la griglia della settimana, le strisce di
+   * filtri), e restano dentro il loro contenitore invece di trascinare tutta
+   * l'app a destra e a sinistra.
+   */
+  html, body {
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+  }
+
+
   h1, h2, h3, h4 { @apply font-display tracking-tight; }
 
   /* I numeri incolonnati non devono ballare cambiando cifra. */
@@ -247,4 +259,16 @@
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   .ease-expo { transition-timing-function: var(--ease-out-expo); }
   .ease-quart { transition-timing-function: var(--ease-out-quart); }
+}
+
+/*
+ * Meno di 16px su un campo e il telefono ingrandisce da solo quando lo si
+ * tocca, poi resta ingrandito: e' l'app che "si ingrandisce e non si
+ * ingrandisce". A schermo stretto i campi vanno a 16px.
+ *
+ * Sta fuori dai layer e con `!important` di proposito: le utility di Tailwind
+ * (`text-sm` sui campi) vincerebbero comunque sulla regola di base.
+ */
+@media (max-width: 767px) {
+  input, select, textarea { font-size: 16px !important; }
 }

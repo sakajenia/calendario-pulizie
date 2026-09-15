@@ -1,7 +1,7 @@
 import type {
   Apartment, AppNotification, CleaningRequest, ExtraCatalogItem, RequestStatus,
   TaskCatalogItem, User, Warehouse, WorkSheet, BedType, RequestBed,
-  AdminExpense, Inspection, InspectionKind, InspectionTask, InspectorId, Intervention,
+  AdminExpense, Inspection, InspectionTask, InspectorId, Intervention,
 } from '@/types'
 
 /** PRNG deterministico: il seed non deve cambiare fra un reload e l'altro. */
@@ -271,37 +271,52 @@ function pickAssignee(status: RequestStatus, ap: Apartment): string | undefined 
   return status === 'in_attesa' ? undefined : CLEANER_BY_COMPANY[ap.companyId]
 }
 
+/*
+ * Il calendario pulizie e' quello vero, non piu' generato a caso: per ogni casa
+ * i giorni in cui si interviene, dettati uno per uno. Le case che non compaiono
+ * qui non hanno pulizie, e non ce ne sono nei mesi prima o dopo.
+ *
+ * I giorni sono ancorati al mese corrente e non a settembre 2026: aprendo
+ * l'app in un altro mese il calendario resta pieno invece di mostrarsi vuoto.
+ */
+const CLEANING_PLAN: Record<string, number[]> = {
+  'ap-marsi': [6, 10, 13, 16, 18, 22, 24, 28],
+  'ap-consoli': [2, 11, 14, 21, 29],
+  'ap-labicana': [5, 8, 12, 14, 15, 17, 18, 20, 21, 22, 23, 25, 27, 30],
+  'ap-appia': [3, 6, 11, 14, 18, 21, 27],
+}
+
+/**
+ * Le pulizie ancora da accettare: sono quelle che fanno scattare la notifica a
+ * due giorni dall'intervento, percio' restano ferme di proposito.
+ */
+const DA_ACCETTARE = new Set(['ap-marsi-16', 'ap-labicana-17', 'ap-appia-21', 'ap-labicana-25'])
+
 function buildRequests(): CleaningRequest[] {
   const out: CleaningRequest[] = []
-  /*
-   * Da 120 giorni fa a 25 avanti: lo storico profondo serve alla dashboard, che
-   * confronta il periodo selezionato con quello precedente. Con una finestra
-   * corta ogni confronto risulterebbe "da zero".
-   */
-  for (let offset = -120; offset <= 25; offset++) {
-    const count = offset < -30 ? int(0, 2) : offset < 0 ? int(0, 2) : int(0, 3)
-    for (let k = 0; k < count; k++) {
-      const ap = pick(apartments)
-      const guests = int(1, Math.max(2, ap.beds.length * 2))
-      const bedsToDo = int(1, ap.beds.length)
-      const checkOut = day(offset, 10, 0)
-      const checkIn = day(offset, 15, 0)
+  const oggi = TODAY.getDate()
+
+  for (const [apartmentId, giorni] of Object.entries(CLEANING_PLAN)) {
+    const ap = apartments.find((a) => a.id === apartmentId)
+    if (!ap) continue
+
+    for (const giorno of giorni) {
+      const checkOut = new Date(TODAY.getFullYear(), TODAY.getMonth(), giorno, 10, 0, 0, 0)
+      const checkIn = new Date(TODAY.getFullYear(), TODAY.getMonth(), giorno, 15, 0, 0, 0)
       const created = new Date(checkOut)
-      created.setDate(created.getDate() - int(3, 14))
+      created.setDate(created.getDate() - int(4, 12))
       created.setHours(int(9, 18), int(0, 59), 0, 0)
 
+      /* Il passato e' fatto, oggi e' in corso, il resto e' da fare: quelle
+         segnate ferme restano in attesa anche se l'intervento e' vicino. */
       let status: RequestStatus
-      if (offset < -1) status = rnd() < 0.9 ? 'completata' : 'cancellata'
-      else if (offset <= 0) status = pick(['in_corso', 'da_verificare', 'completata'] as const)
-      else if (offset <= 3) status = pick(['accettata', 'accettata', 'in_attesa'] as const)
-      else status = rnd() < 0.15 ? 'accettata' : 'in_attesa'
+      if (giorno < oggi) status = 'completata'
+      else if (giorno === oggi) status = 'in_corso'
+      else status = DA_ACCETTARE.has(`${apartmentId}-${giorno}`) ? 'in_attesa' : 'accettata'
 
-      /* Intorno a oggi la prima pulizia del giorno e' gia' presa in carico:
-         l'account pulizie deve sempre trovare qualcosa da completare. */
-      if (offset >= -3 && offset <= 3 && k === 0 && status === 'in_attesa') status = 'accettata'
-
+      const guests = int(1, Math.max(2, ap.beds.length * 2))
       out.push({
-        id: `req-${offset + 40}-${k}`,
+        id: `req-${apartmentId}-${giorno}`,
         apartmentId: ap.id,
         hostId: ap.ownerId,
         status,
@@ -310,7 +325,7 @@ function buildRequests(): CleaningRequest[] {
         checkInAt: iso(checkIn),
         checkOutPeople: int(1, guests),
         checkInPeople: guests,
-        beds: bedsFor(ap, bedsToDo),
+        beds: bedsFor(ap, int(1, ap.beds.length)),
         perPersonExtras: [
           { name: 'Asciugamano Viso', qty: guests },
           { name: 'Asciugamano Bidet', qty: guests },
@@ -321,68 +336,20 @@ function buildRequests(): CleaningRequest[] {
           { name: 'Sacchi immondizia', qty: 3 },
         ],
         notes: pick(REQUEST_NOTES),
-        workSheetId: rnd() < 0.75 ? 'ws-standard' : pick(['ws-rapida', 'ws-profonda'] as const),
+        workSheetId: 'ws-standard',
         assigneeId: pickAssignee(status, ap),
+        /* Sulle accettate serve il momento della presa in carico: e' la data
+           della notifica "accettata". */
+        updatedAt: status === 'accettata' ? iso(day(-int(1, 5), 9, 30)) : undefined,
+        completedAt: status === 'completata' ? iso(new Date(checkOut.getTime() + 3 * 3_600_000)) : undefined,
       })
     }
   }
+
   return out.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
 }
 
-/**
- * Due cose che le notifiche devono poter mostrare e che il caso non garantisce:
- * qualche pulizia ferma a ridosso dell'intervento, una per ditta, e il momento
- * in cui le accettate sono state prese in carico.
- */
-function withNotifiableCases(list: CleaningRequest[]): CleaningRequest[] {
-  const ferme: CleaningRequest[] = [
-    ['ap-giuliana', 1],
-    ['ap-marsi', 2],
-    ['ap-scala', 0],
-  ].map(([apartmentId, offset], n) => {
-    const ap = apartments.find((a) => a.id === apartmentId)!
-    const checkOut = day(offset as number, 11, 0)
-    const created = day((offset as number) - 9, 10, 0)
-    return {
-      id: `req-ferma-${n}`,
-      apartmentId: ap.id,
-      hostId: ap.ownerId,
-      status: 'in_attesa' as RequestStatus,
-      createdAt: iso(created),
-      checkOutAt: iso(checkOut),
-      checkInAt: iso(day(offset as number, 15, 0)),
-      checkOutPeople: 2,
-      checkInPeople: 3,
-      beds: bedsFor(ap, 1),
-      perPersonExtras: [
-        { name: 'Asciugamano Viso', qty: 3 },
-        { name: 'Asciugamano Bidet', qty: 3 },
-        { name: 'Asciugamano Corpo', qty: 3 },
-      ],
-      apartmentExtras: [
-        { name: 'Carta igienica', qty: 2 },
-        { name: 'Sacchi immondizia', qty: 3 },
-      ],
-      workSheetId: 'ws-standard',
-    }
-  })
-
-  /* Le accettate portano il momento della presa in carico: senza quello la
-     notifica non saprebbe a quando datarsi. Si prende in carico nei giorni
-     prima dell'intervento, non mesi prima: bastano gli ultimi giorni. */
-  let k = 0
-  const stamped = list.map((r) => {
-    if (r.status !== 'accettata' || r.updatedAt) return r
-    k += 1
-    return { ...r, updatedAt: iso(day(-((k % 5) + 1), 9, 30)) }
-  })
-
-  return [...ferme, ...stamped].sort(
-    (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt),
-  )
-}
-
-export const requests: CleaningRequest[] = withNotifiableCases(buildRequests())
+export const requests: CleaningRequest[] = buildRequests()
 
 /*
  * Nessuna notifica salvata: si deducono dallo stato delle richieste e del
@@ -419,89 +386,62 @@ const inspectionTasks = (names: string[], doneCount: number, at: Date, createdAt
     createdAt,
   }))
 
-/**
- * Una voce per riga: giorno rispetto a oggi, chi la esegue, quante verifiche e
- * quante gia' spuntate. Non sono tutti controlli agli appartamenti: ci sono
- * task operative sulla casa e voci di gestione interna, che una casa non ce
- * l'hanno. Le quattro persone della squadra compaiono tutte, e su oggi ci sono
- * tre controlli - uno chiuso - per vedere subito il cuore accanto ai pallini.
+/*
+ * I controlli sul posto, quelli veri: giorno del mese, casa e chi li ha fatti.
+ * Non c'e' piu' niente di generato a caso - in calendario restano solo questi e
+ * le scadenze fisse della squadra.
  */
 interface InspectionSeed {
-  offset: number
+  /** Giorno del mese corrente. */
+  day: number
   hour: number
+  apartmentId: string
   inspectorId: InspectorId
-  taskCount: number
-  doneCount: number
-  kind?: InspectionKind
-  apartmentId?: string
-  title?: string
+  /** Verifiche da spuntare; senza, si pescano quelle ricorrenti. */
+  tasks?: string[]
+  doneCount?: number
 }
 
 const INSPECTION_PLAN: InspectionSeed[] = [
-  { offset: -13, hour: 10, apartmentId: 'ap-livraghi', inspectorId: 'manuel', taskCount: 4, doneCount: 4 },
-  { offset: -11, hour: 15, apartmentId: 'ap-consoli', inspectorId: 'mark', taskCount: 3, doneCount: 3 },
-  { offset: -9, hour: 11, apartmentId: 'ap-giuliana', inspectorId: 'michelle', taskCount: 4, doneCount: 2 },
-  { offset: -7, hour: 16, apartmentId: 'ap-labicana', inspectorId: 'gianluca', taskCount: 3, doneCount: 3 },
-  { offset: -5, hour: 9, apartmentId: 'ap-marsi', inspectorId: 'mark', taskCount: 3, doneCount: 1 },
-  { offset: -3, hour: 14, apartmentId: 'ap-scala', inspectorId: 'michelle', taskCount: 4, doneCount: 4 },
-  { offset: -1, hour: 10, apartmentId: 'ap-appia', inspectorId: 'gianluca', taskCount: 3, doneCount: 0 },
-  /* oggi */
-  { offset: 0, hour: 9, apartmentId: 'ap-labicana', inspectorId: 'manuel', taskCount: 4, doneCount: 4 },
-  { offset: 0, hour: 12, apartmentId: 'ap-giuliana', inspectorId: 'mark', taskCount: 3, doneCount: 1 },
-  { offset: 0, hour: 16, apartmentId: 'ap-trionfale', inspectorId: 'michelle', taskCount: 3, doneCount: 0 },
-  { offset: 2, hour: 10, apartmentId: 'ap-scala', inspectorId: 'gianluca', taskCount: 4, doneCount: 0 },
-  { offset: 4, hour: 15, apartmentId: 'ap-consoli', inspectorId: 'manuel', taskCount: 3, doneCount: 0 },
-  { offset: 7, hour: 11, apartmentId: 'ap-marsi', inspectorId: 'michelle', taskCount: 4, doneCount: 0 },
-  { offset: 10, hour: 10, apartmentId: 'ap-livraghi', inspectorId: 'mark', taskCount: 3, doneCount: 0 },
-  { offset: 13, hour: 16, apartmentId: 'ap-appia', inspectorId: 'gianluca', taskCount: 4, doneCount: 0 },
+  { day: 13, hour: 10, apartmentId: 'ap-giuliana', inspectorId: 'manuel', doneCount: 3 },
+  { day: 13, hour: 12, apartmentId: 'ap-scala', inspectorId: 'manuel', doneCount: 3 },
+  { day: 13, hour: 16, apartmentId: 'ap-livraghi', inspectorId: 'manuel', doneCount: 3 },
 
-  /* task operative: lavoro in casa che non e' una verifica */
+  { day: 15, hour: 9, apartmentId: 'ap-labicana', inspectorId: 'mark', doneCount: 2 },
+  { day: 15, hour: 12, apartmentId: 'ap-consoli', inspectorId: 'mark', doneCount: 1 },
+  { day: 15, hour: 16, apartmentId: 'ap-trionfale', inspectorId: 'manuel', doneCount: 0 },
+
   {
-    offset: -4, hour: 11, kind: 'task_operativa', apartmentId: 'ap-trionfale',
-    inspectorId: 'manuel', taskCount: 2, doneCount: 2,
-    title: 'Cambio materasso camera matrimoniale',
-  },
-  {
-    offset: 1, hour: 15, kind: 'task_operativa', apartmentId: 'ap-appia',
-    inspectorId: 'gianluca', taskCount: 3, doneCount: 0,
-    title: 'Montaggio nuove tende soggiorno',
-  },
-  {
-    offset: 5, hour: 9, kind: 'task_operativa', apartmentId: 'ap-livraghi',
-    inspectorId: 'michelle', taskCount: 2, doneCount: 0,
-    title: 'Ritiro pacco amenities e rifornimento armadio',
+    day: 17, hour: 10, apartmentId: 'ap-livraghi', inspectorId: 'manuel',
+    tasks: [
+      'Mettere adesivo rosso dentro i cassetti rovinati',
+      'Controllare la keybox e il numero di chiavi',
+    ],
+    doneCount: 0,
   },
 
-  /* gestione interna: nessun appartamento */
-  {
-    offset: -2, hour: 17, kind: 'gestione_interna', inspectorId: 'manuel',
-    taskCount: 3, doneCount: 3, title: 'Riunione squadra e turni del mese',
-  },
-  {
-    offset: 0, hour: 18, kind: 'gestione_interna', inspectorId: 'mark',
-    taskCount: 2, doneCount: 0, title: 'Ordine materiali di consumo',
-  },
-  {
-    offset: 6, hour: 10, kind: 'gestione_interna', inspectorId: 'michelle',
-    taskCount: 2, doneCount: 0, title: 'Aggiornamento schede accessi appartamenti',
-  },
+  { day: 18, hour: 10, apartmentId: 'ap-marsi', inspectorId: 'mark', doneCount: 0 },
+  { day: 18, hour: 15, apartmentId: 'ap-labicana', inspectorId: 'mark', doneCount: 0 },
+
+  { day: 20, hour: 11, apartmentId: 'ap-trionfale', inspectorId: 'mark', doneCount: 0 },
 ]
 
 const plannedInspections: Inspection[] = INSPECTION_PLAN.map((row, i) => {
-  const at = day(row.offset, row.hour)
-  const names = INSPECTION_TASKS.slice(i % 4, (i % 4) + row.taskCount)
+  const at = new Date(TODAY.getFullYear(), TODAY.getMonth(), row.day, row.hour, 0, 0, 0)
+  const names = row.tasks ?? INSPECTION_TASKS.slice(i % 4, (i % 4) + 3)
+  const createdAt = new Date(at)
+  createdAt.setDate(createdAt.getDate() - 5)
+  createdAt.setHours(9, 0, 0, 0)
   return {
-    id: `insp-${i}`,
-    kind: row.kind ?? 'controllo',
+    id: `insp-${row.apartmentId}-${row.day}`,
+    kind: 'controllo' as const,
     apartmentId: row.apartmentId,
-    title: row.title,
     inspectorId: row.inspectorId,
     scheduledAt: iso(at),
-    tasks: inspectionTasks(names, row.doneCount, at, iso(day(row.offset - 7, 9))),
-    createdAt: iso(day(row.offset - 7, 9)),
+    tasks: inspectionTasks(names, row.doneCount ?? 0, at, iso(createdAt)),
+    createdAt: iso(createdAt),
   }
 })
-
 
 /* ------------------------------------------- scadenze fisse del mese ---- */
 

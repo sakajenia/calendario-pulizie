@@ -12,13 +12,14 @@ import * as React from 'react'
 import { PageHeader } from '@/components/layout/AppShell'
 import {
   Badge, Button, Card, Checkbox, EmptyState, Input, Select, Table, TableScroller,
-  Td, Th, MobileRecord,
+  Tabs, Td, Th, MobileRecord,
 } from '@/components/ui'
 import {
   CalendarDays, ClipboardList, Download, Search, SearchX, X,
 } from 'lucide-react'
 import { useStore } from '@/data/store'
-import { downloadFile, fmtDate, fmtDateTime, fmtNum, norm, plural, toCsv } from '@/lib/format'
+import { asDate, downloadFile, fmtDate, fmtDateTime, fmtNum, norm, plural, toCsv } from '@/lib/format'
+import { TODAY } from '@/data/seed'
 import {
   INSPECTION_KIND_META, INSPECTORS, INSPECTOR_META, inspectionStatus,
   type InspectionKind, type InspectorId,
@@ -27,6 +28,32 @@ import { cn } from '@/lib/utils'
 
 type StateFilter = 'all' | 'done' | 'open'
 type SortKey = 'when-desc' | 'when-asc' | 'name' | 'person'
+
+/**
+ * Il registro si apre sulle task di oggi: e' la domanda con cui lo si apre.
+ * Domani e il mese sono a un tocco; "Tutte" resta per non nascondere le
+ * scadenze dei mesi successivi.
+ */
+type Period = 'oggi' | 'domani' | 'mese' | 'tutte'
+
+const PERIOD_ITEMS: { value: Period; label: string }[] = [
+  { value: 'oggi', label: 'Oggi' },
+  { value: 'domani', label: 'Domani' },
+  { value: 'mese', label: 'Mese' },
+  { value: 'tutte', label: 'Tutte' },
+]
+
+const sameDate = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+
+function inPeriod(when: string, period: Period, now: Date): boolean {
+  if (period === 'tutte') return true
+  const d = asDate(when)
+  if (period === 'mese') return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+  const riferimento = new Date(now)
+  if (period === 'domani') riferimento.setDate(riferimento.getDate() + 1)
+  return sameDate(d, riferimento)
+}
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'when-desc', label: 'Più recenti' },
@@ -89,6 +116,7 @@ export default function CatalogoTask() {
   const [people, setPeople] = React.useState<InspectorId[]>([])
   const [state, setState] = React.useState<StateFilter>('all')
   const [sort, setSort] = React.useState<SortKey>('when-desc')
+  const [period, setPeriod] = React.useState<Period>('oggi')
 
   const apartmentById = React.useMemo(
     () => new Map(apartments.map((a) => [a.id, a])), [apartments],
@@ -116,9 +144,15 @@ export default function CatalogoTask() {
     [inspections, apartmentById],
   )
 
+  /* Prima il periodo: gli altri filtri e i conteggi lavorano su quello. */
+  const inScope = React.useMemo(
+    () => rows.filter((r) => inPeriod(r.at, period, TODAY)),
+    [rows, period],
+  )
+
   const filtered = React.useMemo(() => {
     const q = norm(text.trim())
-    const out = rows.filter((r) => {
+    const out = inScope.filter((r) => {
       if (people.length > 0 && !people.includes(r.inspectorId)) return false
       if (state === 'done' && !r.done) return false
       if (state === 'open' && r.done) return false
@@ -139,11 +173,21 @@ export default function CatalogoTask() {
         )
       default: return out.sort((a, b) => ms(b.at) - ms(a.at))
     }
-  }, [rows, text, people, state, sort])
+  }, [inScope, text, people, state, sort])
 
   const countByPerson = React.useMemo(() => {
     const acc = Object.fromEntries(INSPECTORS.map((p) => [p, 0])) as Record<InspectorId, number>
-    for (const r of rows) acc[r.inspectorId] += 1
+    for (const r of inScope) acc[r.inspectorId] += 1
+    return acc
+  }, [inScope])
+
+  const countByPeriod = React.useMemo(() => {
+    const acc = { oggi: 0, domani: 0, mese: 0, tutte: rows.length }
+    for (const r of rows) {
+      if (inPeriod(r.at, "oggi", TODAY)) acc.oggi += 1
+      if (inPeriod(r.at, "domani", TODAY)) acc.domani += 1
+      if (inPeriod(r.at, "mese", TODAY)) acc.mese += 1
+    }
     return acc
   }, [rows])
 
@@ -161,7 +205,7 @@ export default function CatalogoTask() {
 
   const exportCsv = () => {
     downloadFile(
-      `catalogo-task-${fmtDate(new Date())}.csv`,
+      `catalogo-task-${period}-${fmtDate(new Date())}.csv`,
       toCsv(filtered.map((r) => ({
         Task: r.name,
         Tipo: INSPECTION_KIND_META[r.kind].label,
@@ -184,8 +228,8 @@ export default function CatalogoTask() {
         title="Catalogo Task"
         subtitle={
           <span>
-            {plural(rows.length, 'task dal calendario', 'task dal calendario')} ·{' '}
-            {plural(openInspections, 'voce aperta', 'voci aperte')}
+            {plural(inScope.length, 'task', 'task')} nel periodo scelto ·{' '}
+            {plural(openInspections, 'voce aperta', 'voci aperte')} in calendario
           </span>
         }
         actions={
@@ -197,6 +241,13 @@ export default function CatalogoTask() {
       />
 
       <div className="space-y-3 border-b border-border bg-card px-5 py-3">
+        <Tabs
+          value={period}
+          onChange={setPeriod}
+          aria-label="Periodo delle task"
+          items={PERIOD_ITEMS.map((p) => ({ ...p, count: countByPeriod[p.value] }))}
+        />
+
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[14rem] flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -250,7 +301,7 @@ export default function CatalogoTask() {
             )}
           >
             Tutti
-            <span className="tabular-nums">{rows.length}</span>
+            <span className="tabular-nums">{inScope.length}</span>
           </button>
           {INSPECTORS.map((p) => {
             const on = people.includes(p)
@@ -284,11 +335,21 @@ export default function CatalogoTask() {
       {filtered.length === 0 ? (
         <div className="p-4">
           <Card>
-            {rows.length === 0 ? (
+            {inScope.length === 0 ? (
               <EmptyState
                 icon={ClipboardList}
-                title="Nessuna task"
+                title={
+                  period === 'oggi' ? 'Nessuna task per oggi'
+                    : period === 'domani' ? 'Nessuna task per domani'
+                      : period === 'mese' ? 'Nessuna task in questo mese'
+                        : 'Nessuna task'
+                }
                 description="Le task compaiono qui quando le aggiungi a una voce del calendario Task Operative."
+                action={
+                  period !== 'tutte'
+                    ? <Button variant="outline" onClick={() => setPeriod('tutte')}>Mostra tutte</Button>
+                    : undefined
+                }
               />
             ) : (
               <EmptyState

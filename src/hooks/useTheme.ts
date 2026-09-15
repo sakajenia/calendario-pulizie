@@ -19,16 +19,11 @@ function readStored(): 'dark' | 'light' | null {
   }
 }
 
-/**
- * Senza una scelta salvata seguiamo chi guarda: prima l'attributo `data-theme`
- * che l'host puo' stampare sulla radice, poi la preferenza di sistema.
+/*
+ * Nessuna scelta salvata vuol dire chiaro. Non si guarda la preferenza di
+ * sistema: chi apre l'app la trova sempre in chiaro, e passa allo scuro
+ * premendo la luna. Il buio deve essere una scelta, non una sorpresa.
  */
-function preferred(): boolean {
-  const stamped = document.documentElement.getAttribute('data-theme')
-  if (stamped === 'dark') return true
-  if (stamped === 'light') return false
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false
-}
 
 function commit(next: boolean) {
   current = next
@@ -37,7 +32,7 @@ function commit(next: boolean) {
 }
 
 /* Stato iniziale, applicato una sola volta al caricamento del modulo. */
-commit(readStored() ? readStored() === 'dark' : preferred())
+commit(readStored() === 'dark')
 
 const subscribe = (l: () => void) => {
   listeners.add(l)

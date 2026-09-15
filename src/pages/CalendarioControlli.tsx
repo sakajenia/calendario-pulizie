@@ -664,7 +664,10 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
         }
       />
 
-      <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-4 pb-24 lg:grid-cols-[minmax(0,55fr)_minmax(0,45fr)] lg:content-stretch lg:overflow-hidden lg:pb-4">
+      {/* La colonna unica del telefono va bloccata a `minmax(0,1fr)`: senza,
+          la griglia si allarga fino al contenuto piu' largo e l'app scorre di
+          lato invece di stare nello schermo. */}
+      <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-4 pb-24 grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,55fr)_minmax(0,45fr)] lg:content-stretch lg:overflow-hidden lg:pb-4">
         {/* ---------------------------------------------------- calendario */}
         <Card className="flex min-w-0 flex-col lg:min-h-0 lg:overflow-hidden">
           <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
@@ -684,9 +687,12 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
               </Button>
             </div>
 
-            <div className="ml-auto flex items-center gap-2">
+            {/* Su schermo stretto i tre comandi non ci stanno in riga: vanno
+                a capo invece di spingere la scheda fuori dallo schermo. */}
+            <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
               <Button variant="outline" size="sm" onClick={goToday}>
-                <CalendarCheck /> In data odierna
+                <CalendarCheck /> <span className="hidden sm:inline">In data odierna</span>
+                <span className="sm:hidden">Oggi</span>
               </Button>
               <Tabs
                 value={view}
