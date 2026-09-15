@@ -1,7 +1,7 @@
 import * as React from 'react'
 import {
   AlertTriangle, BarChart3, Building2, CheckCircle2, ClipboardList, Clock, Database,
-  Download, Info, Mail, Moon, Palette, Phone, RotateCcw, Save, Sun, UserRound,
+  Download, Info, Mail, Moon, Palette, Phone, RotateCcw, Save, Sun, Upload, UserRound,
 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/AppShell'
 import {
@@ -71,9 +71,13 @@ export default function Impostazioni() {
   const workSheets = useStore((s) => s.workSheets)
   const extraCatalog = useStore((s) => s.extraCatalog)
   const warehouses = useStore((s) => s.warehouses)
+  const inspections = useStore((s) => s.inspections)
+  const interventions = useStore((s) => s.interventions)
+  const adminExpenses = useStore((s) => s.adminExpenses)
   const notifications = useNotifications()
   const upsertUser = useStore((s) => s.upsertUser)
   const resetData = useStore((s) => s.resetData)
+  const importData = useStore((s) => s.importData)
 
   const [form, setForm] = React.useState({ name: user?.name ?? '', phone: user?.phone ?? '' })
   const [errors, setErrors] = React.useState<{ name?: string; phone?: string }>({})
@@ -110,10 +114,10 @@ export default function Impostazioni() {
     { label: 'Utenti', value: users.length },
     { label: 'Appartamenti', value: myApartments.length },
     { label: 'Richieste', value: myRequests.length },
+    { label: 'Task e controlli', value: inspections.length },
+    { label: 'Interventi', value: interventions.length },
+    { label: 'Spese', value: adminExpenses.length },
     { label: 'Catalogo Task', value: taskCatalog.length },
-    { label: 'Fogli di Lavoro', value: workSheets.length },
-    { label: 'Extra', value: extraCatalog.length },
-    { label: 'Magazzini', value: warehouses.length },
     { label: 'Notifiche', value: notifications.length },
   ]
   const records = dataset.reduce((n, d) => n + d.value, 0)
@@ -147,7 +151,11 @@ export default function Impostazioni() {
         users: isAdmin ? users : user ? [user] : [],
         apartments: myApartments,
         requests: myRequests,
-        taskCatalog, workSheets, extraCatalog, warehouses, notifications,
+        taskCatalog, workSheets, extraCatalog, warehouses,
+        /* Il calendario interno, gli interventi e le spese: sono il lavoro
+           inserito a mano, ed e' la parte che serve davvero portarsi dietro
+           passando da un dispositivo all'altro. */
+        inspections, interventions, adminExpenses,
       },
     }
     // downloadFile e' asincrona: senza await il messaggio comparirebbe anche
@@ -158,6 +166,24 @@ export default function Impostazioni() {
       'application/json;charset=utf-8',
     )
     flashData(`Esportati ${fmtNum(records)} record in formato JSON`)
+  }
+
+  /*
+   * I dati vivono nel browser, non su un server: quello che si inserisce dal
+   * computer non arriva da solo sul telefono. Il passaggio si fa esportando da
+   * un dispositivo e importando sull'altro.
+   */
+  const fileRef = React.useRef<HTMLInputElement>(null)
+
+  const importFile = async (file: File | undefined) => {
+    if (!file) return
+    try {
+      const esito = importData(JSON.parse(await file.text()))
+      if (!esito.ok) return flashData(esito.error ?? 'Importazione non riuscita')
+      flashData(`Importati ${fmtNum(esito.conteggio ?? 0)} record`)
+    } catch {
+      flashData('File non leggibile: serve il JSON prodotto da "Esporta i dati".')
+    }
   }
 
   const confirmResetData = () => {
@@ -417,9 +443,11 @@ export default function Impostazioni() {
                 Dati dimostrativi
               </h2>
               <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
-                L'applicazione gira su un dataset dimostrativo ricostruito dal modello di {LEGACY_APP}:
-                vive nel tuo browser, non viene inviato ad alcun server e ogni modifica che fai resta
-                solo su questo dispositivo. L'export contiene i dati visibili al tuo ruolo.
+                I dati vivono nel browser di questo dispositivo e non vengono inviati ad alcun
+                server: quello che inserisci dal computer non compare da solo sul telefono, e
+                viceversa. Per portarli da una parte all'altra usa <strong>Esporta i dati</strong> qui
+                e <strong>Importa i dati</strong> sull'altro dispositivo: quello che arriva si unisce
+                a quello che c'è, senza cancellarlo. L'export contiene i dati visibili al tuo ruolo.
               </p>
             </div>
             <div className="space-y-5">
@@ -435,6 +463,16 @@ export default function Impostazioni() {
               <div className="flex flex-wrap items-center gap-3">
                 <Button variant="outline" onClick={exportAll}>
                   <Download /> Esporta i dati
+                </Button>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="application/json,.json"
+                  className="sr-only"
+                  onChange={(e) => { void importFile(e.target.files?.[0]); e.target.value = '' }}
+                />
+                <Button variant="outline" onClick={() => fileRef.current?.click()}>
+                  <Upload /> Importa i dati
                 </Button>
                 {/* Il ripristino azzera il dataset condiviso, non solo la
                     porzione di chi lo esegue: resta agli amministratori. */}

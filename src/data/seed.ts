@@ -163,7 +163,8 @@ export const apartments: Apartment[] = [
     id: 'ap-labicana', name: 'Stazione Centrale Roma', address: 'Via di Porta Labicana 19',
     district: 'Termini', city: 'Roma', ownerId: 'u-admin', companyId: 'angela',
     visibility: 'official', provider: 'guesty', providerListingId: 'GY-88266',
-    beds: [{ id: 'b-lab-1', type: MATR }, { id: 'b-lab-2', type: MATR }, { id: 'b-lab-3', type: SING }],
+    /* Quattro posti: due nel matrimoniale e uno per ciascun singolo. */
+    beds: [{ id: 'b-lab-1', type: MATR }, { id: 'b-lab-2', type: SING }, { id: 'b-lab-3', type: SING }],
     notes: '1) Mettere di nostro:\n   Amenities\n   Cialde (1 a persona).\n   Tutti i refill si trovano nel vostro armadio, codice 0000\n\n2) Spegnere i riscaldamenti: nel corridoio, sul termostato premere OFF (IMPORTANTE)\n\n3) Controllare sempre se le chiavi sono nelle rispettive keybox\n   Cassetta ospiti: 2307 - Cassetta pulizie: 1405\n   NON scambiarle per favore.',
     prices: { base: 55, min: 55, max: 55 },
     access: {
@@ -181,9 +182,10 @@ export const apartments: Apartment[] = [
     id: 'ap-appia', name: 'Villa di Prestigio', address: 'Via Appia Pignatelli 198',
     district: 'Appia', city: 'Roma', ownerId: 'u-admin', companyId: 'angela',
     visibility: 'official', provider: 'hostaway', providerListingId: 'HA-41020',
+    /* Otto posti: quattro matrimoniali, due persone per letto. */
     beds: [
       { id: 'b-app-1', type: MATR }, { id: 'b-app-2', type: MATR },
-      { id: 'b-app-3', type: SING }, { id: 'b-app-4', type: SING }, { id: 'b-app-5', type: DIVM },
+      { id: 'b-app-3', type: MATR }, { id: 'b-app-4', type: MATR },
     ],
     notes: 'Villa indipendente con giardino. Cancello con telecomando nel mobile d’ingresso.\nControllare la piscina solo a vista, la manutenzione è esterna.',
     prices: { base: 140, min: 140, max: 140 },
@@ -688,40 +690,3 @@ export const adminExpenses: AdminExpense[] = EXPENSE_PLAN.map(
     createdById: 'u-admin',
   }),
 )
-
-/* --------------------------------------------- impronta dei dati seme ---- */
-
-/**
- * Impronta di quello che c'e' scritto qui dentro: appartamenti, accessi,
- * account, giorni delle pulizie, controlli, consegne, scadenze, interventi e
- * spese. Lo store la usa come numero di versione dei dati salvati, cosi' ogni
- * volta che questi dati cambiano il browser riparte dai nuovi invece di
- * tenersi quelli vecchi in memoria.
- *
- * Nasce dalle tabelle scritte a mano e non dalle date calcolate: quelle
- * dipendono dal giorno in cui si apre l'app, e l'impronta cambierebbe da sola
- * ogni mattina, cancellando il lavoro di chi la usa.
- */
-export const SEED_STAMP = (() => {
-  const raw = JSON.stringify([
-    users,
-    apartments,
-    CLEANING_PLAN,
-    INSPECTION_PLAN,
-    TASK_PLAN,
-    RECURRING_RULES.map((r) => [r.slug, r.inspectorId, r.title, r.tasks, r.hour]),
-    INTERVENTION_PLAN,
-    EXPENSE_PLAN,
-    taskCatalog,
-    workSheets,
-    extraCatalog,
-    warehouses,
-  ])
-  let h = 2166136261
-  for (let i = 0; i < raw.length; i += 1) {
-    h ^= raw.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  /* zustand vuole un intero: si resta nel positivo. */
-  return Math.abs(h | 0)
-})()

@@ -44,6 +44,13 @@ interface State {
   interventions: Intervention[]
   /** Spese anticipate dall'amministrazione, divise fra Aircover e spese extra. */
   adminExpenses: AdminExpense[]
+  /**
+   * Identificativi di quello che e' stato eliminato dall'app. Serve
+   * all'allineamento di avvio: senza, una casa o una pulizia cancellata
+   * tornerebbe indietro alla riapertura, perche' nei dati di riferimento c'e'
+   * ancora.
+   */
+  removedIds: string[]
   filters: RequestFilters
 
   /** L'identificativo e' l'email oppure il nome utente. */
@@ -86,9 +93,11 @@ interface State {
 
   upsertInspection: (i: Inspection) => void
   /**
-   * Rimette in calendario le scadenze fisse mancanti dei prossimi mesi. Si
-   * chiama all'avvio: sono voci che devono esserci sempre, quindi tornano
-   * anche se qualcuno le cancella.
+   * Allinea i dati all'avvio: rimette le scadenze fisse dei prossimi mesi e
+   * porta dentro quello che e' stato aggiunto qui - case, account, controlli,
+   * pulizie, interventi, spese. Aggiunge e basta: quello che c'e' non si tocca
+   * e quello che e' stato eliminato non torna, cosi' il lavoro fatto dentro
+   * l'app resta com'e'.
    */
   ensureRecurringInspections: () => void
   deleteInspections: (ids: string[]) => void
@@ -108,6 +117,14 @@ interface State {
   markAllNotificationsRead: (ids: string[]) => void
 
   resetData: () => void
+  /**
+   * Porta dentro i dati esportati da un altro dispositivo. Quello che arriva
+   * vince su quello che c'e' - e' la copia piu' recente di chi la esporta - e
+   * quello che qui c'e' in piu' resta. Risponde alla domanda "sul telefono non
+   * vedo quello che ho messo dal computer": i dati vivono nel browser, non su
+   * un server, quindi il passaggio va fatto a mano.
+   */
+  importData: (payload: unknown) => { ok: boolean; error?: string; conteggio?: number }
 }
 
 const baseData = () => ({
@@ -119,6 +136,7 @@ const baseData = () => ({
   extraCatalog: seed.extraCatalog,
   warehouses: seed.warehouses,
   readNotifications: [] as string[],
+  removedIds: [] as string[],
   inspections: seed.inspections,
   interventions: seed.interventions,
   adminExpenses: seed.adminExpenses,
@@ -138,6 +156,78 @@ const upsertBy = <T extends { id: string }>(list: T[], item: T): T[] => {
   const next = list.slice()
   next[i] = item
   return next
+}
+
+/** Quello che finisce davvero in memoria (vedi `partialize`). */
+type Salvato = Partial<Pick<
+  State,
+  'currentUserId' | 'users' | 'apartments' | 'requests' | 'taskCatalog' | 'workSheets'
+  | 'extraCatalog' | 'warehouses' | 'readNotifications' | 'inspections' | 'interventions'
+  | 'adminExpenses' | 'removedIds'
+>>
+
+/**
+ * Unisce per identificativo: quello che c'e' in memoria resta com'e', dal seme
+ * arriva solo cio' che manca. E' il modo di far arrivare le novita' senza
+ * toccare il lavoro di chi usa l'app.
+ */
+function aggiungiMancanti<T extends { id: string }>(
+  salvati: T[] | undefined, dalSeme: T[], rimossi?: Set<string>,
+): T[] {
+  if (!Array.isArray(salvati)) return dalSeme
+  const presenti = new Set(salvati.map((x) => x.id))
+  const nuovi = dalSeme.filter((x) => !presenti.has(x.id) && !rimossi?.has(x.id))
+  return nuovi.length ? [...nuovi, ...salvati] : salvati
+}
+
+/** Segna come eliminato, senza ripetizioni. */
+const segnaRimossi = (correnti: string[], ids: string[]) => [...new Set([...correnti, ...ids])]
+
+/**
+ * Passaggio a una versione nuova dei dati. Non si riparte da zero: si tiene
+ * quello che c'e', si aggiunge quello che manca e si riallineano le poche cose
+ * di cui la fonte siamo noi - gli account (nomi utente e password) e la
+ * composizione dei letti, che descrive la casa e non e' una preferenza.
+ */
+function migrateState(persisted: unknown): ReturnType<typeof baseData> & { currentUserId: string | null; filters: RequestFilters } {
+  const base = baseData()
+  const salvato = persisted as Salvato | undefined
+  const vuoto = !salvato || !Array.isArray(salvato.apartments) || salvato.apartments.length === 0
+  if (vuoto) return { ...base, filters: emptyFilters, currentUserId: null }
+
+
+  const rimossi = new Set(salvato.removedIds ?? [])
+
+  const apartments = [
+    ...salvato.apartments!.map((a) => {
+      const rif = base.apartments.find((b) => b.id === a.id)
+      return rif ? { ...a, beds: rif.beds } : a
+    }),
+    ...base.apartments.filter(
+      (b) => !salvato.apartments!.some((a) => a.id === b.id) && !rimossi.has(b.id),
+    ),
+  ]
+
+  /* Gli account di servizio li decidiamo noi: chi e' stato aggiunto dentro
+     l'app resta com'e'. */
+  const suoi = (salvato.users ?? []).filter((u) => !base.users.some((b) => b.id === u.id))
+
+  return {
+    currentUserId: salvato.currentUserId ?? null,
+    users: [...base.users, ...suoi],
+    apartments,
+    requests: aggiungiMancanti(salvato.requests, base.requests, rimossi),
+    taskCatalog: aggiungiMancanti(salvato.taskCatalog, base.taskCatalog, rimossi),
+    workSheets: aggiungiMancanti(salvato.workSheets, base.workSheets, rimossi),
+    extraCatalog: aggiungiMancanti(salvato.extraCatalog, base.extraCatalog, rimossi),
+    warehouses: aggiungiMancanti(salvato.warehouses, base.warehouses, rimossi),
+    readNotifications: salvato.readNotifications ?? [],
+    removedIds: salvato.removedIds ?? [],
+    inspections: aggiungiMancanti(salvato.inspections, base.inspections, rimossi),
+    interventions: aggiungiMancanti(salvato.interventions, base.interventions, rimossi),
+    adminExpenses: aggiungiMancanti(salvato.adminExpenses, base.adminExpenses, rimossi),
+    filters: emptyFilters,
+  }
 }
 
 export const useStore = create<State>()(
@@ -179,7 +269,11 @@ export const useStore = create<State>()(
             ids.includes(r.id) ? { ...r, status, ...statusStamp(status, s.currentUserId) } : r,
           ),
         })),
-      deleteRequests: (ids) => set((s) => ({ requests: s.requests.filter((r) => !ids.includes(r.id)) })),
+      deleteRequests: (ids) =>
+        set((s) => ({
+          requests: s.requests.filter((r) => !ids.includes(r.id)),
+          removedIds: segnaRimossi(s.removedIds, ids),
+        })),
       completeRequest: (id) =>
         set((s) => ({
           requests: s.requests.map((r) =>
@@ -213,10 +307,32 @@ export const useStore = create<State>()(
         })),
 
       upsertApartment: (a) => set((s) => ({ apartments: upsertBy(s.apartments, a) })),
-      deleteApartment: (id) => set((s) => ({ apartments: s.apartments.filter((a) => a.id !== id) })),
+      /* Togliendo la casa se ne vanno anche le sue pulizie, i controlli e le
+         spese: lasciarli faceva comparire in calendario righe intestate a
+         "Appartamento non disponibile", che non si possono ne' aprire ne'
+         assegnare a nessuno. */
+      deleteApartment: (id) =>
+        set((s) => ({
+          apartments: s.apartments.filter((a) => a.id !== id),
+          requests: s.requests.filter((r) => r.apartmentId !== id),
+          inspections: s.inspections.filter((i) => i.apartmentId !== id),
+          interventions: s.interventions.filter((i) => i.apartmentId !== id),
+          adminExpenses: s.adminExpenses.filter((e) => e.apartmentId !== id),
+          removedIds: segnaRimossi(s.removedIds, [
+            id,
+            ...s.requests.filter((r) => r.apartmentId === id).map((r) => r.id),
+            ...s.inspections.filter((i) => i.apartmentId === id).map((i) => i.id),
+            ...s.interventions.filter((i) => i.apartmentId === id).map((i) => i.id),
+            ...s.adminExpenses.filter((e) => e.apartmentId === id).map((e) => e.id),
+          ]),
+        })),
 
       upsertUser: (u) => set((s) => ({ users: upsertBy(s.users, u) })),
-      deleteUser: (id) => set((s) => ({ users: s.users.filter((u) => u.id !== id) })),
+      deleteUser: (id) =>
+        set((s) => ({
+          users: s.users.filter((u) => u.id !== id),
+          removedIds: segnaRimossi(s.removedIds, [id]),
+        })),
       setUsersActive: (ids, active) =>
         set((s) => ({ users: s.users.map((u) => (ids.includes(u.id) ? { ...u, active } : u)) })),
 
@@ -231,9 +347,25 @@ export const useStore = create<State>()(
 
       ensureRecurringInspections: () =>
         set((s) => {
-          const have = new Set(s.inspections.map((i) => i.id))
-          const missing = seed.recurringInspections(new Date()).filter((i) => !have.has(i.id))
-          return missing.length ? { inspections: [...missing, ...s.inspections] } : {}
+          const base = baseData()
+          const rimossi = new Set(s.removedIds)
+          const inspections = aggiungiMancanti(
+            aggiungiMancanti(s.inspections, base.inspections, rimossi),
+            seed.recurringInspections(new Date()),
+            rimossi,
+          )
+          const next = {
+            users: aggiungiMancanti(s.users, base.users, rimossi),
+            apartments: aggiungiMancanti(s.apartments, base.apartments, rimossi),
+            requests: aggiungiMancanti(s.requests, base.requests, rimossi),
+            inspections,
+            interventions: aggiungiMancanti(s.interventions, base.interventions, rimossi),
+            adminExpenses: aggiungiMancanti(s.adminExpenses, base.adminExpenses, rimossi),
+          }
+          /* Senza novita' non si riscrive niente: un `set` a vuoto farebbe
+             ridisegnare mezza app a ogni apertura. */
+          const cambiato = (Object.keys(next) as (keyof typeof next)[]).some((k) => next[k] !== s[k])
+          return cambiato ? next : {}
         }),
 
       upsertInspection: (i) =>
@@ -243,7 +375,10 @@ export const useStore = create<State>()(
           }),
         })),
       deleteInspections: (ids) =>
-        set((s) => ({ inspections: s.inspections.filter((i) => !ids.includes(i.id)) })),
+        set((s) => ({
+          inspections: s.inspections.filter((i) => !ids.includes(i.id)),
+          removedIds: segnaRimossi(s.removedIds, ids),
+        })),
       setInspectionTaskDone: (inspectionId, taskId, done) =>
         set((s) => ({
           inspections: s.inspections.map((i) =>
@@ -293,7 +428,10 @@ export const useStore = create<State>()(
           }),
         })),
       deleteIntervention: (id) =>
-        set((s) => ({ interventions: s.interventions.filter((i) => i.id !== id) })),
+        set((s) => ({
+          interventions: s.interventions.filter((i) => i.id !== id),
+          removedIds: segnaRimossi(s.removedIds, [id]),
+        })),
 
       upsertAdminExpense: (e) =>
         set((s) => ({
@@ -302,7 +440,10 @@ export const useStore = create<State>()(
           }),
         })),
       deleteAdminExpense: (id) =>
-        set((s) => ({ adminExpenses: s.adminExpenses.filter((e) => e.id !== id) })),
+        set((s) => ({
+          adminExpenses: s.adminExpenses.filter((e) => e.id !== id),
+          removedIds: segnaRimossi(s.removedIds, [id]),
+        })),
 
       markNotification: (id, read) =>
         set((s) => ({
@@ -314,17 +455,64 @@ export const useStore = create<State>()(
         set((s) => ({ readNotifications: [...new Set([...s.readNotifications, ...ids])] })),
 
       resetData: () => set({ ...baseData(), filters: emptyFilters }),
+
+      importData: (payload) => {
+        const dati = (payload as { data?: Record<string, unknown> } | undefined)?.data
+        if (!dati || typeof dati !== 'object') {
+          return { ok: false, error: 'File non riconosciuto: manca la sezione dati.' }
+        }
+        const lista = <T,>(k: string): T[] | undefined =>
+          Array.isArray(dati[k]) ? (dati[k] as T[]) : undefined
+
+        let conteggio = 0
+        /* Chi arriva vince, chi c'e' in piu' resta: sovrascrivere e basta
+           cancellerebbe quello che e' stato fatto su questo dispositivo. */
+        const unisci = <T extends { id: string }>(correnti: T[], arrivati: T[] | undefined): T[] => {
+          if (!arrivati?.length) return correnti
+          conteggio += arrivati.length
+          const nuovi = new Map(arrivati.map((x) => [x.id, x]))
+          return [
+            ...arrivati,
+            ...correnti.filter((x) => !nuovi.has(x.id)),
+          ]
+        }
+
+        set((s) => {
+          const arrivatiIds = new Set<string>()
+          for (const k of ['users', 'apartments', 'requests', 'inspections', 'interventions', 'adminExpenses']) {
+            for (const x of (lista<{ id: string }>(k) ?? [])) arrivatiIds.add(x.id)
+          }
+          return {
+            users: unisci(s.users, lista<User>('users')),
+            apartments: unisci(s.apartments, lista<Apartment>('apartments')),
+            requests: unisci(s.requests, lista<CleaningRequest>('requests')),
+            taskCatalog: unisci(s.taskCatalog, lista<TaskCatalogItem>('taskCatalog')),
+            workSheets: unisci(s.workSheets, lista<WorkSheet>('workSheets')),
+            extraCatalog: unisci(s.extraCatalog, lista<ExtraCatalogItem>('extraCatalog')),
+            warehouses: unisci(s.warehouses, lista<Warehouse>('warehouses')),
+            inspections: unisci(s.inspections, lista<Inspection>('inspections')),
+            interventions: unisci(s.interventions, lista<Intervention>('interventions')),
+            adminExpenses: unisci(s.adminExpenses, lista<AdminExpense>('adminExpenses')),
+            /* Quello che arriva non e' piu' "eliminato": altrimenti sparirebbe
+               al primo allineamento. */
+            removedIds: s.removedIds.filter((id) => !arrivatiIds.has(id)),
+          }
+        })
+        return conteggio > 0
+          ? { ok: true, conteggio }
+          : { ok: false, error: 'Il file non contiene dati da importare.' }
+      },
     }),
     {
       name: 'propromanager-state',
       /*
-       * La versione non si alza piu' a mano: e' l'impronta dei dati seme (vedi
-       * SEED_STAMP). Dimenticarsi di alzarla lasciava in memoria i dati vecchi,
-       * e chi rientrava continuava a vedere il calendario di prima anche con
-       * l'app aggiornata. Adesso basta cambiare i dati perche' riparta pulito.
+       * La versione resta ferma: quello che arriva di nuovo lo porta `syncSeed`,
+       * che aggiunge senza cancellare (vedi sotto). Prima si buttava via tutto a
+       * ogni cambiamento, e con l'app ormai in uso quel gesto cancellerebbe le
+       * task e le pulizie inserite a mano.
        */
-      version: seed.SEED_STAMP,
-      migrate: () => ({ ...baseData(), filters: emptyFilters, currentUserId: null }),
+      version: 11,
+      migrate: (persisted) => migrateState(persisted),
       partialize: (s) => ({
         currentUserId: s.currentUserId,
         users: s.users,
@@ -335,6 +523,7 @@ export const useStore = create<State>()(
         extraCatalog: s.extraCatalog,
         warehouses: s.warehouses,
         readNotifications: s.readNotifications,
+        removedIds: s.removedIds,
         inspections: s.inspections,
         interventions: s.interventions,
         adminExpenses: s.adminExpenses,
