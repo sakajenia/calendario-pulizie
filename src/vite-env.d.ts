@@ -6,3 +6,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+/** Targa della build: commit e data, iniettata da vite.config.ts. */
+declare const __BUILD_ID__: string

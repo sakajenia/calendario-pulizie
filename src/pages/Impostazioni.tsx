@@ -335,6 +335,9 @@ export default function Impostazioni() {
               <div>
                 <InfoRow label="Applicazione" value={`${APP_NAME}®`} />
                 <InfoRow label="Versione" value={APP_VERSION} />
+                {/* Commit e data di questa build: dice subito se la pagina
+                    aperta e' l'ultima o una copia rimasta in cache. */}
+                <InfoRow label="Build" value={__BUILD_ID__} />
                 <InfoRow label="Sostituisce" value={LEGACY_APP} />
                 <InfoRow label="Archiviazione" value="Locale al browser" />
               </div>

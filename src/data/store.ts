@@ -317,8 +317,13 @@ export const useStore = create<State>()(
     }),
     {
       name: 'propromanager-state',
-      /** Alzata quando cambiano forma dei dati o assegnazioni del seed: i dati locali ripartono puliti. */
-      version: 9,
+      /*
+       * La versione non si alza piu' a mano: e' l'impronta dei dati seme (vedi
+       * SEED_STAMP). Dimenticarsi di alzarla lasciava in memoria i dati vecchi,
+       * e chi rientrava continuava a vedere il calendario di prima anche con
+       * l'app aggiornata. Adesso basta cambiare i dati perche' riparta pulito.
+       */
+      version: seed.SEED_STAMP,
       migrate: () => ({ ...baseData(), filters: emptyFilters, currentUserId: null }),
       partialize: (s) => ({
         currentUserId: s.currentUserId,

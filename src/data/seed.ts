@@ -688,3 +688,40 @@ export const adminExpenses: AdminExpense[] = EXPENSE_PLAN.map(
     createdById: 'u-admin',
   }),
 )
+
+/* --------------------------------------------- impronta dei dati seme ---- */
+
+/**
+ * Impronta di quello che c'e' scritto qui dentro: appartamenti, accessi,
+ * account, giorni delle pulizie, controlli, consegne, scadenze, interventi e
+ * spese. Lo store la usa come numero di versione dei dati salvati, cosi' ogni
+ * volta che questi dati cambiano il browser riparte dai nuovi invece di
+ * tenersi quelli vecchi in memoria.
+ *
+ * Nasce dalle tabelle scritte a mano e non dalle date calcolate: quelle
+ * dipendono dal giorno in cui si apre l'app, e l'impronta cambierebbe da sola
+ * ogni mattina, cancellando il lavoro di chi la usa.
+ */
+export const SEED_STAMP = (() => {
+  const raw = JSON.stringify([
+    users,
+    apartments,
+    CLEANING_PLAN,
+    INSPECTION_PLAN,
+    TASK_PLAN,
+    RECURRING_RULES.map((r) => [r.slug, r.inspectorId, r.title, r.tasks, r.hour]),
+    INTERVENTION_PLAN,
+    EXPENSE_PLAN,
+    taskCatalog,
+    workSheets,
+    extraCatalog,
+    warehouses,
+  ])
+  let h = 2166136261
+  for (let i = 0; i < raw.length; i += 1) {
+    h ^= raw.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  /* zustand vuole un intero: si resta nel positivo. */
+  return Math.abs(h | 0)
+})()
