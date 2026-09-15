@@ -29,7 +29,7 @@ system reale di ProProManager, estratto dal sito ufficiale del brand.
 | **Richieste** | Tabella densa ordinabile, filtri per campo/stato/data, selezione multipla, cambio stato bulk, export CSV, paginazione |
 | **Accessi** | Codici di ingresso casa per casa, copiabili con un tocco, piu' i collegamenti a "come lasciare la casa" e "info accessi e materiali"; la leggono anche gli addetti, la modificano solo i manager |
 | **Appartamenti** | Anagrafica, ditta di pulizie assegnata, letti per tipologia, prezzi (base e per numero ospiti), note operative, provider Guesty/Hostaway |
-| **Dashboard** | KPI di periodo, richieste per stato, andamento, top appartamenti, top utenti, pianificazione e budget extra |
+| **Dashboard** | Report mensile per i proprietari: per ogni casa pulizie completate, controlli sul posto, problemi risolti, costi extra, elenco degli interventi e andamento a sei mesi; export PDF (dalla stampa del browser) e CSV |
 | **Utenti** | Ruoli admin/host/operatore, attivazione, azioni bulk, migrazione dati fra host |
 | **Fogli di Lavoro** | Modelli di schede di lavoro componibili dal catalogo task |
 | **Catalogo Task** | Task atomici con stima in minuti e tracciamento dell'uso |

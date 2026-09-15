@@ -141,6 +141,27 @@
     --company-angela: 282 68% 72%;
   }
 
+  /*
+   * Stampa: il report mensile per il proprietario esce in PDF dal dialogo di
+   * stampa del browser. Si nasconde tutto tranne il contenitore del report,
+   * cosi' il PDF non porta con se' barra laterale, filtri e comandi.
+   */
+  @media print {
+    body * { visibility: hidden !important; }
+    #report-stampa, #report-stampa * { visibility: visible !important; }
+    #report-stampa {
+      position: absolute !important;
+      inset: 0 auto auto 0;
+      width: 100%;
+      padding: 0;
+    }
+    .no-print { display: none !important; }
+    /* Il riquadro del grafico resta agganciato all'ultimo passaggio del mouse. */
+    .recharts-tooltip-wrapper { display: none !important; }
+    /* Un blocco per casa: non deve spezzarsi a meta' fra due pagine. */
+    .print-block { break-inside: avoid; }
+  }
+
   * { @apply border-border; }
 
   body {

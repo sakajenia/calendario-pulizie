@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type {
   Apartment, AppNotification, CleaningRequest, ExtraCatalogItem, Inspection,
-  InspectionTask, RequestStatus, TaskCatalogItem, User, Warehouse, WorkSheet,
+  InspectionTask, Intervention, RequestStatus, TaskCatalogItem, User, Warehouse, WorkSheet,
 } from '@/types'
 import * as seed from './seed'
 
@@ -33,6 +33,8 @@ interface State {
   notifications: AppNotification[]
   /** Controlli interni sugli appartamenti: li vede solo l'area manager. */
   inspections: Inspection[]
+  /** Problemi risolti in casa: alimentano il report mensile ai proprietari. */
+  interventions: Intervention[]
   filters: RequestFilters
 
   login: (email: string, password: string) => { ok: boolean; error?: string }
@@ -73,6 +75,9 @@ interface State {
   addInspectionTask: (inspectionId: string, name: string) => void
   removeInspectionTask: (inspectionId: string, taskId: string) => void
 
+  upsertIntervention: (i: Intervention) => void
+  deleteIntervention: (id: string) => void
+
   markNotification: (id: string, read: boolean) => void
   markAllNotificationsRead: () => void
 
@@ -89,6 +94,7 @@ const baseData = () => ({
   warehouses: seed.warehouses,
   notifications: seed.notifications,
   inspections: seed.inspections,
+  interventions: seed.interventions,
 })
 
 const nowIso = () => new Date().toISOString()
@@ -216,6 +222,15 @@ export const useStore = create<State>()(
           ),
         })),
 
+      upsertIntervention: (i) =>
+        set((s) => ({
+          interventions: upsertBy(s.interventions, {
+            ...i, createdById: i.createdById ?? s.currentUserId ?? undefined,
+          }),
+        })),
+      deleteIntervention: (id) =>
+        set((s) => ({ interventions: s.interventions.filter((i) => i.id !== id) })),
+
       markNotification: (id, read) =>
         set((s) => ({ notifications: s.notifications.map((n) => (n.id === id ? { ...n, read } : n)) })),
       markAllNotificationsRead: () =>
@@ -226,7 +241,7 @@ export const useStore = create<State>()(
     {
       name: 'propromanager-state',
       /** Alzata quando cambiano forma dei dati o assegnazioni del seed: i dati locali ripartono puliti. */
-      version: 5,
+      version: 6,
       migrate: () => ({ ...baseData(), filters: emptyFilters, currentUserId: null }),
       partialize: (s) => ({
         currentUserId: s.currentUserId,
@@ -239,6 +254,7 @@ export const useStore = create<State>()(
         warehouses: s.warehouses,
         notifications: s.notifications,
         inspections: s.inspections,
+        interventions: s.interventions,
       }),
     },
   ),

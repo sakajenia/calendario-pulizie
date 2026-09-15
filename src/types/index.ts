@@ -290,6 +290,30 @@ export const INSPECTION_STATUS_META: Record<InspectionStatus, { label: string; c
   },
 }
 
+/* ------------------------------------------------ interventi sul posto ---- */
+
+/**
+ * Un problema riscontrato in casa e risolto: e' la voce che a fine mese
+ * finisce nel report per il proprietario. Il costo resta facoltativo, perche'
+ * spesso si conosce dopo: assente vuol dire "non ancora valorizzato", zero
+ * vuol dire "nessun costo" (per esempio riparazione coperta da Aircover).
+ */
+export interface Intervention {
+  id: string
+  apartmentId: string
+  /** ISO datetime del giorno dell'intervento. */
+  at: string
+  /** Cosa e' stato fatto, in una riga. */
+  title: string
+  notes?: string
+  /** Costo a nostro carico, in euro. */
+  cost?: number
+  /** Chi copre la spesa quando non e' a nostro carico, es. "Aircover". */
+  coveredBy?: string
+  createdAt: string
+  createdById?: string
+}
+
 export interface TaskCatalogItem {
   id: string
   name: string

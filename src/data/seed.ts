@@ -1,7 +1,7 @@
 import type {
   Apartment, AppNotification, CleaningRequest, ExtraCatalogItem, RequestStatus,
   TaskCatalogItem, User, Warehouse, WorkSheet, BedType, RequestBed,
-  Inspection, InspectionTask, InspectorId,
+  Inspection, InspectionTask, InspectorId, Intervention,
 } from '@/types'
 
 /** PRNG deterministico: il seed non deve cambiare fra un reload e l'altro. */
@@ -53,8 +53,11 @@ export const apartments: Apartment[] = [
     notes: '1) Mettere di nostro:\n   Amenities, cialde (1 a persona).\n   Tutti i refill si trovano nel vostro armadio, codice 0000\n2) Controllare sempre le chiavi nelle rispettive keybox.',
     prices: { base: 50, min: 50, max: 60, perGuest: { 4: 60 } },
     access: {
-      /* Codici non ancora forniti: la scheda resta da completare. */
-      entries: [],
+      entries: [
+        { id: 'ac-giu-1', label: 'Accesso', value: 'App Vikey (senza codice)' },
+        { id: 'ac-giu-2', label: 'Cassetta in casa', value: '1405' },
+        { id: 'ac-giu-3', label: 'Stanza pulizie', value: 'Chiave nella cassetta 1405' },
+      ],
     },
     cleaningFrequencyDays: 3, createdAt: iso(day(-320)),
   },
@@ -382,4 +385,38 @@ export const inspections: Inspection[] = INSPECTION_PLAN.map(
       createdAt: iso(day(offset - 7, 9)),
     }
   },
+)
+
+/* ------------------------------------------------ interventi sul posto ---- */
+
+/**
+ * Problemi risolti in casa nel mese corrente. I costi non sono stati ancora
+ * comunicati, quindi restano vuoti: il report li segnala come da valorizzare
+ * invece di inventare una cifra. L'unico noto e' quello coperto da Aircover,
+ * che e' zero.
+ */
+const INTERVENTION_PLAN: [apartmentId: string, dayOffset: number, title: string, cost: number | undefined, coveredBy: string | undefined][] = [
+  ['ap-marsi', -24, 'Sistemato allagamento lavatrice', undefined, undefined],
+  ['ap-marsi', -19, 'Sistemato tubo del lavandino', undefined, undefined],
+  ['ap-marsi', -14, 'Sistemato frigo in blocco', undefined, undefined],
+  ['ap-marsi', -9, 'Intervento per internet non funzionante', undefined, undefined],
+  ['ap-marsi', -4, 'Risolto problema di accesso degli ospiti', undefined, undefined],
+
+  ['ap-labicana', -22, 'Intervento per formiche', undefined, undefined],
+  ['ap-labicana', -16, 'Intervento per doccia rotta', undefined, undefined],
+  ['ap-labicana', -11, 'Sostituzione bicchieri rotti', 0, 'Aircover'],
+  ['ap-labicana', -5, 'Sistemato accesso ospiti: tastierino non funzionante', undefined, undefined],
+]
+
+export const interventions: Intervention[] = INTERVENTION_PLAN.map(
+  ([apartmentId, dayOffset, title, cost, coveredBy], i) => ({
+    id: `int-${i}`,
+    apartmentId,
+    at: iso(day(dayOffset, 11)),
+    title,
+    cost,
+    coveredBy,
+    createdAt: iso(day(dayOffset, 18)),
+    createdById: 'u-admin',
+  }),
 )
