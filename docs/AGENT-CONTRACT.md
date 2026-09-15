@@ -40,7 +40,7 @@ Skeleton, Tooltip
 
 ## Altri componenti
 ```ts
-import { PageHeader } from '@/components/layout/AppShell'   // { title, subtitle?, actions? }
+import { PageHeader } from '@/components/layout/AppShell'   // { title, subtitle?, actions?, aside? }
 import { StatusChip, StatusDot } from '@/components/StatusChip'
 import { RequestDetail, RequestCard, totalBedExtras } from '@/components/requests/RequestDetail'
 import { RequestForm } from '@/components/requests/RequestForm'

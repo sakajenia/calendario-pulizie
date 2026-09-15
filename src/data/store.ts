@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type {
-  Apartment, AppNotification, CleaningRequest, ExtraCatalogItem, RequestStatus,
-  TaskCatalogItem, User, Warehouse, WorkSheet,
+  Apartment, AppNotification, CleaningRequest, ExtraCatalogItem, Inspection,
+  InspectionTask, RequestStatus, TaskCatalogItem, User, Warehouse, WorkSheet,
 } from '@/types'
 import * as seed from './seed'
 
@@ -31,6 +31,8 @@ interface State {
   extraCatalog: ExtraCatalogItem[]
   warehouses: Warehouse[]
   notifications: AppNotification[]
+  /** Controlli interni sugli appartamenti: li vede solo l'area manager. */
+  inspections: Inspection[]
   filters: RequestFilters
 
   login: (email: string, password: string) => { ok: boolean; error?: string }
@@ -64,6 +66,13 @@ interface State {
   upsertWarehouse: (w: Warehouse) => void
   deleteWarehouse: (id: string) => void
 
+  upsertInspection: (i: Inspection) => void
+  deleteInspections: (ids: string[]) => void
+  /** Spunta o rimette in sospeso una singola verifica del controllo. */
+  setInspectionTaskDone: (inspectionId: string, taskId: string, done: boolean) => void
+  addInspectionTask: (inspectionId: string, name: string) => void
+  removeInspectionTask: (inspectionId: string, taskId: string) => void
+
   markNotification: (id: string, read: boolean) => void
   markAllNotificationsRead: () => void
 
@@ -79,6 +88,7 @@ const baseData = () => ({
   extraCatalog: seed.extraCatalog,
   warehouses: seed.warehouses,
   notifications: seed.notifications,
+  inspections: seed.inspections,
 })
 
 const nowIso = () => new Date().toISOString()
@@ -161,6 +171,51 @@ export const useStore = create<State>()(
       upsertWarehouse: (w) => set((s) => ({ warehouses: upsertBy(s.warehouses, w) })),
       deleteWarehouse: (id) => set((s) => ({ warehouses: s.warehouses.filter((w) => w.id !== id) })),
 
+      upsertInspection: (i) =>
+        set((s) => ({
+          inspections: upsertBy(s.inspections, {
+            ...i, updatedAt: nowIso(), updatedById: s.currentUserId ?? undefined,
+          }),
+        })),
+      deleteInspections: (ids) =>
+        set((s) => ({ inspections: s.inspections.filter((i) => !ids.includes(i.id)) })),
+      setInspectionTaskDone: (inspectionId, taskId, done) =>
+        set((s) => ({
+          inspections: s.inspections.map((i) =>
+            i.id === inspectionId
+              ? {
+                  ...i,
+                  tasks: i.tasks.map((t) =>
+                    t.id === taskId ? { ...t, done, doneAt: done ? nowIso() : undefined } : t,
+                  ),
+                  updatedAt: nowIso(),
+                  updatedById: s.currentUserId ?? undefined,
+                }
+              : i,
+          ),
+        })),
+      addInspectionTask: (inspectionId, name) =>
+        set((s) => {
+          const trimmed = name.trim()
+          if (!trimmed) return {}
+          const task: InspectionTask = { id: `it-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: trimmed, done: false }
+          return {
+            inspections: s.inspections.map((i) =>
+              i.id === inspectionId
+                ? { ...i, tasks: [...i.tasks, task], updatedAt: nowIso(), updatedById: s.currentUserId ?? undefined }
+                : i,
+            ),
+          }
+        }),
+      removeInspectionTask: (inspectionId, taskId) =>
+        set((s) => ({
+          inspections: s.inspections.map((i) =>
+            i.id === inspectionId
+              ? { ...i, tasks: i.tasks.filter((t) => t.id !== taskId), updatedAt: nowIso(), updatedById: s.currentUserId ?? undefined }
+              : i,
+          ),
+        })),
+
       markNotification: (id, read) =>
         set((s) => ({ notifications: s.notifications.map((n) => (n.id === id ? { ...n, read } : n)) })),
       markAllNotificationsRead: () =>
@@ -171,7 +226,7 @@ export const useStore = create<State>()(
     {
       name: 'propromanager-state',
       /** Alzata quando cambiano forma dei dati o assegnazioni del seed: i dati locali ripartono puliti. */
-      version: 3,
+      version: 4,
       migrate: () => ({ ...baseData(), filters: emptyFilters, currentUserId: null }),
       partialize: (s) => ({
         currentUserId: s.currentUserId,
@@ -183,6 +238,7 @@ export const useStore = create<State>()(
         extraCatalog: s.extraCatalog,
         warehouses: s.warehouses,
         notifications: s.notifications,
+        inspections: s.inspections,
       }),
     },
   ),

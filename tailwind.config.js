@@ -38,6 +38,11 @@ export default {
           done: 'hsl(var(--status-done))',
           cancelled: 'hsl(var(--status-cancelled))',
         },
+        /* Chi esegue il controllo interno degli appartamenti. */
+        inspector: {
+          manuel: 'hsl(var(--inspector-manuel))',
+          mark: 'hsl(var(--inspector-mark))',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',

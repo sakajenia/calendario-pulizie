@@ -68,6 +68,11 @@
     --status-done: 346 72% 31%;
     --status-cancelled: 358 68% 46%;
 
+    /* Chi esegue il controllo interno. Giallo e arancione sono vicini di tinta,
+       quindi si separano per luminosita': Manuel piu' chiaro, Mark piu' scuro. */
+    --inspector-manuel: 45 96% 38%;
+    --inspector-mark: 22 90% 46%;
+
     /* Curve di uscita esponenziali: nessun rimbalzo, nessun elastico. */
     --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
     --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -117,6 +122,9 @@
     --status-verify: 268 76% 70%;
     --status-done: 346 58% 56%;
     --status-cancelled: 358 74% 62%;
+
+    --inspector-manuel: 45 92% 60%;
+    --inspector-mark: 22 94% 60%;
   }
 
   * { @apply border-border; }

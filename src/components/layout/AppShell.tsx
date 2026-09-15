@@ -207,13 +207,19 @@ export function AppShell() {
 
 /** Intestazione standard di pagina. */
 export function PageHeader({
-  title, subtitle, actions, className,
-}: { title: React.ReactNode; subtitle?: React.ReactNode; actions?: React.ReactNode; className?: string }) {
+  title, subtitle, actions, aside, className,
+}: {
+  title: React.ReactNode; subtitle?: React.ReactNode; actions?: React.ReactNode
+  /** Controllo sotto al titolo, sempre visibile: le azioni spariscono sotto lg. */
+  aside?: React.ReactNode
+  className?: string
+}) {
   return (
     <div className={cn('flex flex-wrap items-start justify-between gap-3 border-b border-border bg-card px-5 py-4', className)}>
       <div className="min-w-0">
         <h1 className="font-display text-xl font-bold tracking-tight">{title}</h1>
         {subtitle && <div className="mt-0.5 text-sm text-muted-foreground">{subtitle}</div>}
+        {aside && <div className="mt-2.5">{aside}</div>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>

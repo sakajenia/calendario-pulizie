@@ -148,6 +148,87 @@ export interface CleaningRequest {
   updatedById?: string
 }
 
+/* ------------------------------------------------- controlli interni ---- */
+
+/**
+ * Il calendario controlli e' interno all'area manager: registra le verifiche
+ * fatte sugli appartamenti dopo le pulizie. Chi controlla non e' un account
+ * dell'app, e' una persona della squadra interna.
+ */
+export const INSPECTORS = ['manuel', 'mark'] as const
+export type InspectorId = (typeof INSPECTORS)[number]
+
+export interface InspectorMeta {
+  id: InspectorId
+  label: string
+  /** Classe Tailwind per il pallino/cuore sul calendario. */
+  dot: string
+  text: string
+  chip: string
+  /** Bordo della card nell'elenco del giorno. */
+  ring: string
+}
+
+export const INSPECTOR_META: Record<InspectorId, InspectorMeta> = {
+  manuel: {
+    id: 'manuel', label: 'Manuel',
+    dot: 'bg-inspector-manuel',
+    text: 'text-inspector-manuel',
+    chip: 'bg-inspector-manuel/12 text-inspector-manuel ring-1 ring-inset ring-inspector-manuel/25',
+    ring: 'ring-inspector-manuel/40',
+  },
+  mark: {
+    id: 'mark', label: 'Mark',
+    dot: 'bg-inspector-mark',
+    text: 'text-inspector-mark',
+    chip: 'bg-inspector-mark/12 text-inspector-mark ring-1 ring-inset ring-inspector-mark/25',
+    ring: 'ring-inspector-mark/40',
+  },
+}
+
+/** Una singola verifica da spuntare dentro un controllo, es. "nessuna formica". */
+export interface InspectionTask {
+  id: string
+  name: string
+  done: boolean
+  /** Momento in cui e' stata spuntata. */
+  doneAt?: string
+}
+
+export interface Inspection {
+  id: string
+  apartmentId: string
+  inspectorId: InspectorId
+  /** ISO datetime: giorno e ora del controllo. */
+  scheduledAt: string
+  tasks: InspectionTask[]
+  notes?: string
+  createdAt: string
+  updatedAt?: string
+  updatedById?: string
+}
+
+/**
+ * Lo stato non si salva: discende dalle task. Un controllo senza task e'
+ * ancora da fare, quindi "In Corso" - cosi' non puo' esistere un controllo
+ * marcato completato con verifiche ancora aperte.
+ */
+export type InspectionStatus = 'in_corso' | 'completata'
+
+export const inspectionStatus = (i: Inspection): InspectionStatus =>
+  i.tasks.length > 0 && i.tasks.every((t) => t.done) ? 'completata' : 'in_corso'
+
+export const INSPECTION_STATUS_META: Record<InspectionStatus, { label: string; chip: string }> = {
+  in_corso: {
+    label: 'In Corso',
+    chip: 'bg-status-progress/12 text-status-progress ring-1 ring-inset ring-status-progress/25',
+  },
+  completata: {
+    label: 'Completata',
+    chip: 'bg-status-done/12 text-status-done ring-1 ring-inset ring-status-done/25',
+  },
+}
+
 export interface TaskCatalogItem {
   id: string
   name: string

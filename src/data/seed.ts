@@ -1,6 +1,7 @@
 import type {
   Apartment, AppNotification, CleaningRequest, ExtraCatalogItem, RequestStatus,
   TaskCatalogItem, User, Warehouse, WorkSheet, BedType, RequestBed,
+  Inspection, InspectionTask, InspectorId,
 } from '@/types'
 
 /** PRNG deterministico: il seed non deve cambiare fra un reload e l'altro. */
@@ -28,7 +29,7 @@ const day = (offset: number, h = 10, m = 0) => {
 }
 
 export const users: User[] = [
-  { id: 'u-admin', name: 'Gianluca Biondi', email: 'aurea.consulting.marketing@gmail.com', phone: '+39 340 118 2277', role: 'admin', active: true, createdAt: iso(day(-420)) },
+  { id: 'u-admin', name: 'ProProManager', email: 'aurea.consulting.marketing@gmail.com', phone: '+39 340 118 2277', role: 'admin', active: true, createdAt: iso(day(-420)) },
   /* Un solo account per le pulizie: e' la squadra che opera sul campo. */
   { id: 'u-pulizie', name: 'Pulizie ProProManager', email: 'pulizie@propromanager.it', phone: '+39 349 772 1188', role: 'operator', active: true, createdAt: iso(day(-260)) },
 ]
@@ -241,3 +242,67 @@ export const notifications: AppNotification[] = [
   { id: 'n-3', kind: 'cleaningCancelled', title: 'Richiesta cancellata da Guesty', body: 'Piazza dei Consoli, 51 · prenotazione annullata dall’ospite', createdAt: iso(day(-2, 11, 5)), read: true },
   { id: 'n-4', kind: 'system', title: 'Scorte in esaurimento', body: 'Magazzino Prati: lenzuola matrimoniali sotto la soglia minima', createdAt: iso(day(-3, 9, 30)), read: true },
 ]
+
+/* ------------------------------------------------- controlli interni ---- */
+
+/** Verifiche ricorrenti: la lista da cui si pesca per popolare un controllo. */
+const INSPECTION_TASKS = [
+  'Controllare che non ci siano formiche',
+  'Verificare che il bagno sia asciutto e senza aloni',
+  'Controllare le scorte di carta igienica',
+  'Verificare la chiusura di finestre e persiane',
+  'Controllare che il frigo sia vuoto e pulito',
+  'Provare il condizionatore e il telecomando',
+  'Verificare che i letti siano rifatti a regola d\'arte',
+  'Controllare la keybox e il numero di chiavi',
+  'Verificare che non ci siano oggetti dimenticati',
+  'Controllare che lo scarico della doccia non sia ostruito',
+]
+
+const dayKeyOf = (d: Date) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
+
+/** Giorno + ora del controllo, a partire dallo scarto in giorni da TODAY. */
+const inspectionTasks = (names: string[], doneCount: number, at: Date): InspectionTask[] =>
+  names.map((name, i) => ({
+    id: `it-${dayKeyOf(at)}-${i}`,
+    name,
+    done: i < doneCount,
+    doneAt: i < doneCount ? iso(at) : undefined,
+  }))
+
+/**
+ * Un controllo per riga: giorno rispetto a TODAY, appartamento, chi controlla,
+ * quante verifiche sono gia' spuntate. Il 15 settembre 2026 (martedi') ne ha
+ * tre, di cui uno chiuso: serve a vedere il cuore accanto ai pallini.
+ */
+const INSPECTION_PLAN: [offset: number, hour: number, apartmentId: string, inspectorId: InspectorId, taskCount: number, doneCount: number][] = [
+  [-6, 10, 'ap-livraghi', 'manuel', 4, 4],
+  [-4, 15, 'ap-consoli', 'mark', 3, 3],
+  [-2, 11, 'ap-giuliana', 'manuel', 4, 2],
+  [-1, 16, 'ap-labicana', 'mark', 3, 0],
+  [1, 9, 'ap-trionfale', 'manuel', 5, 0],
+  [3, 14, 'ap-scala', 'mark', 4, 1],
+  [6, 10, 'ap-consoli', 'manuel', 3, 0],
+  [9, 11, 'ap-livraghi', 'mark', 4, 0],
+  /* martedi' 15 settembre 2026 */
+  [15, 9, 'ap-labicana', 'manuel', 4, 4],
+  [15, 12, 'ap-giuliana', 'mark', 3, 1],
+  [15, 16, 'ap-trionfale', 'manuel', 3, 0],
+  [18, 10, 'ap-scala', 'mark', 4, 0],
+  [22, 15, 'ap-consoli', 'manuel', 3, 0],
+]
+
+export const inspections: Inspection[] = INSPECTION_PLAN.map(
+  ([offset, hour, apartmentId, inspectorId, taskCount, doneCount], i) => {
+    const at = day(offset, hour)
+    const names = INSPECTION_TASKS.slice(i % 4, (i % 4) + taskCount)
+    return {
+      id: `insp-${i}`,
+      apartmentId,
+      inspectorId,
+      scheduledAt: iso(at),
+      tasks: inspectionTasks(names, doneCount, at),
+      createdAt: iso(day(offset - 7, 9)),
+    }
+  },
+)
