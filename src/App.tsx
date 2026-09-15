@@ -15,6 +15,7 @@ import CatalogoTask from '@/pages/CatalogoTask'
 import Extra from '@/pages/Extra'
 import Magazzini from '@/pages/Magazzini'
 import Compensi from '@/pages/Compensi'
+import Accessi from '@/pages/Accessi'
 import Notifiche from '@/pages/Notifiche'
 import Impostazioni from '@/pages/Impostazioni'
 
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="/calendario" element={<Calendario />} />
           <Route path="/richieste" element={<Richieste />} />
           <Route path="/appartamenti" element={<Protected managerOnly><Appartamenti /></Protected>} />
+          <Route path="/accessi" element={<Accessi />} />
           <Route path="/notifiche" element={<Notifiche />} />
           <Route path="/impostazioni" element={<Impostazioni />} />
           <Route path="/dashboard" element={<Protected adminOnly><Dashboard /></Protected>} />

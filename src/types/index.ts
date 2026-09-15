@@ -102,6 +102,26 @@ export const COMPANY_META: Record<CleaningCompanyId, CleaningCompanyMeta> = {
   },
 }
 
+/** Una riga di accesso: "Cassetta inferiore (pulizie)" -> "1405". */
+export interface AccessEntry {
+  id: string
+  label: string
+  value: string
+}
+
+/**
+ * Tutto quello che serve per entrare in casa e trovare il materiale. Lo
+ * vedono anche gli addetti alle pulizie: e' la pagina che aprono sul posto.
+ */
+export interface ApartmentAccess {
+  entries: AccessEntry[]
+  notes?: string
+  /** Album con le foto di come va lasciata la casa. */
+  leaveGuideUrl?: string
+  /** Scheda con composizione della casa, accessi e materiali. */
+  infoSheetUrl?: string
+}
+
 export interface Apartment {
   id: string
   name: string
@@ -119,6 +139,8 @@ export interface Apartment {
   providerNotes?: string
   prices: ApartmentPrices
   cleaningFrequencyDays?: number
+  /** Codici di accesso e schede collegate. */
+  access?: ApartmentAccess
   createdAt: string
 }
 

@@ -31,7 +31,7 @@ const day = (offset: number, h = 10, m = 0) => {
 export const users: User[] = [
   { id: 'u-admin', name: 'ProProManager', email: 'aurea.consulting.marketing@gmail.com', phone: '+39 340 118 2277', role: 'admin', active: true, createdAt: iso(day(-420)) },
   /* Un solo account per le pulizie: e' la squadra che opera sul campo. */
-  { id: 'u-pulizie', name: 'Pulizie ProProManager', email: 'pulizie@propromanager.it', phone: '+39 349 772 1188', role: 'operator', active: true, createdAt: iso(day(-260)) },
+  { id: 'u-pulizie', name: 'Pulizie', email: 'pulizie@propromanager.it', phone: '+39 349 772 1188', role: 'operator', active: true, createdAt: iso(day(-260)) },
 ]
 
 const MATR: BedType = 'Letto Matrimoniale'
@@ -52,6 +52,10 @@ export const apartments: Apartment[] = [
     beds: [{ id: 'b-giu-1', type: MATR }, { id: 'b-giu-2', type: DIVM }],
     notes: '1) Mettere di nostro:\n   Amenities, cialde (1 a persona).\n   Tutti i refill si trovano nel vostro armadio, codice 0000\n2) Controllare sempre le chiavi nelle rispettive keybox.',
     prices: { base: 50, min: 50, max: 60, perGuest: { 4: 60 } },
+    access: {
+      /* Codici non ancora forniti: la scheda resta da completare. */
+      entries: [],
+    },
     cleaningFrequencyDays: 3, createdAt: iso(day(-320)),
   },
   {
@@ -61,6 +65,12 @@ export const apartments: Apartment[] = [
     beds: [{ id: 'b-tri-1', type: MATR }],
     notes: '1) Mettere di nostro:\n   - la saponetta + shampoo\n   - carta igienica\n   - the vari e zucchero\n\n   Tutti i refill si trovano nel vostro armadietto, codice lucchetto 140.',
     prices: { base: 40, min: 40, max: 40 },
+    access: {
+      entries: [
+        { id: 'ac-tri-1', label: 'Portone', value: 'App VKI' },
+        { id: 'ac-tri-2', label: 'Cassetta in casa (porta pulizie)', value: '1405' },
+      ],
+    },
     cleaningFrequencyDays: 3, createdAt: iso(day(-280)),
   },
   {
@@ -70,6 +80,14 @@ export const apartments: Apartment[] = [
     beds: [{ id: 'b-liv-1', type: MATR }, { id: 'b-liv-2', type: DIVM }],
     notes: '- Accesso con chiavi nella keybox a destra del portone.\n- Codice cassetta pulizie: 1405\n- Piano 1, interno 3.',
     prices: { base: 50, min: 50, max: 50 },
+    access: {
+      entries: [
+        { id: 'ac-liv-1', label: 'Portone', value: 'App VKI' },
+        { id: 'ac-liv-2', label: 'Cassetta inferiore (addetti pulizie)', value: '1405' },
+        { id: 'ac-liv-3', label: 'Cassetta superiore (ospiti)', value: '2307' },
+      ],
+      notes: 'Le cassette sono davanti alla porta di casa.',
+    },
     cleaningFrequencyDays: 3, createdAt: iso(day(-360)),
   },
   {
@@ -79,6 +97,13 @@ export const apartments: Apartment[] = [
     beds: [{ id: 'b-sca-1', type: MATR }, { id: 'b-sca-2', type: DIVM }],
     notes: '- Accesso con chiavi, si trovano al portone esterno.\n- Codice cassetta superiore 1405 (nostre chiavi - pulizie)\n- Codice cassetta inferiore 2307 (controllare se ci sono chiavi ospiti)\n- Piano 2 Butterfly House',
     prices: { base: 50, min: 50, max: 60, perGuest: { 4: 60 } },
+    access: {
+      entries: [
+        { id: 'ac-sca-1', label: 'Cassetta inferiore (pulizie)', value: '1405' },
+        { id: 'ac-sca-2', label: 'Cassetta superiore (ospiti)', value: '2307' },
+        { id: 'ac-sca-3', label: 'Armadio pulizie in casa', value: 'Chiave nella cassetta 1405' },
+      ],
+    },
     cleaningFrequencyDays: 2, createdAt: iso(day(-250)),
   },
 
@@ -90,6 +115,14 @@ export const apartments: Apartment[] = [
     beds: [{ id: 'b-mar-1', type: MATR }, { id: 'b-mar-2', type: SING }],
     notes: 'Citofono KlaFrà. Chiavi nella keybox accanto al portone.',
     prices: { base: 55, min: 55, max: 55 },
+    access: {
+      entries: [
+        { id: 'ac-mar-1', label: 'Cancello', value: '12786*1' },
+        { id: 'ac-mar-2', label: 'Cassetta superiore (ospiti)', value: '2307' },
+        { id: 'ac-mar-3', label: 'Cassetta inferiore (pulizie)', value: '1405' },
+      ],
+      notes: 'Le cassette sono davanti alla porta.',
+    },
     cleaningFrequencyDays: 3, createdAt: iso(day(-340)),
   },
   {
@@ -99,6 +132,11 @@ export const apartments: Apartment[] = [
     beds: [{ id: 'b-con-1', type: MATR }, { id: 'b-con-2', type: SING }, { id: 'b-con-3', type: SING }],
     notes: 'Citofono "Consoli". Ascensore fino al piano 4.\nRifornimenti nel ripostiglio, lucchetto 0000.',
     prices: { base: 75, min: 75, max: 75 },
+    access: {
+      entries: [
+        { id: 'ac-con-1', label: 'Accesso', value: 'App VKI' },
+      ],
+    },
     cleaningFrequencyDays: 4, createdAt: iso(day(-350)),
   },
   {
@@ -108,10 +146,19 @@ export const apartments: Apartment[] = [
     beds: [{ id: 'b-lab-1', type: MATR }, { id: 'b-lab-2', type: MATR }, { id: 'b-lab-3', type: SING }],
     notes: '1) Mettere di nostro:\n   Amenities\n   Cialde (1 a persona).\n   Tutti i refill si trovano nel vostro armadio, codice 0000\n\n2) Spegnere i riscaldamenti: nel corridoio, sul termostato premere OFF (IMPORTANTE)\n\n3) Controllare sempre se le chiavi sono nelle rispettive keybox\n   Cassetta ospiti: 2307 - Cassetta pulizie: 1405\n   NON scambiarle per favore.',
     prices: { base: 55, min: 55, max: 55 },
+    access: {
+      entries: [
+        { id: 'ac-lab-1', label: 'Cancello', value: 'ON1357' },
+        { id: 'ac-lab-2', label: 'Cassetta superiore (ospiti)', value: '2307' },
+        { id: 'ac-lab-3', label: 'Cassetta inferiore (addetti pulizie)', value: '1405' },
+        { id: 'ac-lab-4', label: 'Armadi (tutti)', value: '1405' },
+      ],
+      notes: 'Le cassette sono davanti alla porta di casa.',
+    },
     cleaningFrequencyDays: 2, createdAt: iso(day(-300)),
   },
   {
-    id: 'ap-appia', name: 'Villa', address: 'Via Appia Pignatelli 198',
+    id: 'ap-appia', name: 'Villa di Prestigio', address: 'Via Appia Pignatelli 198',
     district: 'Appia', city: 'Roma', ownerId: 'u-admin', companyId: 'angela',
     visibility: 'official', provider: 'hostaway', providerListingId: 'HA-41020',
     beds: [
@@ -120,6 +167,12 @@ export const apartments: Apartment[] = [
     ],
     notes: 'Villa indipendente con giardino. Cancello con telecomando nel mobile d’ingresso.\nControllare la piscina solo a vista, la manutenzione è esterna.',
     prices: { base: 140, min: 140, max: 140 },
+    access: {
+      entries: [
+        { id: 'ac-app-1', label: 'Check-in', value: 'Di persona' },
+        { id: 'ac-app-2', label: 'Cancello', value: '1018' },
+      ],
+    },
     cleaningFrequencyDays: 4, createdAt: iso(day(-200)),
   },
 ]

@@ -27,13 +27,12 @@ system reale di ProProManager, estratto dal sito ufficiale del brand.
 | **Calendario Pulizie** | Vista mese/settimana con indicatori di stato per giorno, pannello richieste affiancato, creazione rapida |
 | **Calendario Controlli** | Stessa vista, riservata all'area manager: verifiche interne sugli appartamenti, colorate per chi le esegue, con task da spuntare e cuore a controllo chiuso |
 | **Richieste** | Tabella densa ordinabile, filtri per campo/stato/data, selezione multipla, cambio stato bulk, export CSV, paginazione |
+| **Accessi** | Codici di ingresso casa per casa, copiabili con un tocco, piu' i collegamenti a "come lasciare la casa" e "info accessi e materiali"; la leggono anche gli addetti, la modificano solo i manager |
 | **Appartamenti** | Anagrafica, ditta di pulizie assegnata, letti per tipologia, prezzi (base e per numero ospiti), note operative, provider Guesty/Hostaway |
 | **Dashboard** | KPI di periodo, richieste per stato, andamento, top appartamenti, top utenti, pianificazione e budget extra |
 | **Utenti** | Ruoli admin/host/operatore, attivazione, azioni bulk, migrazione dati fra host |
 | **Fogli di Lavoro** | Modelli di schede di lavoro componibili dal catalogo task |
 | **Catalogo Task** | Task atomici con stima in minuti e tracciamento dell'uso |
-| **Extra** | Catalogo a tre scope — appartamento, letto, persona — con costi e consumo stimato |
-| **Magazzini** | Depositi, codici di accesso, articoli e valore impegnato |
 | **Compensi** | Solo amministratore: quanto versare a fine mese a ogni ditta di pulizie, coi costi fissi per intervento |
 | **Notifiche** | Feed eventi con collegamento diretto alla richiesta |
 | **Impostazioni** | Profilo, tema chiaro/scuro, statistiche personali, export ed eventuale ripristino dati |

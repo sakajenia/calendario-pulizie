@@ -13,7 +13,24 @@ const cssFiles = [...html.matchAll(/<link[^>]*rel="stylesheet"[^>]*href="([^"]+)
 const read = (u) => fs.readFileSync(path.join(DIST, u.replace(/^\//, '')), 'utf8')
 
 let css = cssFiles.map((m) => read(m[1])).join('\n')
-const js = jsFiles.map((m) => read(m[1])).join('\n')
+let js = jsFiles.map((m) => read(m[1])).join('\n')
+
+/*
+ * L'artifact e' un file solo: le immagini di public/ non verrebbero servite.
+ * Quelle a cui il codice fa riferimento per percorso diventano data URI.
+ */
+const MIME = { '.png': 'image/png', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.webp': 'image/webp' }
+for (const asset of fs.readdirSync(DIST)) {
+  const ext = path.extname(asset).toLowerCase()
+  const mime = MIME[ext]
+  if (!mime) continue
+  const ref = `/${asset}`
+  if (!js.includes(ref) && !css.includes(ref)) continue
+  const b64 = fs.readFileSync(path.join(DIST, asset)).toString('base64')
+  const uri = `data:${mime};base64,${b64}`
+  js = js.split(ref).join(uri)
+  css = css.split(ref).join(uri)
+}
 
 /*
  * Le @import di Google Fonts devono uscire dallo <style> inline, altrimenti il

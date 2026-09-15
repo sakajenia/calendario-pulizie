@@ -2,7 +2,7 @@ import * as React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { KeyRound, Mail } from 'lucide-react'
 import { Button, Card, Field, Input } from '@/components/ui'
-import { Logo } from '@/components/brand/Logo'
+import { LogoLockup } from '@/components/brand/Logo'
 import { useStore } from '@/data/store'
 
 const APP_VERSION = '1.0.0'
@@ -43,7 +43,7 @@ export default function Login() {
       />
 
       <header className="relative z-10 px-6 py-5">
-        <Logo />
+        <LogoLockup />
       </header>
 
       <main className="relative z-10 flex flex-1 items-center justify-center px-4 pb-24">

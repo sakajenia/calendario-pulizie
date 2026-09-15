@@ -2,8 +2,8 @@ import * as React from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import {
-  Bell, Boxes, Building2, CalendarDays, ClipboardList, LayoutDashboard, ListChecks,
-  LogOut, Moon, PackageOpen, Receipt, Search, Settings, Sun, Users, Menu, X,
+  Bell, Building2, CalendarDays, ClipboardList, KeyRound, LayoutDashboard, ListChecks,
+  LogOut, Moon, Receipt, Search, Settings, Sun, Users, Menu, X,
 } from 'lucide-react'
 import { Logo, LogoMark } from '@/components/brand/Logo'
 import { CommandPalette } from '@/components/CommandPalette'
@@ -27,6 +27,8 @@ interface NavEntry {
 const PRIMARY: NavEntry[] = [
   { to: '/calendario', label: 'Calendario', icon: CalendarDays },
   { to: '/richieste', label: 'Richieste', icon: ClipboardList },
+  /* Gli accessi servono anche a chi va sul posto: nessuna restrizione. */
+  { to: '/accessi', label: 'Accessi', icon: KeyRound },
   { to: '/appartamenti', label: 'Appartamenti', icon: Building2, managerOnly: true },
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: true },
 ]
@@ -35,8 +37,6 @@ const ADMIN: NavEntry[] = [
   { to: '/utenti', label: 'Utenti', icon: Users, adminOnly: true },
   { to: '/fogli-di-lavoro', label: 'Fogli di Lavoro', icon: ListChecks, adminOnly: true },
   { to: '/catalogo-task', label: 'Catalogo Task', icon: ClipboardList, adminOnly: true },
-  { to: '/extra', label: 'Extra', icon: PackageOpen, adminOnly: true },
-  { to: '/magazzini', label: 'Magazzini', icon: Boxes, adminOnly: true },
   { to: '/compensi', label: 'Compensi', icon: Receipt, adminOnly: true },
 ]
 

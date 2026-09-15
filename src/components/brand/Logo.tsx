@@ -1,24 +1,39 @@
 import { cn } from '@/lib/utils'
 
-/** Marchio esagonale ProProManager, ridisegnato in SVG dal logo ufficiale. */
-export function LogoMark({ className, gradient = true }: { className?: string; gradient?: boolean }) {
+/*
+ * Marchio ProProManager. I colori qui sono quelli del marchio, non del tema:
+ * per questo il file e' escluso dal lint dei token (vedi scripts/check-tokens.mjs).
+ */
+
+const CRIMSON = '#A81E3F'
+
+/**
+ * Il simbolo come sta nella favicon: tessera cremisi piena e simbolo bianco a
+ * filo - esagono, arcata e pilastro centrale. Non porta scritta, quindi regge
+ * qualsiasi fondo.
+ */
+export function LogoMark({ className, rounded = true }: { className?: string; rounded?: boolean }) {
   return (
     <svg viewBox="0 0 100 100" className={cn('h-8 w-8', className)} aria-hidden="true">
-      <defs>
-        <linearGradient id="ppm-hex" x1="1" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#B91C3C" />
-          <stop offset="100%" stopColor="#6B1128" />
-        </linearGradient>
-      </defs>
-      <path d="M50 3 93 27v46L50 97 7 73V27z" fill={gradient ? 'url(#ppm-hex)' : 'currentColor'} />
-      <path d="M50 25 75 39.5v32.5h-9.5V45L50 36 34.5 45v27H25V39.5z" fill="#fff" />
-      {/* Il pilastro centrale scende piu' in basso delle gambe dell'arcata. */}
-      <path d="M50 51.5l8.5 5V84h-17V56.5z" fill="#fff" />
+      <rect width="100" height="100" rx={rounded ? 18 : 0} fill={CRIMSON} />
+      {/* Esagono ad anello: il pieno interno resta del fondo. */}
+      <path
+        fillRule="evenodd"
+        fill="#fff"
+        d="M50 9 81 29v42L50 91 19 71V29zM50 19.4 73.1 34.4v31.2L50 80.6 26.9 65.6V34.4z"
+      />
+      {/* Arcata */}
+      <path fill="#fff" d="M30 69V45.5L50 34.5l20 11V69h-7.5V51.5L50 42.5l-12.5 9V69z" />
+      {/* Pilastro centrale */}
+      <path fill="#fff" d="M50 45l6 5v25l-6 4.5-6-4.5V50z" />
     </svg>
   )
 }
 
-/** Lockup completo: marchio + "PROPRO manager". */
+/**
+ * Lockup completo: simbolo + "PROPRO manager". Su fondo scuro la scritta passa
+ * al bianco del marchio (`invert`).
+ */
 export function Logo({
   className, markClassName, invert = false, showR = true,
 }: { className?: string; markClassName?: string; invert?: boolean; showR?: boolean }) {
@@ -45,5 +60,24 @@ export function Logo({
         </span>
       </span>
     </span>
+  )
+}
+
+/**
+ * Lockup ufficiale. In tema chiaro e' l'immagine originale; in tema scuro la
+ * scritta nera sparirebbe sul fondo, quindi subentra la versione con la
+ * scritta chiara.
+ */
+export function LogoLockup({ className }: { className?: string }) {
+  return (
+    <>
+      <img
+        src="/logo-propromanager.png"
+        alt="ProProManager"
+        className={cn('h-14 w-auto select-none dark:hidden', className)}
+        draggable={false}
+      />
+      <Logo invert className="hidden dark:inline-flex" />
+    </>
   )
 }
