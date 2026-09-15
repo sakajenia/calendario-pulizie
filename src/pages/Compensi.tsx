@@ -40,7 +40,7 @@ const BASIS_ITEMS: { value: Basis; label: string }[] = [
 ]
 
 const isCancelled = (r: CleaningRequest) =>
-  r.status === 'cancellata' || r.status === 'cancellata_guesty'
+  r.status === 'cancellata'
 
 interface Line {
   apartment: Apartment

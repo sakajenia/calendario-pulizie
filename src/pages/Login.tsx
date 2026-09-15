@@ -17,8 +17,13 @@ export default function Login() {
 
   const run = (mail: string, pass: string) => {
     setError(undefined)
-    if (!mail.trim()) return setError('Inserire un indirizzo email')
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail.trim())) return setError('Inserire un indirizzo email valido')
+    const id = mail.trim()
+    if (!id) return setError('Inserisci l’email o il nome utente')
+    /* Si entra anche col nome utente: la forma dell'email si controlla solo
+       quando c'e' una chiocciola, altrimenti "Angela" verrebbe rifiutata. */
+    if (id.includes('@') && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id)) {
+      return setError('Inserire un indirizzo email valido')
+    }
     if (!pass) return setError('Inserisci una password')
 
     setLoading(true)
@@ -60,14 +65,20 @@ export default function Login() {
 
           <Card className="p-6 shadow-raised">
             <form onSubmit={submit} className="space-y-4" noValidate>
-              <Field label="Email" htmlFor="login-email">
+              {/* Si entra con l'email o col nome utente: il campo non e' piu'
+                  `type="email"`, che rifiuterebbe "Angela". */}
+              <Field label="Email o nome utente" htmlFor="login-email">
                 <div className="relative">
                   <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     id="login-email"
-                    type="email"
+                    type="text"
+                    inputMode="email"
                     autoComplete="username"
-                    placeholder="nome@propromanager.com"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    placeholder="nome@propromanager.com oppure Angela"
                     className="pl-9"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}

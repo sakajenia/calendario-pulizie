@@ -41,8 +41,8 @@ const BASIS_LABEL: Record<Basis, string> = {
   all: 'tutte le richieste',
 }
 
-const OPEN_STATUSES: RequestStatus[] = ['in_attesa', 'accettata', 'in_corso', 'da_verificare']
-const CANCELLED_STATUSES: RequestStatus[] = ['cancellata', 'cancellata_guesty']
+const OPEN_STATUSES: RequestStatus[] = ['in_attesa', 'accettata', 'in_corso']
+const CANCELLED_STATUSES: RequestStatus[] = ['cancellata']
 
 type CardSort = 'name' | 'value' | 'items'
 

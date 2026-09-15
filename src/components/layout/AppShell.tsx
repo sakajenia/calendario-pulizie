@@ -5,7 +5,7 @@ import {
   Bell, Building2, CalendarDays, ClipboardList, KeyRound, LayoutDashboard,
   LogOut, Moon, Receipt, Search, Settings, Sun, Users, Wallet, Menu, X,
 } from 'lucide-react'
-import { Logo } from '@/components/brand/Logo'
+import { Logo, LogoIcon } from '@/components/brand/Logo'
 import { CommandPalette } from '@/components/CommandPalette'
 import { Button, Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui'
 import { useCurrentUser, useNotifications, useStore } from '@/data/store'
@@ -96,8 +96,13 @@ export function AppShell() {
 
   const sidebar = (
     <div className="flex h-full flex-col bg-sidebar">
-      <div className="flex h-16 shrink-0 items-center gap-2 border-b border-sidebar-border px-4">
-        <Logo panel />
+      {/* Nel menu ci sta il simbolo, piccolo: il lockup con la scritta
+          occupava troppo spazio in cima all'elenco. */}
+      <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-sidebar-border px-4">
+        <LogoIcon />
+        <span className="truncate font-display text-sm font-bold tracking-tight text-sidebar-foreground">
+          ProProManager
+        </span>
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto p-3 no-scrollbar">

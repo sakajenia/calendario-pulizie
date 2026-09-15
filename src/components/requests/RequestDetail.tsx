@@ -1,11 +1,14 @@
 import * as React from 'react'
-import { BedDouble, Check, Home, MapPin, StickyNote, Trash2, Users } from 'lucide-react'
+import { BedDouble, Check, Home, MapPin, StickyNote, Trash2, Users, X } from 'lucide-react'
 import { Dialog, Button, Select, Textarea } from '@/components/ui'
 import { StatusChip } from '@/components/StatusChip'
 import { HelpTip } from '@/components/HelpTip'
 import { useToast } from '@/components/feedback/Toast'
 import { useCurrentUser, useStore } from '@/data/store'
-import { canAnnotateRequest, canCompleteRequest, canDeleteRequest, canEditRequest, canChangeStatus } from '@/lib/permissions'
+import {
+  canAnnotateRequest, canCompleteRequest, canDeleteRequest, canEditRequest, canChangeStatus,
+  canRespondToRequest,
+} from '@/lib/permissions'
 import { fmtDateTime } from '@/lib/format'
 import { REQUEST_STATUSES, STATUS_META, type CleaningRequest, type ExtraLine, type RequestStatus } from '@/types'
 import { cn } from '@/lib/utils'
@@ -72,6 +75,7 @@ export function RequestDetail({
   const setRequestStatus = useStore((s) => s.setRequestStatus)
   const completeRequest = useStore((s) => s.completeRequest)
   const setOperatorNotes = useStore((s) => s.setOperatorNotes)
+  const respond = useStore((s) => s.respondToRequest)
   const upsertRequest = useStore((s) => s.upsertRequest)
   const user = useCurrentUser()
   const toast = useToast()
@@ -87,6 +91,20 @@ export function RequestDetail({
       action: { label: 'Annulla', onClick: () => upsertRequest(before) },
     })
   }
+  /* La ditta accetta o rifiuta: rifiutando la pulizia esce dal calendario, per
+     questo il rientro sulla notifica non e' un di piu'. */
+  const rispondi = (r: CleaningRequest, risposta: 'accetta' | 'rifiuta') => {
+    const before = r
+    respond(r.id, risposta)
+    toast({
+      title: risposta === 'accetta' ? 'Pulizia accettata' : 'Pulizia rifiutata',
+      description: risposta === 'accetta'
+        ? undefined
+        : 'Esce dal calendario; resta fra le richieste come cancellata.',
+      action: { label: 'Annulla', onClick: () => upsertRequest(before) },
+    })
+  }
+
   const complete = (r: CleaningRequest) => {
     const before = r
     completeRequest(r.id)
@@ -111,6 +129,7 @@ export function RequestDetail({
   const mayDelete = canDeleteRequest(user, request)
   const mayChangeStatus = canChangeStatus(user, request)
   const mayComplete = canCompleteRequest(user, request)
+  const mayRespond = canRespondToRequest(user, request)
   const mayAnnotate = canAnnotateRequest(user, request)
   const isDone = request.status === 'completata'
   const completedBy = users.find((u) => u.id === request.completedById)
@@ -133,6 +152,16 @@ export function RequestDetail({
             </Button>
           )}
           <Button variant="outline" onClick={onClose}>Chiudi</Button>
+          {mayRespond && (
+            <>
+              <Button variant="outline" onClick={() => rispondi(request, 'rifiuta')}>
+                <X /> Rifiuta
+              </Button>
+              <Button onClick={() => rispondi(request, 'accetta')}>
+                <Check /> Accetta
+              </Button>
+            </>
+          )}
           {mayComplete && !isDone && !mayEdit && (
             <Button onClick={() => complete(request)}>
               <Check /> Segna come completata
@@ -189,7 +218,7 @@ export function RequestDetail({
                     <Check /> Segna come completata
                   </Button>
                 ) : mayChangeStatus ? (
-                  <Button size="sm" variant="outline" onClick={() => changeStatus(request, 'da_verificare')}>
+                  <Button size="sm" variant="outline" onClick={() => changeStatus(request, 'in_corso')}>
                     Riapri la pulizia
                   </Button>
                 ) : null}
@@ -293,7 +322,24 @@ export function RequestCard({
   request, onClick, active,
 }: { request: CleaningRequest; onClick?: () => void; active?: boolean }) {
   const apartments = useStore((s) => s.apartments)
+  const respond = useStore((s) => s.respondToRequest)
+  const upsertRequest = useStore((s) => s.upsertRequest)
+  const user = useCurrentUser()
+  const toast = useToast()
   const ap = apartments.find((a) => a.id === request.apartmentId)
+  const mayRespond = canRespondToRequest(user, request)
+
+  /* Dal calendario si risponde senza aprire il dettaglio: e' il gesto che la
+     ditta fa piu' spesso. Il clic non deve aprire anche la scheda. */
+  const rispondi = (e: React.MouseEvent, risposta: 'accetta' | 'rifiuta') => {
+    e.stopPropagation()
+    const before = request
+    respond(request.id, risposta)
+    toast({
+      title: risposta === 'accetta' ? 'Pulizia accettata' : 'Pulizia rifiutata',
+      action: { label: 'Annulla', onClick: () => upsertRequest(before) },
+    })
+  }
 
   return (
     <div
@@ -345,6 +391,28 @@ export function RequestCard({
           <StickyNote className="size-3.5 shrink-0" />
           <span className="line-clamp-2 whitespace-pre-line">{request.notes}</span>
         </p>
+      )}
+
+      {mayRespond && (
+        <div className="mt-3 flex flex-wrap gap-2 border-t border-border/60 pt-3">
+          <Button
+            size="sm"
+            className="flex-1"
+            onClick={(e) => rispondi(e, 'accetta')}
+            aria-label={`Accetta la pulizia di ${ap?.name ?? 'questo appartamento'}`}
+          >
+            <Check /> Accetta
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1"
+            onClick={(e) => rispondi(e, 'rifiuta')}
+            aria-label={`Rifiuta la pulizia di ${ap?.name ?? 'questo appartamento'}`}
+          >
+            <X /> Rifiuta
+          </Button>
+        </div>
       )}
     </div>
   )

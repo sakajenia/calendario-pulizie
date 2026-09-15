@@ -32,3 +32,14 @@ export function canCompleteRequest(user: User | null | undefined, request: Clean
 
 /** Le note dell'addetto seguono le stesse regole del completamento. */
 export const canAnnotateRequest = canCompleteRequest
+
+/**
+ * Accettare o rifiutare la pulizia spetta alla ditta, finche' e' in attesa.
+ * Chi vede la richiesta la vede gia' filtrata per ditta (vedi scopeRequests),
+ * quindi non serve ricontrollare a quale casa appartenga.
+ */
+export function canRespondToRequest(
+  user: User | null | undefined, request: CleaningRequest | null | undefined,
+): boolean {
+  return Boolean(user && request && isOperator(user) && request.status === 'in_attesa')
+}

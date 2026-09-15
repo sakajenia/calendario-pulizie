@@ -46,7 +46,8 @@ interface State {
   adminExpenses: AdminExpense[]
   filters: RequestFilters
 
-  login: (email: string, password: string) => { ok: boolean; error?: string }
+  /** L'identificativo e' l'email oppure il nome utente. */
+  login: (identifier: string, password: string) => { ok: boolean; error?: string }
   logout: () => void
   switchUser: (id: string) => void
 
@@ -58,6 +59,12 @@ interface State {
   deleteRequests: (ids: string[]) => void
   /** L'addetto (o un manager) segna la pulizia come completata. */
   completeRequest: (id: string) => void
+  /**
+   * La ditta risponde a una pulizia in attesa. Accettandola se la prende in
+   * carico; rifiutandola la richiesta sparisce dal calendario (resta fra le
+   * richieste, dove il manager la vede cancellata).
+   */
+  respondToRequest: (id: string, risposta: 'accetta' | 'rifiuta') => void
   /** Note lasciate sul posto dall'addetto alle pulizie. */
   setOperatorNotes: (id: string, notes: string) => void
 
@@ -140,9 +147,14 @@ export const useStore = create<State>()(
       ...baseData(),
       filters: emptyFilters,
 
-      login: (email, password) => {
-        const user = get().users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase())
-        if (!user) return { ok: false, error: 'Nessun utente trovato per questa email' }
+      login: (identifier, password) => {
+        /* Si entra con l'email o col nome utente: le ditte di pulizie usano il
+           nome, che e' quello che ricordano. */
+        const chiave = identifier.trim().toLowerCase()
+        const user = get().users.find(
+          (u) => u.email.toLowerCase() === chiave || u.username?.toLowerCase() === chiave,
+        )
+        if (!user) return { ok: false, error: 'Nessun utente trovato per questa email o nome utente' }
         if (!user.active) return { ok: false, error: 'Utente non attivo' }
         /* Dove la password e' impostata vale quella; gli altri account
            accettano ancora una password qualsiasi di almeno 6 caratteri. */
@@ -174,6 +186,23 @@ export const useStore = create<State>()(
             r.id === id ? { ...r, status: 'completata', ...statusStamp('completata', s.currentUserId) } : r,
           ),
         })),
+      respondToRequest: (id, risposta) =>
+        set((s) => ({
+          requests: s.requests.map((r) =>
+            r.id === id
+              ? {
+                  ...r,
+                  status: risposta === 'accetta' ? 'accettata' : 'cancellata',
+                  /* Accettando, il turno diventa suo: e' quello che poi gli
+                     permette di segnarlo completato. */
+                  assigneeId: risposta === 'accetta' ? (s.currentUserId ?? r.assigneeId) : undefined,
+                  updatedAt: nowIso(),
+                  updatedById: s.currentUserId ?? undefined,
+                }
+              : r,
+          ),
+        })),
+
       setOperatorNotes: (id, notes) =>
         set((s) => ({
           requests: s.requests.map((r) =>

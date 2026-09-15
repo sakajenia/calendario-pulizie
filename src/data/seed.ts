@@ -39,8 +39,10 @@ const day = (offset: number, h = 10, m = 0) => {
 /** Ogni ditta di pulizie ha il proprio accesso e vede solo le proprie case. */
 export const users: User[] = [
   { id: 'u-admin', name: 'ProProManager', email: 'm2ab.srl@gmail.com', phone: '+39 340 118 2277', role: 'admin', active: true, createdAt: iso(day(-420)) },
-  { id: 'u-pulizie-comfy', name: 'Comfy', email: 'comfy@propromanager.it', phone: '+39 349 772 1188', role: 'operator', companyId: 'comfy', password: '123456', active: true, createdAt: iso(day(-260)) },
-  { id: 'u-pulizie-angela', name: 'Angela', email: 'angela@propromanager.it', phone: '+39 348 551 9042', role: 'operator', companyId: 'angela', password: '123456', active: true, createdAt: iso(day(-255)) },
+  /* Le ditte accedono col nome utente, non con l'email: e' quello che sanno a
+     memoria. L'email resta valida e serve a raggiungerle. */
+  { id: 'u-pulizie-comfy', name: 'Comfy', username: 'Comfy', email: 'comfy@propromanager.it', phone: '+39 349 772 1188', role: 'operator', companyId: 'comfy', password: 'BR4mjLLY7Qudf!%R', active: true, createdAt: iso(day(-260)) },
+  { id: 'u-pulizie-angela', name: 'Angela', username: 'Angela', email: 'angela@propromanager.it', phone: '+39 348 551 9042', role: 'operator', companyId: 'angela', password: 'SHyA9onz$uM@i5cL', active: true, createdAt: iso(day(-255)) },
 ]
 
 /** Chi prende in carico le pulizie di un appartamento: l'account della sua ditta. */
@@ -286,15 +288,8 @@ const CLEANING_PLAN: Record<string, number[]> = {
   'ap-appia': [3, 6, 11, 14, 18, 21, 27],
 }
 
-/**
- * Le pulizie ancora da accettare: sono quelle che fanno scattare la notifica a
- * due giorni dall'intervento, percio' restano ferme di proposito.
- */
-const DA_ACCETTARE = new Set(['ap-marsi-16', 'ap-labicana-17', 'ap-appia-21', 'ap-labicana-25'])
-
 function buildRequests(): CleaningRequest[] {
   const out: CleaningRequest[] = []
-  const oggi = TODAY.getDate()
 
   for (const [apartmentId, giorni] of Object.entries(CLEANING_PLAN)) {
     const ap = apartments.find((a) => a.id === apartmentId)
@@ -307,12 +302,9 @@ function buildRequests(): CleaningRequest[] {
       created.setDate(created.getDate() - int(4, 12))
       created.setHours(int(9, 18), int(0, 59), 0, 0)
 
-      /* Il passato e' fatto, oggi e' in corso, il resto e' da fare: quelle
-         segnate ferme restano in attesa anche se l'intervento e' vicino. */
-      let status: RequestStatus
-      if (giorno < oggi) status = 'completata'
-      else if (giorno === oggi) status = 'in_corso'
-      else status = DA_ACCETTARE.has(`${apartmentId}-${giorno}`) ? 'in_attesa' : 'accettata'
+      /* Tutte in attesa: accettarle o rifiutarle spetta alla ditta, non al
+         calendario che le propone. */
+      const status: RequestStatus = 'in_attesa'
 
       const guests = int(1, Math.max(2, ap.beds.length * 2))
       out.push({
@@ -338,10 +330,6 @@ function buildRequests(): CleaningRequest[] {
         notes: pick(REQUEST_NOTES),
         workSheetId: 'ws-standard',
         assigneeId: pickAssignee(status, ap),
-        /* Sulle accettate serve il momento della presa in carico: e' la data
-           della notifica "accettata". */
-        updatedAt: status === 'accettata' ? iso(day(-int(1, 5), 9, 30)) : undefined,
-        completedAt: status === 'completata' ? iso(new Date(checkOut.getTime() + 3 * 3_600_000)) : undefined,
       })
     }
   }
@@ -411,20 +399,84 @@ const INSPECTION_PLAN: InspectionSeed[] = [
   { day: 15, hour: 12, apartmentId: 'ap-consoli', inspectorId: 'mark', doneCount: 1 },
   { day: 15, hour: 16, apartmentId: 'ap-trionfale', inspectorId: 'manuel', doneCount: 0 },
 
+  /* Il giro di Manuel a Livraghi porta anche la roba per Mark del giorno dopo. */
   {
     day: 17, hour: 10, apartmentId: 'ap-livraghi', inspectorId: 'manuel',
     tasks: [
       'Mettere adesivo rosso dentro i cassetti rovinati',
+      'Prendere al tabacchi cuscino rosso e copertina rossa e portarli a Livraghi',
+      'Riportare a Mark il trapano e le punte: il 18 monta la maniglia a Via dei Marsi 10',
       'Controllare la keybox e il numero di chiavi',
     ],
     doneCount: 0,
   },
 
-  { day: 18, hour: 10, apartmentId: 'ap-marsi', inspectorId: 'mark', doneCount: 0 },
-  { day: 18, hour: 15, apartmentId: 'ap-labicana', inspectorId: 'mark', doneCount: 0 },
+  { day: 18, hour: 10, apartmentId: 'ap-marsi', inspectorId: 'mark', tasks: ['Montare la maniglia'], doneCount: 0 },
+  {
+    day: 18, hour: 15, apartmentId: 'ap-labicana', inspectorId: 'mark',
+    tasks: [
+      'Portare e montare le maniglie: sono al tabacchi di Via della Giuliana 35',
+      'Verificare i rubinetti',
+      'Portare dispenser saponi',
+      'Prendere la coperta rosa al tabacchi di Via della Giuliana',
+      'Mettere la coperta rosa della Giuliana sul letto matrimoniale',
+      'Prendere i bicchieri rosa da Manuel e portarli in casa',
+    ],
+    doneCount: 0,
+  },
 
   { day: 20, hour: 11, apartmentId: 'ap-trionfale', inspectorId: 'mark', doneCount: 0 },
 ]
+
+/**
+ * Le consegne fra le persone della squadra: non sono controlli e non stanno in
+ * una casa, ma vanno in calendario perche' hanno un giorno e un responsabile.
+ */
+interface TaskSeed {
+  day: number
+  hour: number
+  inspectorId: InspectorId
+  title: string
+  tasks: string[]
+  apartmentId?: string
+}
+
+const TASK_PLAN: TaskSeed[] = [
+  {
+    day: 16, hour: 10, inspectorId: 'manuel', apartmentId: 'ap-consoli',
+    title: 'Lampadina e mensola per Consoli',
+    tasks: [
+      'Organizzarsi su quando portare lampadina e mensola a Consoli',
+      'Segnare la consegna in task calendario',
+    ],
+  },
+  {
+    day: 17, hour: 9, inspectorId: 'michelle',
+    title: 'Consegne alla squadra',
+    tasks: [
+      'Portare la carta aziendale a Mark',
+      'Portare a Manuel la carta da parati rossa per Via Giovanni Livraghi',
+      'Portare a Manuel il dispenser per Mark',
+    ],
+  },
+]
+
+const plannedTasks: Inspection[] = TASK_PLAN.map((row) => {
+  const at = new Date(TODAY.getFullYear(), TODAY.getMonth(), row.day, row.hour, 0, 0, 0)
+  const createdAt = new Date(at)
+  createdAt.setDate(createdAt.getDate() - 2)
+  createdAt.setHours(9, 0, 0, 0)
+  return {
+    id: `task-${row.inspectorId}-${row.day}`,
+    kind: 'task_operativa' as const,
+    title: row.title,
+    apartmentId: row.apartmentId,
+    inspectorId: row.inspectorId,
+    scheduledAt: iso(at),
+    tasks: inspectionTasks(row.tasks, 0, at, iso(createdAt)),
+    createdAt: iso(createdAt),
+  }
+})
 
 const plannedInspections: Inspection[] = INSPECTION_PLAN.map((row, i) => {
   const at = new Date(TODAY.getFullYear(), TODAY.getMonth(), row.day, row.hour, 0, 0, 0)
@@ -561,7 +613,11 @@ export function recurringInspections(from: Date, back = 3, ahead = 12): Inspecti
   return out
 }
 
-export const inspections: Inspection[] = [...plannedInspections, ...recurringInspections(TODAY)]
+export const inspections: Inspection[] = [
+  ...plannedInspections,
+  ...plannedTasks,
+  ...recurringInspections(TODAY),
+]
 
 /* ------------------------------------------------ interventi sul posto ---- */
 

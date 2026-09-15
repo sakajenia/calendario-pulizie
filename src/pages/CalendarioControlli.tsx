@@ -771,7 +771,9 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
             </div>
           ) : (
             <div className="min-h-0 flex-1 overflow-auto p-2">
-              <div className="grid min-w-[820px] grid-cols-7 gap-2">
+              {/* Sul telefono i giorni si impilano: la griglia a sette colonne
+                  richiederebbe 820px e trascinerebbe l'app di lato. */}
+              <div className="grid grid-cols-1 gap-2 sm:min-w-[820px] sm:grid-cols-7">
                 {weekDays.map((d) => {
                   const list = byDay.get(dayKey(d)) ?? []
                   const isToday = isSameDay(d, TODAY)
@@ -780,7 +782,7 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
                     <div
                       key={d.toISOString()}
                       className={cn(
-                        'flex min-h-[240px] min-w-0 flex-col rounded-lg border p-1.5',
+                        'flex min-h-[112px] min-w-0 flex-col rounded-lg border p-1.5 sm:min-h-[240px]',
                         isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border bg-muted/30',
                       )}
                     >

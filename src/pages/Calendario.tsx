@@ -119,7 +119,12 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
     [apartmentById],
   )
 
-  const scoped = React.useMemo(() => scopeRequests(allRequests, user, allApartments), [allRequests, user, allApartments])
+  /* Le cancellate escono dal calendario: una pulizia che non si fa non e' un
+     appuntamento. Restano nell'elenco Richieste, dove il manager le ritrova. */
+  const scoped = React.useMemo(
+    () => scopeRequests(allRequests, user, allApartments).filter((r) => r.status !== 'cancellata'),
+    [allRequests, user, allApartments],
+  )
   const detail = React.useMemo(
     () => (detailId ? scoped.find((r) => r.id === detailId) ?? null : null),
     [detailId, scoped],
@@ -468,7 +473,9 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
             </div>
           ) : (
             <div className="min-h-0 flex-1 overflow-auto p-2">
-              <div className="grid min-w-[820px] grid-cols-7 gap-2">
+              {/* Sul telefono i giorni si impilano: la griglia a sette colonne
+                  richiederebbe 820px e trascinerebbe l'app di lato. */}
+              <div className="grid grid-cols-1 gap-2 sm:min-w-[820px] sm:grid-cols-7">
                 {weekDays.map((d) => {
                   const list = byDay.get(dayKey(d)) ?? []
                   const isToday = isSameDay(d, TODAY)
@@ -477,7 +484,7 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
                     <div
                       key={d.toISOString()}
                       className={cn(
-                        'flex min-h-[240px] min-w-0 flex-col rounded-lg border p-1.5',
+                        'flex min-h-[112px] min-w-0 flex-col rounded-lg border p-1.5 sm:min-h-[240px]',
                         isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border bg-muted/30',
                       )}
                     >
@@ -550,7 +557,7 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
               Tutti
               <span className="tabular-nums">{periodSearched.length}</span>
             </button>
-            {REQUEST_STATUSES.map((s) => {
+            {REQUEST_STATUSES.filter((s) => s !== 'cancellata').map((s) => {
               const on = statuses.includes(s)
               const n = countByStatus[s]
               return (

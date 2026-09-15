@@ -41,6 +41,8 @@ export interface User {
   companyId?: CleaningCompanyId
   /** Se impostata, l'accesso la richiede esatta. */
   password?: string
+  /** Nome con cui si accede, in alternativa all'email. */
+  username?: string
   /** Host di riferimento per operatori e collaboratori. */
   refHostId?: string
   createdAt: string
@@ -151,14 +153,17 @@ export interface Apartment {
   createdAt: string
 }
 
+/**
+ * Gli stati di una pulizia, in ordine di avanzamento. "Cancellata" non e' un
+ * avanzamento: e' il rifiuto, e sparisce dal calendario invece di restarci
+ * come pallino (resta nell'elenco Richieste, dove serve al manager).
+ */
 export const REQUEST_STATUSES = [
   'in_attesa',
   'accettata',
   'in_corso',
-  'da_verificare',
   'completata',
   'cancellata',
-  'cancellata_guesty',
 ] as const
 export type RequestStatus = (typeof REQUEST_STATUSES)[number]
 
@@ -524,11 +529,6 @@ export const STATUS_META: Record<RequestStatus, StatusMeta> = {
     dot: 'bg-status-progress',
     chip: 'bg-status-progress/12 text-status-progress ring-1 ring-inset ring-status-progress/25',
   },
-  da_verificare: {
-    value: 'da_verificare', label: 'Da Verificare',
-    dot: 'bg-status-verify',
-    chip: 'bg-status-verify/12 text-status-verify ring-1 ring-inset ring-status-verify/25',
-  },
   completata: {
     value: 'completata', label: 'Completata',
     dot: 'bg-status-done',
@@ -536,11 +536,6 @@ export const STATUS_META: Record<RequestStatus, StatusMeta> = {
   },
   cancellata: {
     value: 'cancellata', label: 'Cancellata',
-    dot: 'bg-status-cancelled',
-    chip: 'bg-status-cancelled/12 text-status-cancelled ring-1 ring-inset ring-status-cancelled/25',
-  },
-  cancellata_guesty: {
-    value: 'cancellata_guesty', label: 'Cancellata Guesty',
     dot: 'bg-status-cancelled',
     chip: 'bg-status-cancelled/12 text-status-cancelled ring-1 ring-inset ring-status-cancelled/25',
   },

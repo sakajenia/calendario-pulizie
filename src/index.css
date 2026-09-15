@@ -187,6 +187,19 @@
     overscroll-behavior-x: none;
   }
 
+  html {
+    /*
+     * Chrome su Android ingrandisce da solo il testo dentro i blocchi piu'
+     * larghi dello schermo ("font boosting"): e' il motivo per cui sul
+     * telefono sembrava tutto piu' grande. Qui si chiede di lasciarlo com'e'.
+     */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Niente zoom al doppio tocco: l'app resta alla scala in cui si e' aperta. */
+  body { touch-action: manipulation; }
+
 
   h1, h2, h3, h4 { @apply font-display tracking-tight; }
 

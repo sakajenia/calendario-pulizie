@@ -9,6 +9,24 @@ import { cn } from '@/lib/utils'
  */
 const SRC = '/logo-propromanager.png'
 
+/** Solo il simbolo, la stessa immagine dell'icona dell'app. */
+const ICONA = '/icona-192.png'
+
+/**
+ * Il simbolo da solo, piccolo. Nella barra laterale il lockup completo mangiava
+ * troppo spazio in altezza e in larghezza: li' basta il marchio.
+ */
+export function LogoIcon({ className }: { className?: string }) {
+  return (
+    <img
+      src={ICONA}
+      alt="ProProManager"
+      className={cn('size-7 shrink-0 select-none rounded-md', className)}
+      draggable={false}
+    />
+  )
+}
+
 export function Logo({
   className, panel = false,
 }: {

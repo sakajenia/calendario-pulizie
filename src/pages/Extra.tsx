@@ -72,9 +72,9 @@ const SCOPE_META: Record<ExtraScope, ScopeMeta> = {
 }
 
 /** Le richieste ancora da chiudere: sono quelle che impegnano davvero il magazzino. */
-const OPEN_STATUSES = new Set<RequestStatus>(['in_attesa', 'accettata', 'in_corso', 'da_verificare'])
+const OPEN_STATUSES = new Set<RequestStatus>(['in_attesa', 'accettata', 'in_corso'])
 
-const CANCELLED_STATUSES = new Set<RequestStatus>(['cancellata', 'cancellata_guesty'])
+const CANCELLED_STATUSES = new Set<RequestStatus>(['cancellata'])
 
 type Basis = 'open' | 'last30' | 'all'
 
