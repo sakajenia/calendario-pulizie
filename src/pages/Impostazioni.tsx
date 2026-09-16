@@ -460,7 +460,7 @@ export default function Impostazioni() {
                   'flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-4 py-3 text-sm',
                   archivio.stato === 'collegato' && 'border-status-accepted/30 bg-status-accepted/10',
                   archivio.stato === 'errore' && 'border-destructive/40 bg-destructive/10',
-                  archivio.stato === 'spento' && 'border-border bg-muted/40',
+                  (archivio.stato === 'spento' || archivio.stato === 'verifica') && 'border-border bg-muted/40',
                 )}
               >
                 <span className="font-medium">Archivio condiviso:</span>
@@ -468,6 +468,9 @@ export default function Impostazioni() {
                   <span className="text-status-accepted">
                     collegato{archivio.ultimo ? ` · ultimo scambio alle ${fmtOra(archivio.ultimo)}` : ''}
                   </span>
+                )}
+                {archivio.stato === 'verifica' && (
+                  <span className="text-muted-foreground">controllo in corso…</span>
                 )}
                 {archivio.stato === 'spento' && (
                   <span className="text-muted-foreground">

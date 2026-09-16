@@ -7,8 +7,8 @@ import type {
 } from '@/types'
 import * as seed from './seed'
 import {
-  TIPI_SINCRONIZZATI, accediArchivio, dimenticaGettone, haGettone, spingiNellArchivio,
-  tiraDallArchivio,
+  TIPI_SINCRONIZZATI, accediArchivio, archivioDisponibile, dimenticaGettone, haGettone,
+  spingiNellArchivio, tiraDallArchivio,
   type RigaArchivio, type TipoSincronizzato,
 } from './archivio'
 import { buildNotifications } from '@/lib/notifications'
@@ -66,7 +66,8 @@ interface State {
   sincronizzatoFino: number
   /** Come sta andando lo scambio: lo racconta la pagina Impostazioni. */
   archivio: {
-    stato: 'spento' | 'collegato' | 'errore'
+    /** "verifica" e' il momento prima di sapere: non si avvisa di niente. */
+    stato: 'verifica' | 'spento' | 'collegato' | 'errore'
     messaggio?: string
     /** Ultimo scambio riuscito. */
     ultimo?: string
@@ -168,7 +169,7 @@ const baseData = () => ({
   removedIds: [] as string[],
   seedIds: seed.SEED_IDS,
   sincronizzatoFino: 0,
-  archivio: { stato: 'spento' as const },
+  archivio: { stato: 'verifica' as const },
   inspections: seed.inspections,
   interventions: seed.interventions,
   adminExpenses: seed.adminExpenses,
@@ -293,7 +294,7 @@ function migrateState(persisted: unknown): ReturnType<typeof baseData> & { curre
     interventions: riallinea(salvato.interventions, base.interventions, rimossi, storici),
     adminExpenses: riallinea(salvato.adminExpenses, base.adminExpenses, rimossi, storici),
     sincronizzatoFino: salvato.sincronizzatoFino ?? 0,
-    archivio: { stato: 'spento' },
+    archivio: { stato: 'verifica' },
     filters: emptyFilters,
   }
 }
@@ -443,7 +444,7 @@ export const useStore = create<State>()(
       logout: () => {
         dimenticaGettone()
         impronteInviate.clear()
-        set({ currentUserId: null, filters: emptyFilters, archivio: { stato: 'spento' } })
+        set({ currentUserId: null, filters: emptyFilters, archivio: { stato: 'verifica' } })
       },
       switchUser: (id) => set({ currentUserId: id, filters: emptyFilters }),
 
@@ -656,7 +657,22 @@ export const useStore = create<State>()(
         set((s) => ({ readNotifications: [...new Set([...s.readNotifications, ...ids])] })),
 
       sincronizza: async () => {
-        if (!haGettone()) return
+        /* Senza gettone non si scambia niente, ma si guarda lo stesso se
+           l'archivio c'e': ricaricando la pagina il gettone resta e questo non
+           serve, ma chi e' entrato in locale deve continuare a vedere
+           l'avviso, non trovarselo sparito al primo ricaricamento. */
+        if (!haGettone()) {
+          const raggiungibile = await archivioDisponibile()
+          set({
+            archivio: {
+              stato: 'spento',
+              messaggio: raggiungibile
+                ? 'Rientra con la password per sincronizzare con gli altri dispositivi'
+                : 'Archivio condiviso non collegato',
+            },
+          })
+          return
+        }
         const prima = get()
 
         /* Prima si manda, poi si prende: cosi' quello che ho appena scritto

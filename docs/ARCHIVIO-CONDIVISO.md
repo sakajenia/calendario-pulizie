@@ -8,46 +8,54 @@ Finché l'archivio non è collegato l'app continua a funzionare esattamente come
 prima, con i dati sul singolo dispositivo. Non si rompe niente: si limita a
 dire, in Impostazioni, che l'archivio non è collegato.
 
-## I tre passaggi
+## Accenderlo
 
-Servono una volta sola, dal computer, nella cartella del progetto.
+Dal computer, nella cartella del progetto:
 
-**1. Creare il database**
+```
+npm run archivio:accendi
+```
+
+Crea il database su Cloudflare, scrive da solo il suo identificativo in
+`wrangler.toml` e prepara le tabelle con i tre accessi (ProProManager, Angela,
+Comfy) e le password già in uso. Si può rilanciare quante volte si vuole: se il
+database c'è già non lo rifà.
+
+Se risponde che non sei collegato a Cloudflare, prima:
+
+```
+npx wrangler login
+```
+
+Poi restano due comandi:
+
+```
+npx wrangler secret put SYNC_SECRET
+npm run deploy
+```
+
+Il primo chiede una frase a piacere: firma i gettoni di accesso e non va
+condivisa con nessuno. Saltandolo l'app funziona lo stesso, ma con una firma
+predefinita, nota a chiunque legga questo codice.
+
+### A mano, se si preferisce
 
 ```
 npx wrangler d1 create propromanager
 ```
 
-Cloudflare risponde con un identificativo lungo (`database_id`). Va incollato
-in `wrangler.toml`, al posto di `DA_COMPILARE`.
-
-In alternativa si crea dal pannello: **Workers & Pages → D1 → Create
-database**, nome `propromanager`, e l'identificativo si legge nella scheda del
-database.
-
-**2. Creare le tabelle**
+L'identificativo che risponde (`database_id`) va incollato in `wrangler.toml`.
+Poi:
 
 ```
 npx wrangler d1 execute propromanager --remote --file=worker/schema.sql
 ```
 
-Questo crea le due tabelle e i tre accessi (ProProManager, Angela, Comfy) con
-le password già in uso nell'app.
-
-**3. Impostare la firma degli accessi**
-
-```
-npx wrangler secret put SYNC_SECRET
-```
-
-Chiede una frase a piacere: serve a firmare i gettoni di accesso, e non va
-condivisa con nessuno. Saltandola l'app funziona lo stesso, con una firma
-predefinita che però è nota a chiunque legga questo codice.
-
-Poi si pubblica come sempre (`npm run deploy`, o il push su `main` se la build
-automatica è attiva).
-
 ## Come capire se sta funzionando
+
+Se l'archivio non è collegato, in cima a ogni pagina compare un avviso giallo:
+*"Archivio condiviso non collegato — quello che scrivi resta su questo
+dispositivo"*. Finché si vede quell'avviso, il team non riceve niente.
 
 In **Impostazioni → Dati** c'è la riga **Archivio condiviso**:
 

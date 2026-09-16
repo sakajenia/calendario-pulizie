@@ -12,9 +12,8 @@
     "shoot": "node scripts/shoot.mjs",
     "check:contrast": "node scripts/check-contrast.mjs",
     "deploy": "npm run build && wrangler deploy",
-    "db:crea": "wrangler d1 create propromanager",
-    "db:tabelle": "wrangler d1 execute propromanager --remote --file=worker/schema.sql",
-    "typecheck:worker": "tsc -p worker/tsconfig.json"
+    "typecheck:worker": "tsc -p worker/tsconfig.json",
+    "archivio:accendi": "node scripts/accendi-archivio.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

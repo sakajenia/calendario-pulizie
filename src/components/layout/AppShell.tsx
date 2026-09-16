@@ -3,7 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import {
   Bell, Building2, CalendarDays, ClipboardList, KeyRound, LayoutDashboard,
-  LogOut, Moon, Receipt, Search, Settings, Sun, Users, Wallet, Menu, X,
+  CloudOff, LogOut, Moon, Receipt, Search, Settings, Sun, Users, Wallet, Menu, X,
 } from 'lucide-react'
 import { Logo, LogoIcon } from '@/components/brand/Logo'
 import { CommandPalette } from '@/components/CommandPalette'
@@ -212,6 +212,8 @@ export function AppShell() {
           </div>
         </header>
 
+        <AvvisoArchivio />
+
         <main id="contenuto" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto focus:outline-none">
           <Outlet />
         </main>
@@ -221,6 +223,50 @@ export function AppShell() {
 }
 
 /** Intestazione standard di pagina. */
+/**
+ * Quando l'archivio condiviso non e' collegato, l'app funziona ma quello che
+ * si scrive resta su questo dispositivo. E' l'informazione piu' importante che
+ * ci sia - senza, si crede di aver aggiornato il team e non e' vero - quindi
+ * sta in testa alla pagina e non dentro Impostazioni.
+ */
+function AvvisoArchivio() {
+  const archivio = useStore((s) => s.archivio)
+  const [chiuso, setChiuso] = React.useState(false)
+  if (archivio.stato === 'collegato' || archivio.stato === 'verifica' || chiuso) return null
+
+  const guasto = archivio.stato === 'errore'
+  return (
+    <div
+      role="status"
+      className={cn(
+        'flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-2 text-sm',
+        guasto
+          ? 'border-destructive/40 bg-destructive/10 text-status-cancelled'
+          : 'border-status-pending/40 bg-status-pending/10 text-status-pending',
+      )}
+    >
+      <CloudOff className="size-4 shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1">
+        <strong className="font-semibold">Archivio condiviso non collegato.</strong>{' '}
+        {guasto
+          ? archivio.messaggio
+          : 'Quello che scrivi resta su questo dispositivo: gli altri non lo vedono.'}
+      </span>
+      <NavLink to="/impostazioni" className="shrink-0 font-medium underline underline-offset-2">
+        Dettagli
+      </NavLink>
+      <button
+        type="button"
+        onClick={() => setChiuso(true)}
+        aria-label="Nascondi l'avviso"
+        className="shrink-0 rounded p-0.5 opacity-70 transition-opacity hover:opacity-100 focus-ring"
+      >
+        <X className="size-4" />
+      </button>
+    </div>
+  )
+}
+
 export function PageHeader({
   title, subtitle, actions, aside, className,
 }: {

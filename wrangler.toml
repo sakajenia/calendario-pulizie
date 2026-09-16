@@ -12,6 +12,9 @@ compatibility_date = "2026-09-02"
 directory = "./dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
+# Senza questa riga /api finirebbe nel fallback della SPA: il router degli
+# asset risponderebbe con index.html e il Worker non verrebbe mai chiamato.
+run_worker_first = ["/api/*"]
 
 # L'archivio condiviso. Il database si crea una volta sola dal pannello
 # Cloudflare (Workers & Pages > D1 > Create) oppure con:
