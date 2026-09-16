@@ -23,7 +23,9 @@ function blank(apartmentId: string, hostId: string, date = TODAY): CleaningReque
   const co = new Date(date); co.setHours(10, 0, 0, 0)
   const ci = new Date(date); ci.setHours(15, 0, 0, 0)
   return {
-    id: `req-${Math.random().toString(36).slice(2, 9)}`,
+    /* L'orario nell'identificativo dice che la pulizia e' stata creata qui
+       dentro: l'allineamento dei dati di riferimento non deve toccarla. */
+    id: `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     apartmentId, hostId, status: 'in_attesa',
     createdAt: new Date().toISOString(),
     checkOutAt: co.toISOString(), checkInAt: ci.toISOString(),

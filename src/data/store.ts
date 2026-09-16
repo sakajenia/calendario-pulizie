@@ -51,6 +51,12 @@ interface State {
    * ancora.
    */
   removedIds: string[]
+  /**
+   * Identificativi che sono arrivati dai dati di riferimento. Confrontandoli
+   * con quelli attuali si capisce cosa e' un residuo di una versione passata e
+   * va tolto, e cosa invece e' stato creato qui dentro e resta.
+   */
+  seedIds: string[]
   filters: RequestFilters
 
   /** L'identificativo e' l'email oppure il nome utente. */
@@ -137,6 +143,7 @@ const baseData = () => ({
   warehouses: seed.warehouses,
   readNotifications: [] as string[],
   removedIds: [] as string[],
+  seedIds: seed.SEED_IDS,
   inspections: seed.inspections,
   interventions: seed.interventions,
   adminExpenses: seed.adminExpenses,
@@ -163,7 +170,7 @@ type Salvato = Partial<Pick<
   State,
   'currentUserId' | 'users' | 'apartments' | 'requests' | 'taskCatalog' | 'workSheets'
   | 'extraCatalog' | 'warehouses' | 'readNotifications' | 'inspections' | 'interventions'
-  | 'adminExpenses' | 'removedIds'
+  | 'adminExpenses' | 'removedIds' | 'seedIds'
 >>
 
 /**
@@ -171,13 +178,45 @@ type Salvato = Partial<Pick<
  * arriva solo cio' che manca. E' il modo di far arrivare le novita' senza
  * toccare il lavoro di chi usa l'app.
  */
-function aggiungiMancanti<T extends { id: string }>(
-  salvati: T[] | undefined, dalSeme: T[], rimossi?: Set<string>,
+/**
+ * Com'erano fatti gli identificativi dei dati di riferimento nelle versioni
+ * precedenti. Serve una volta sola: su un dispositivo che aveva gia' l'app
+ * aperta non c'e' l'elenco `seedIds`, e senza questo i vecchi calendari
+ * resterebbero accanto a quelli nuovi.
+ */
+const RESIDUO_DI_SEME = [
+  /^req-\d+-\d+$/, /^req-ferma-\d+$/, /^req-ap-[a-z]+-\d+$/,
+  /^insp-\d+$/, /^insp-ap-[a-z]+-\d+$/,
+  /^ric-[a-z0-9-]+-\d{6}$/, /^task-[a-z]+-\d+$/,
+  /^int-\d+$/, /^spe-\d+$/,
+]
+
+/**
+ * Se l'identificativo e' nato dai dati di riferimento. Quelli creati dentro
+ * l'app portano l'orario di creazione - tredici cifre - e non lo sono mai.
+ */
+function veniveDalSeme(id: string, storici: Set<string>): boolean {
+  if (/\d{13}/.test(id)) return false
+  if (storici.size > 0) return storici.has(id)
+  return RESIDUO_DI_SEME.some((re) => re.test(id))
+}
+
+/**
+ * Allinea una raccolta ai dati di riferimento.
+ *
+ * Resta quello che c'e' ancora nel seme e tutto quello che e' stato creato
+ * dentro l'app; se ne va solo cio' che veniva dal seme e dal seme e' sparito.
+ * Arriva quello che manca, salvo sia stato eliminato apposta.
+ */
+function riallinea<T extends { id: string }>(
+  salvati: T[] | undefined, dalSeme: T[], rimossi: Set<string>, storici: Set<string>,
 ): T[] {
   if (!Array.isArray(salvati)) return dalSeme
-  const presenti = new Set(salvati.map((x) => x.id))
-  const nuovi = dalSeme.filter((x) => !presenti.has(x.id) && !rimossi?.has(x.id))
-  return nuovi.length ? [...nuovi, ...salvati] : salvati
+  const nelSeme = new Set(dalSeme.map((x) => x.id))
+  const tenuti = salvati.filter((x) => nelSeme.has(x.id) || !veniveDalSeme(x.id, storici))
+  const presenti = new Set(tenuti.map((x) => x.id))
+  const nuovi = dalSeme.filter((x) => !presenti.has(x.id) && !rimossi.has(x.id))
+  return nuovi.length || tenuti.length !== salvati.length ? [...nuovi, ...tenuti] : salvati
 }
 
 /** Segna come eliminato, senza ripetizioni. */
@@ -197,6 +236,7 @@ function migrateState(persisted: unknown): ReturnType<typeof baseData> & { curre
 
 
   const rimossi = new Set(salvato.removedIds ?? [])
+  const storici = new Set(salvato.seedIds ?? [])
 
   const apartments = [
     ...salvato.apartments!.map((a) => {
@@ -206,7 +246,7 @@ function migrateState(persisted: unknown): ReturnType<typeof baseData> & { curre
     ...base.apartments.filter(
       (b) => !salvato.apartments!.some((a) => a.id === b.id) && !rimossi.has(b.id),
     ),
-  ]
+  ].filter((a) => base.apartments.some((b) => b.id === a.id) || !veniveDalSeme(a.id, storici))
 
   /* Gli account di servizio li decidiamo noi: chi e' stato aggiunto dentro
      l'app resta com'e'. */
@@ -216,16 +256,17 @@ function migrateState(persisted: unknown): ReturnType<typeof baseData> & { curre
     currentUserId: salvato.currentUserId ?? null,
     users: [...base.users, ...suoi],
     apartments,
-    requests: aggiungiMancanti(salvato.requests, base.requests, rimossi),
-    taskCatalog: aggiungiMancanti(salvato.taskCatalog, base.taskCatalog, rimossi),
-    workSheets: aggiungiMancanti(salvato.workSheets, base.workSheets, rimossi),
-    extraCatalog: aggiungiMancanti(salvato.extraCatalog, base.extraCatalog, rimossi),
-    warehouses: aggiungiMancanti(salvato.warehouses, base.warehouses, rimossi),
+    requests: riallinea(salvato.requests, base.requests, rimossi, storici),
+    taskCatalog: riallinea(salvato.taskCatalog, base.taskCatalog, rimossi, storici),
+    workSheets: riallinea(salvato.workSheets, base.workSheets, rimossi, storici),
+    extraCatalog: riallinea(salvato.extraCatalog, base.extraCatalog, rimossi, storici),
+    warehouses: riallinea(salvato.warehouses, base.warehouses, rimossi, storici),
     readNotifications: salvato.readNotifications ?? [],
     removedIds: salvato.removedIds ?? [],
-    inspections: aggiungiMancanti(salvato.inspections, base.inspections, rimossi),
-    interventions: aggiungiMancanti(salvato.interventions, base.interventions, rimossi),
-    adminExpenses: aggiungiMancanti(salvato.adminExpenses, base.adminExpenses, rimossi),
+    seedIds: seed.SEED_IDS,
+    inspections: riallinea(salvato.inspections, base.inspections, rimossi, storici),
+    interventions: riallinea(salvato.interventions, base.interventions, rimossi, storici),
+    adminExpenses: riallinea(salvato.adminExpenses, base.adminExpenses, rimossi, storici),
     filters: emptyFilters,
   }
 }
@@ -349,22 +390,32 @@ export const useStore = create<State>()(
         set((s) => {
           const base = baseData()
           const rimossi = new Set(s.removedIds)
-          const inspections = aggiungiMancanti(
-            aggiungiMancanti(s.inspections, base.inspections, rimossi),
-            seed.recurringInspections(new Date()),
-            rimossi,
-          )
+          const storici = new Set(s.seedIds ?? [])
+          /* Le scadenze dei mesi avanti non stanno nel seme di partenza: si
+             generano qui, e non vanno confuse con i residui da togliere. */
+          const ricorrenti = seed.recurringInspections(new Date())
+          /* Un confronto solo, contro tutto il riferimento: passando prima per
+             i controlli e poi per le scadenze, il secondo giro scambiava i
+             controlli per residui e li cancellava. */
+          const riferimento = [
+            ...base.inspections,
+            ...ricorrenti.filter((r) => !base.inspections.some((b) => b.id === r.id)),
+          ]
+          const inspections = riallinea(s.inspections, riferimento, rimossi, storici)
           const next = {
-            users: aggiungiMancanti(s.users, base.users, rimossi),
-            apartments: aggiungiMancanti(s.apartments, base.apartments, rimossi),
-            requests: aggiungiMancanti(s.requests, base.requests, rimossi),
+            users: riallinea(s.users, base.users, rimossi, storici),
+            apartments: riallinea(s.apartments, base.apartments, rimossi, storici),
+            requests: riallinea(s.requests, base.requests, rimossi, storici),
             inspections,
-            interventions: aggiungiMancanti(s.interventions, base.interventions, rimossi),
-            adminExpenses: aggiungiMancanti(s.adminExpenses, base.adminExpenses, rimossi),
+            interventions: riallinea(s.interventions, base.interventions, rimossi, storici),
+            adminExpenses: riallinea(s.adminExpenses, base.adminExpenses, rimossi, storici),
+            seedIds: [...seed.SEED_IDS, ...ricorrenti.map((i) => i.id)],
           }
           /* Senza novita' non si riscrive niente: un `set` a vuoto farebbe
              ridisegnare mezza app a ogni apertura. */
-          const cambiato = (Object.keys(next) as (keyof typeof next)[]).some((k) => next[k] !== s[k])
+          const cambiato = (Object.keys(next) as (keyof typeof next)[])
+            .filter((k) => k !== 'seedIds')
+            .some((k) => next[k] !== s[k]) || (s.seedIds ?? []).length === 0
           return cambiato ? next : {}
         }),
 
@@ -511,7 +562,7 @@ export const useStore = create<State>()(
        * ogni cambiamento, e con l'app ormai in uso quel gesto cancellerebbe le
        * task e le pulizie inserite a mano.
        */
-      version: 11,
+      version: 12,
       migrate: (persisted) => migrateState(persisted),
       partialize: (s) => ({
         currentUserId: s.currentUserId,
@@ -524,6 +575,7 @@ export const useStore = create<State>()(
         warehouses: s.warehouses,
         readNotifications: s.readNotifications,
         removedIds: s.removedIds,
+        seedIds: s.seedIds,
         inspections: s.inspections,
         interventions: s.interventions,
         adminExpenses: s.adminExpenses,

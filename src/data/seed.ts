@@ -690,3 +690,24 @@ export const adminExpenses: AdminExpense[] = EXPENSE_PLAN.map(
     createdById: 'u-admin',
   }),
 )
+
+/* ------------------------------------------- identificativi dei dati ---- */
+
+/**
+ * Tutto quello che nasce da questo file. Serve all'allineamento di avvio: cio'
+ * che una volta veniva da qui e adesso non c'e' piu' va tolto, altrimenti sul
+ * dispositivo di chi aveva gia' aperto l'app resterebbe accanto ai dati nuovi -
+ * due calendari sovrapposti, uno vecchio e uno buono.
+ */
+export const SEED_IDS: string[] = [
+  ...users.map((u) => u.id),
+  ...apartments.map((a) => a.id),
+  ...requests.map((r) => r.id),
+  ...inspections.map((i) => i.id),
+  ...interventions.map((i) => i.id),
+  ...adminExpenses.map((e) => e.id),
+  ...taskCatalog.map((t) => t.id),
+  ...workSheets.map((w) => w.id),
+  ...extraCatalog.map((e) => e.id),
+  ...warehouses.map((w) => w.id),
+]
