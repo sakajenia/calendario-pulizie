@@ -10,7 +10,7 @@ import {
 } from '@/components/ui'
 import { StatusChip } from '@/components/StatusChip'
 import { scopeApartments, scopeRequests, useCurrentUser, useNotifications, useStore } from '@/data/store'
-import { downloadFile, fmtDate, fmtNum, plural } from '@/lib/format'
+import { downloadFile, fmtDate, fmtNum, fmtTime as fmtOra, plural } from '@/lib/format'
 import { REQUEST_STATUSES, ROLE_META, STATUS_META, type RequestStatus } from '@/types'
 import { useTheme } from '@/hooks/useTheme'
 import { cn } from '@/lib/utils'
@@ -78,6 +78,7 @@ export default function Impostazioni() {
   const upsertUser = useStore((s) => s.upsertUser)
   const resetData = useStore((s) => s.resetData)
   const importData = useStore((s) => s.importData)
+  const archivio = useStore((s) => s.archivio)
 
   const [form, setForm] = React.useState({ name: user?.name ?? '', phone: user?.phone ?? '' })
   const [errors, setErrors] = React.useState<{ name?: string; phone?: string }>({})
@@ -443,14 +444,41 @@ export default function Impostazioni() {
                 Dati dimostrativi
               </h2>
               <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
-                I dati vivono nel browser di questo dispositivo e non vengono inviati ad alcun
-                server: quello che inserisci dal computer non compare da solo sul telefono, e
-                viceversa. Per portarli da una parte all'altra usa <strong>Esporta i dati</strong> qui
-                e <strong>Importa i dati</strong> sull'altro dispositivo: quello che arriva si unisce
-                a quello che c'è, senza cancellarlo. L'export contiene i dati visibili al tuo ruolo.
+                Con l'archivio condiviso collegato, quello che scrivi arriva agli altri in pochi
+                secondi: ogni dispositivo manda quello che ha cambiato e prende quello che è
+                cambiato altrove. Senza archivio i dati restano su questo dispositivo, e per
+                portarli altrove ci sono <strong>Esporta</strong> e <strong>Importa</strong>: quello
+                che arriva si unisce a quello che c'è, senza cancellarlo. L'export contiene i dati
+                visibili al tuo ruolo.
               </p>
             </div>
             <div className="space-y-5">
+              {/* Come sta andando lo scambio con l'archivio condiviso: e' la
+                  prima cosa da guardare quando "sul telefono non si vede". */}
+              <div
+                className={cn(
+                  'flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-4 py-3 text-sm',
+                  archivio.stato === 'collegato' && 'border-status-accepted/30 bg-status-accepted/10',
+                  archivio.stato === 'errore' && 'border-destructive/40 bg-destructive/10',
+                  archivio.stato === 'spento' && 'border-border bg-muted/40',
+                )}
+              >
+                <span className="font-medium">Archivio condiviso:</span>
+                {archivio.stato === 'collegato' && (
+                  <span className="text-status-accepted">
+                    collegato{archivio.ultimo ? ` · ultimo scambio alle ${fmtOra(archivio.ultimo)}` : ''}
+                  </span>
+                )}
+                {archivio.stato === 'spento' && (
+                  <span className="text-muted-foreground">
+                    non collegato · i dati restano su questo dispositivo
+                  </span>
+                )}
+                {archivio.stato === 'errore' && (
+                  <span className="text-status-cancelled">{archivio.messaggio}</span>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {dataset.map((d) => (
                   <div key={d.label} className="rounded-lg border border-border px-3 py-2">

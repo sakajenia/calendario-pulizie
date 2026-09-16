@@ -8,7 +8,7 @@ import { useStore } from '@/data/store'
 const APP_VERSION = '1.0.0'
 
 export default function Login() {
-  const login = useStore((s) => s.login)
+  const login = useStore((s) => s.loginArchivio)
   const navigate = useNavigate()
   const [email, setEmail] = React.useState('')
   const [password, setPassword] = React.useState('')
@@ -27,12 +27,12 @@ export default function Login() {
     if (!pass) return setError('Inserisci una password')
 
     setLoading(true)
-    window.setTimeout(() => {
-      const res = login(mail, pass)
+    void (async () => {
+      const res = await login(id, pass)
       setLoading(false)
       if (res.ok) navigate('/calendario')
       else setError(res.error)
-    }, 450)
+    })()
   }
 
   const submit = (e: React.FormEvent) => {

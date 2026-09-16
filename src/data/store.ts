@@ -6,6 +6,11 @@ import type {
   InspectionTask, Intervention, RequestStatus, TaskCatalogItem, User, Warehouse, WorkSheet,
 } from '@/types'
 import * as seed from './seed'
+import {
+  TIPI_SINCRONIZZATI, accediArchivio, dimenticaGettone, haGettone, spingiNellArchivio,
+  tiraDallArchivio,
+  type RigaArchivio, type TipoSincronizzato,
+} from './archivio'
 import { buildNotifications } from '@/lib/notifications'
 import type { AppNotification } from '@/types'
 
@@ -57,10 +62,21 @@ interface State {
    * va tolto, e cosa invece e' stato creato qui dentro e resta.
    */
   seedIds: string[]
+  /** Fin dove e' arrivato lo scambio con l'archivio, in millisecondi del server. */
+  sincronizzatoFino: number
+  /** Come sta andando lo scambio: lo racconta la pagina Impostazioni. */
+  archivio: {
+    stato: 'spento' | 'collegato' | 'errore'
+    messaggio?: string
+    /** Ultimo scambio riuscito. */
+    ultimo?: string
+  }
   filters: RequestFilters
 
   /** L'identificativo e' l'email oppure il nome utente. */
   login: (identifier: string, password: string) => { ok: boolean; error?: string }
+  /** Accesso che passa dall'archivio condiviso, con rientro in locale. */
+  loginArchivio: (identifier: string, password: string) => Promise<{ ok: boolean; error?: string }>
   logout: () => void
   switchUser: (id: string) => void
 
@@ -131,6 +147,13 @@ interface State {
    * un server, quindi il passaggio va fatto a mano.
    */
   importData: (payload: unknown) => { ok: boolean; error?: string; conteggio?: number }
+
+  /**
+   * Un giro di scambio con l'archivio condiviso: manda quello che e' cambiato
+   * qui, prende quello che e' cambiato altrove. Si chiama ogni pochi secondi
+   * (vedi `useArchivioCondiviso`) e non fa niente se l'archivio non c'e'.
+   */
+  sincronizza: () => Promise<void>
 }
 
 const baseData = () => ({
@@ -144,6 +167,8 @@ const baseData = () => ({
   readNotifications: [] as string[],
   removedIds: [] as string[],
   seedIds: seed.SEED_IDS,
+  sincronizzatoFino: 0,
+  archivio: { stato: 'spento' as const },
   inspections: seed.inspections,
   interventions: seed.interventions,
   adminExpenses: seed.adminExpenses,
@@ -170,7 +195,7 @@ type Salvato = Partial<Pick<
   State,
   'currentUserId' | 'users' | 'apartments' | 'requests' | 'taskCatalog' | 'workSheets'
   | 'extraCatalog' | 'warehouses' | 'readNotifications' | 'inspections' | 'interventions'
-  | 'adminExpenses' | 'removedIds' | 'seedIds'
+  | 'adminExpenses' | 'removedIds' | 'seedIds' | 'sincronizzatoFino'
 >>
 
 /**
@@ -267,9 +292,96 @@ function migrateState(persisted: unknown): ReturnType<typeof baseData> & { curre
     inspections: riallinea(salvato.inspections, base.inspections, rimossi, storici),
     interventions: riallinea(salvato.interventions, base.interventions, rimossi, storici),
     adminExpenses: riallinea(salvato.adminExpenses, base.adminExpenses, rimossi, storici),
+    sincronizzatoFino: salvato.sincronizzatoFino ?? 0,
+    archivio: { stato: 'spento' },
     filters: emptyFilters,
   }
 }
+
+/* ------------------------------------------------- archivio condiviso ---- */
+
+/**
+ * Cos'e' gia' stato scambiato con l'archivio, per chiave e impronta. Vive in
+ * memoria e si ricostruisce da sola al primo giro dopo l'apertura: e' solo il
+ * modo di non rimandare ogni volta tutto l'archivio.
+ */
+const impronteInviate = new Map<string, string>()
+
+const improntaRiga = (r: { dati?: unknown }) => JSON.stringify(r.dati ?? null)
+
+/** Le raccolte che viaggiano, con dentro il loro nome per l'archivio. */
+const raccolteSincronizzate = (s: State): Record<TipoSincronizzato, { id: string }[]> => ({
+  users: s.users,
+  apartments: s.apartments,
+  requests: s.requests,
+  inspections: s.inspections,
+  interventions: s.interventions,
+  adminExpenses: s.adminExpenses,
+})
+
+/** Quello che qui e' cambiato e l'archivio non sa ancora. */
+function righeCambiate(s: State): RigaArchivio[] {
+  const fuori: RigaArchivio[] = []
+  const raccolte = raccolteSincronizzate(s)
+  const vivi = new Set<string>()
+
+  for (const tipo of TIPI_SINCRONIZZATI) {
+    for (const dati of raccolte[tipo]) {
+      const chiave = `${tipo}:${dati.id}`
+      vivi.add(chiave)
+      const impronta = JSON.stringify(dati)
+      if (impronteInviate.get(chiave) !== impronta) fuori.push({ tipo, id: dati.id, dati })
+    }
+  }
+
+  /* Le eliminazioni viaggiano come tracce: senza, quello che uno cancella
+     tornerebbe indietro dal dispositivo di un altro. */
+  for (const id of s.removedIds) {
+    for (const tipo of TIPI_SINCRONIZZATI) {
+      const chiave = `${tipo}:${id}`
+      if (vivi.has(chiave)) continue
+      if (impronteInviate.get(chiave) === 'eliminato') continue
+      if (!impronteInviate.has(chiave)) continue
+      fuori.push({ tipo, id, eliminato: true })
+    }
+  }
+  return fuori
+}
+
+/** Porta dentro le righe arrivate dall'archivio. */
+function applicaRighe(s: State, record: Required<RigaArchivio>[]): Partial<State> {
+  const raccolte = raccolteSincronizzate(s)
+  const prossime = Object.fromEntries(
+    TIPI_SINCRONIZZATI.map((t) => [t, new Map(raccolte[t].map((x) => [x.id, x]))]),
+  ) as Record<TipoSincronizzato, Map<string, { id: string }>>
+  const eliminati: string[] = []
+
+  for (const r of record) {
+    if (!TIPI_SINCRONIZZATI.includes(r.tipo)) continue
+    if (r.eliminato) {
+      prossime[r.tipo].delete(r.id)
+      eliminati.push(r.id)
+    } else if (r.dati && typeof r.dati === 'object') {
+      prossime[r.tipo].set(r.id, r.dati as { id: string })
+    }
+  }
+
+  return {
+    users: [...prossime.users.values()] as State['users'],
+    apartments: [...prossime.apartments.values()] as State['apartments'],
+    requests: [...prossime.requests.values()] as State['requests'],
+    inspections: [...prossime.inspections.values()] as State['inspections'],
+    interventions: [...prossime.interventions.values()] as State['interventions'],
+    adminExpenses: [...prossime.adminExpenses.values()] as State['adminExpenses'],
+    removedIds: eliminati.length ? [...new Set([...s.removedIds, ...eliminati])] : s.removedIds,
+  }
+}
+
+/** Traduce l'esito di una chiamata in quello che si legge in Impostazioni. */
+const statoArchivio = (esito: { errore: string; assente?: boolean }): State['archivio'] =>
+  esito.assente
+    ? { stato: 'spento', messaggio: esito.errore }
+    : { stato: 'errore', messaggio: esito.errore }
 
 export const useStore = create<State>()(
   persist(
@@ -277,6 +389,40 @@ export const useStore = create<State>()(
       currentUserId: null,
       ...baseData(),
       filters: emptyFilters,
+
+      /*
+       * L'accesso prova prima l'archivio condiviso: e' li' che vivono le
+       * password vere e da li' arriva il gettone che permette lo scambio.
+       * Se l'archivio non c'e' si entra lo stesso, con i dati sul dispositivo,
+       * perche' l'app deve restare usabile anche senza rete.
+       */
+      loginArchivio: async (identifier, password) => {
+        const esito = await accediArchivio(identifier, password)
+        if (esito.ok) {
+          const locale = get().users.find((u) => u.id === esito.dati.id)
+          if (!locale) {
+            /* Un account creato nell'archivio da un altro dispositivo: entra
+               lo stesso, i suoi dati arrivano col primo giro di scambio. */
+            set((s) => ({
+              users: [{
+                id: esito.dati.id,
+                name: esito.dati.nome,
+                email: esito.dati.email,
+                username: esito.dati.username ?? undefined,
+                role: esito.dati.ruolo as User['role'],
+                active: true,
+                createdAt: nowIso(),
+              }, ...s.users],
+            }))
+          }
+          set({ currentUserId: esito.dati.id, archivio: { stato: 'collegato' } })
+          return { ok: true }
+        }
+        /* Password sbagliata: e' una risposta dell'archivio, non un guasto. */
+        if (!esito.assente) return { ok: false, error: esito.errore }
+        set({ archivio: statoArchivio(esito) })
+        return get().login(identifier, password)
+      },
 
       login: (identifier, password) => {
         /* Si entra con l'email o col nome utente: le ditte di pulizie usano il
@@ -294,7 +440,11 @@ export const useStore = create<State>()(
         set({ currentUserId: user.id })
         return { ok: true }
       },
-      logout: () => set({ currentUserId: null, filters: emptyFilters }),
+      logout: () => {
+        dimenticaGettone()
+        impronteInviate.clear()
+        set({ currentUserId: null, filters: emptyFilters, archivio: { stato: 'spento' } })
+      },
       switchUser: (id) => set({ currentUserId: id, filters: emptyFilters }),
 
       setFilters: (f) => set((s) => ({ filters: { ...s.filters, ...f } })),
@@ -505,6 +655,42 @@ export const useStore = create<State>()(
       markAllNotificationsRead: (ids) =>
         set((s) => ({ readNotifications: [...new Set([...s.readNotifications, ...ids])] })),
 
+      sincronizza: async () => {
+        if (!haGettone()) return
+        const prima = get()
+
+        /* Prima si manda, poi si prende: cosi' quello che ho appena scritto
+           non viene coperto da una versione piu' vecchia che arriva dal giro
+           precedente di qualcun altro. */
+        const daMandare = righeCambiate(prima)
+        if (daMandare.length > 0) {
+          const inviato = await spingiNellArchivio(daMandare)
+          if (!inviato.ok) {
+            set({ archivio: statoArchivio(inviato) })
+            return
+          }
+          for (const r of daMandare) impronteInviate.set(`${r.tipo}:${r.id}`, improntaRiga(r))
+        }
+
+        const arrivato = await tiraDallArchivio(prima.sincronizzatoFino)
+        if (!arrivato.ok) {
+          set({ archivio: statoArchivio(arrivato) })
+          return
+        }
+
+        const { record, adesso } = arrivato.dati
+        if (record.length > 0) {
+          set((s) => applicaRighe(s, record))
+          for (const r of record) {
+            impronteInviate.set(`${r.tipo}:${r.id}`, r.eliminato ? 'eliminato' : improntaRiga(r))
+          }
+        }
+        set({
+          sincronizzatoFino: Math.max(adesso, prima.sincronizzatoFino),
+          archivio: { stato: 'collegato', ultimo: new Date().toISOString() },
+        })
+      },
+
       resetData: () => set({ ...baseData(), filters: emptyFilters }),
 
       importData: (payload) => {
@@ -576,6 +762,7 @@ export const useStore = create<State>()(
         readNotifications: s.readNotifications,
         removedIds: s.removedIds,
         seedIds: s.seedIds,
+        sincronizzatoFino: s.sincronizzatoFino,
         inspections: s.inspections,
         interventions: s.interventions,
         adminExpenses: s.adminExpenses,
@@ -648,4 +835,33 @@ export function useNotifications(): AppNotification[] {
       }),
     [requests, apartments, inspections, user, read],
   )
+}
+
+/**
+ * Tiene vivo lo scambio con l'archivio finche' l'app e' aperta.
+ *
+ * Il giro e' ogni sette secondi: per il lavoro di una squadra e' come il tempo
+ * reale, e non tiene aperto un collegamento che il telefono in tasca pagherebbe
+ * in batteria. Quando la scheda torna in primo piano si riparte subito, senza
+ * aspettare il turno.
+ */
+export function useArchivioCondiviso() {
+  const sincronizza = useStore((s) => s.sincronizza)
+  const collegato = useStore((s) => s.currentUserId) !== null
+
+  React.useEffect(() => {
+    if (!collegato) return
+    let vivo = true
+    const giro = () => { if (vivo && document.visibilityState === 'visible') void sincronizza() }
+    giro()
+    const battito = window.setInterval(giro, 7000)
+    document.addEventListener('visibilitychange', giro)
+    window.addEventListener('online', giro)
+    return () => {
+      vivo = false
+      window.clearInterval(battito)
+      document.removeEventListener('visibilitychange', giro)
+      window.removeEventListener('online', giro)
+    }
+  }, [collegato, sincronizza])
 }

@@ -1,9 +1,25 @@
-# Worker di soli asset statici: pubblica dist/ (SPA React Router) senza codice
-# server. "not_found_handling" fa da fallback su index.html per le rotte
-# dell'app (/appartamenti, /magazzini, ...) cosi' un link diretto non da 404.
+# Worker di ProProManager.
+#
+# Serve due cose: la pagina dell'app (gli asset di dist/) e l'archivio
+# condiviso sotto /api, cosi' il manager e gli operatori vedono gli stessi
+# dati. "not_found_handling" fa da fallback su index.html per le rotte
+# dell'app (/appartamenti, /accessi, ...) cosi' un link diretto non da 404.
 name = "calendario-pulizie"
+main = "worker/index.ts"
 compatibility_date = "2026-09-02"
 
 [assets]
 directory = "./dist"
+binding = "ASSETS"
 not_found_handling = "single-page-application"
+
+# L'archivio condiviso. Il database si crea una volta sola dal pannello
+# Cloudflare (Workers & Pages > D1 > Create) oppure con:
+#   npx wrangler d1 create propromanager
+# e poi si incolla qui sotto l'identificativo che Cloudflare restituisce.
+# Le tabelle si creano con:
+#   npx wrangler d1 execute propromanager --remote --file=worker/schema.sql
+[[d1_databases]]
+binding = "DB"
+database_name = "propromanager"
+database_id = "da-compilare-vedi-docs-ARCHIVIO-CONDIVISO"

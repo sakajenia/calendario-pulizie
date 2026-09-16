@@ -8,7 +8,7 @@ import {
 import { Logo, LogoIcon } from '@/components/brand/Logo'
 import { CommandPalette } from '@/components/CommandPalette'
 import { Button, Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui'
-import { useCurrentUser, useNotifications, useStore } from '@/data/store'
+import { useArchivioCondiviso, useCurrentUser, useNotifications, useStore } from '@/data/store'
 import { isManager } from '@/lib/permissions'
 import { ROLE_META } from '@/types'
 import { useTheme } from '@/hooks/useTheme'
@@ -88,6 +88,10 @@ export function AppShell() {
   /* Le scadenze fisse dei prossimi mesi devono esserci sempre: si rimettono
      all'apertura, non quando qualcuno si ricorda di crearle. */
   React.useEffect(() => { ensureRecurring() }, [ensureRecurring])
+
+  /* Lo scambio con l'archivio condiviso: quello che scrive il manager arriva
+     agli operatori senza che nessuno debba fare niente. */
+  useArchivioCondiviso()
   const isAdmin = user?.role === 'admin'
   const manager = isManager(user)
   const allowed = (e: NavEntry) => (!e.adminOnly || isAdmin) && (!e.managerOnly || manager)

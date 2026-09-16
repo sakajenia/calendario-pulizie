@@ -11,7 +11,10 @@
     "check:tokens": "node scripts/check-tokens.mjs",
     "shoot": "node scripts/shoot.mjs",
     "check:contrast": "node scripts/check-contrast.mjs",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "db:crea": "wrangler d1 create propromanager",
+    "db:tabelle": "wrangler d1 execute propromanager --remote --file=worker/schema.sql",
+    "typecheck:worker": "tsc -p worker/tsconfig.json"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -25,6 +28,7 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260916.1",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
@@ -33,6 +37,7 @@
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.7.2",
-    "vite": "^6.0.7"
+    "vite": "^6.0.7",
+    "wrangler": "^4.132.0"
   }
 }
