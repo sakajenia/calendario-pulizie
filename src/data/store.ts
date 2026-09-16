@@ -228,6 +228,39 @@ function veniveDalSeme(id: string, storici: Set<string>): boolean {
 }
 
 /**
+ * Due voci sono la stessa cosa quando dicono la stessa cosa: stesso tipo,
+ * stesso nome (o stessa casa, sui controlli), stesso giorno, stessa persona.
+ */
+const improntaVoce = (i: Inspection) => {
+  const quando = new Date(i.scheduledAt)
+  const nome = (i.title ?? i.apartmentId ?? '').trim().toLowerCase()
+  return `${i.kind}|${nome}|${quando.getFullYear()}-${quando.getMonth()}-${quando.getDate()}|${i.inspectorId}`
+}
+
+/**
+ * Toglie i doppioni fra quello che e' stato scritto a mano e quello che arriva
+ * dai dati di riferimento. Succede quando una voce inserita nell'app finisce
+ * poi anche nel riferimento: senza questo, in calendario comparirebbe due
+ * volte. Vince la copia scritta a mano, che porta le verifiche gia' spuntate.
+ */
+function senzaDoppioni(voci: Inspection[], storici: Set<string>): Inspection[] {
+  const viste = new Map<string, Inspection>()
+  for (const v of voci) {
+    const chiave = improntaVoce(v)
+    const gia = viste.get(chiave)
+    if (!gia) {
+      viste.set(chiave, v)
+      continue
+    }
+    const giaAMano = !veniveDalSeme(gia.id, storici)
+    const questaAMano = !veniveDalSeme(v.id, storici)
+    /* A parita', resta la prima: e' l'ordine in cui erano gia' in elenco. */
+    if (questaAMano && !giaAMano) viste.set(chiave, v)
+  }
+  return viste.size === voci.length ? voci : [...viste.values()]
+}
+
+/**
  * Allinea una raccolta ai dati di riferimento.
  *
  * Resta quello che c'e' ancora nel seme e tutto quello che e' stato creato
@@ -290,7 +323,7 @@ function migrateState(persisted: unknown): ReturnType<typeof baseData> & { curre
     readNotifications: salvato.readNotifications ?? [],
     removedIds: salvato.removedIds ?? [],
     seedIds: seed.SEED_IDS,
-    inspections: riallinea(salvato.inspections, base.inspections, rimossi, storici),
+    inspections: senzaDoppioni(riallinea(salvato.inspections, base.inspections, rimossi, storici), storici),
     interventions: riallinea(salvato.interventions, base.interventions, rimossi, storici),
     adminExpenses: riallinea(salvato.adminExpenses, base.adminExpenses, rimossi, storici),
     sincronizzatoFino: salvato.sincronizzatoFino ?? 0,
@@ -552,7 +585,7 @@ export const useStore = create<State>()(
             ...base.inspections,
             ...ricorrenti.filter((r) => !base.inspections.some((b) => b.id === r.id)),
           ]
-          const inspections = riallinea(s.inspections, riferimento, rimossi, storici)
+          const inspections = senzaDoppioni(riallinea(s.inspections, riferimento, rimossi, storici), storici)
           const next = {
             users: riallinea(s.users, base.users, rimossi, storici),
             apartments: riallinea(s.apartments, base.apartments, rimossi, storici),

@@ -1,7 +1,7 @@
 import type {
   Apartment, AppNotification, CleaningRequest, ExtraCatalogItem, RequestStatus,
   TaskCatalogItem, User, Warehouse, WorkSheet, BedType, RequestBed,
-  AdminExpense, Inspection, InspectionTask, InspectorId, Intervention,
+  AdminExpense, Inspection, InspectionKind, InspectionTask, InspectorId, Intervention,
 } from '@/types'
 
 /** PRNG deterministico: il seed non deve cambiare fra un reload e l'altro. */
@@ -381,71 +381,66 @@ const inspectionTasks = (names: string[], doneCount: number, at: Date, createdAt
  * Non c'e' piu' niente di generato a caso - in calendario restano solo questi e
  * le scadenze fisse della squadra.
  */
-interface InspectionSeed {
+/**
+ * Il calendario del team, riga per riga, com'e' davvero: controlli sul posto,
+ * task operative e voci di gestione interna. Non e' piu' un esempio - e'
+ * l'elenco che il responsabile tiene aggiornato, e da qui arriva a ogni
+ * dispositivo che apre l'app.
+ */
+interface VoceSeed {
   /** Giorno del mese corrente. */
   day: number
   hour: number
-  apartmentId: string
-  inspectorId: InspectorId
-  /** Verifiche da spuntare; senza, si pescano quelle ricorrenti. */
-  tasks?: string[]
-  doneCount?: number
-}
-
-const INSPECTION_PLAN: InspectionSeed[] = [
-  { day: 13, hour: 10, apartmentId: 'ap-giuliana', inspectorId: 'manuel', doneCount: 3 },
-  { day: 13, hour: 12, apartmentId: 'ap-scala', inspectorId: 'manuel', doneCount: 3 },
-  { day: 13, hour: 16, apartmentId: 'ap-livraghi', inspectorId: 'manuel', doneCount: 3 },
-
-  { day: 15, hour: 9, apartmentId: 'ap-labicana', inspectorId: 'mark', doneCount: 2 },
-  { day: 15, hour: 12, apartmentId: 'ap-consoli', inspectorId: 'mark', doneCount: 1 },
-  { day: 15, hour: 16, apartmentId: 'ap-trionfale', inspectorId: 'manuel', doneCount: 0 },
-
-  /* Il giro di Manuel a Livraghi porta anche la roba per Mark del giorno dopo. */
-  {
-    day: 17, hour: 10, apartmentId: 'ap-livraghi', inspectorId: 'manuel',
-    tasks: [
-      'Mettere adesivo rosso dentro i cassetti rovinati',
-      'Prendere al tabacchi cuscino rosso e copertina rossa e portarli a Livraghi',
-      'Riportare a Mark il trapano e le punte: il 18 monta la maniglia a Via dei Marsi 10',
-      'Controllare la keybox e il numero di chiavi',
-    ],
-    doneCount: 0,
-  },
-
-  { day: 18, hour: 10, apartmentId: 'ap-marsi', inspectorId: 'mark', tasks: ['Montare la maniglia'], doneCount: 0 },
-  {
-    day: 18, hour: 15, apartmentId: 'ap-labicana', inspectorId: 'mark',
-    tasks: [
-      'Portare e montare le maniglie: sono al tabacchi di Via della Giuliana 35',
-      'Verificare i rubinetti',
-      'Portare dispenser saponi',
-      'Prendere la coperta rosa al tabacchi di Via della Giuliana',
-      'Mettere la coperta rosa della Giuliana sul letto matrimoniale',
-      'Prendere i bicchieri rosa da Manuel e portarli in casa',
-    ],
-    doneCount: 0,
-  },
-
-  { day: 20, hour: 11, apartmentId: 'ap-trionfale', inspectorId: 'mark', doneCount: 0 },
-]
-
-/**
- * Le consegne fra le persone della squadra: non sono controlli e non stanno in
- * una casa, ma vanno in calendario perche' hanno un giorno e un responsabile.
- */
-interface TaskSeed {
-  day: number
-  hour: number
-  inspectorId: InspectorId
-  title: string
-  tasks: string[]
+  kind: InspectionKind
+  /** Obbligatorio sui controlli, facoltativo sulle task, assente sulla gestione. */
   apartmentId?: string
+  inspectorId: InspectorId
+  /** Sui controlli vale il nome della casa; altrove e' il titolo della voce. */
+  title?: string
+  tasks?: string[]
+  /** Quante verifiche sono gia' spuntate, dall'alto. */
+  doneCount?: number
+  notes?: string
 }
 
-const TASK_PLAN: TaskSeed[] = [
+const VOCI_PLAN: VoceSeed[] = [
+  /* ---- lunedi' 13: il giro di apertura settimana, gia' chiuso ---- */
+  { day: 13, hour: 10, kind: 'controllo', apartmentId: 'ap-giuliana', inspectorId: 'manuel', doneCount: 3 },
+  { day: 13, hour: 12, kind: 'controllo', apartmentId: 'ap-scala', inspectorId: 'manuel', doneCount: 3 },
+  { day: 13, hour: 16, kind: 'controllo', apartmentId: 'ap-livraghi', inspectorId: 'manuel', doneCount: 3 },
+
+  /* ---- martedi' 15: tre controlli, tutti chiusi ---- */
   {
-    day: 16, hour: 10, inspectorId: 'manuel', apartmentId: 'ap-consoli',
+    day: 15, hour: 9, kind: 'controllo', apartmentId: 'ap-labicana', inspectorId: 'mark',
+    tasks: [
+      'Verificare la chiusura di finestre e persiane',
+      'Controllare che il frigo sia vuoto e pulito',
+      'Provare il condizionatore e il telecomando',
+    ],
+    doneCount: 3,
+  },
+  {
+    day: 15, hour: 12, kind: 'controllo', apartmentId: 'ap-consoli', inspectorId: 'mark',
+    tasks: [
+      'Controllare che non ci siano formiche',
+      'Verificare che il bagno sia asciutto e senza aloni',
+      'Controllare le scorte di carta igienica',
+    ],
+    doneCount: 3,
+  },
+  {
+    day: 15, hour: 16, kind: 'controllo', apartmentId: 'ap-trionfale', inspectorId: 'manuel',
+    tasks: ['Metti Cosino Verde', 'Verifica tutto sia perfetto rispetto video di Michelle'],
+    doneCount: 2,
+  },
+
+  /* ---- mercoledi' 16 ---- */
+  {
+    day: 16, hour: 9, kind: 'gestione_interna', inspectorId: 'gianluca',
+    title: 'Chiamare per acquisizione Conca D’oro',
+  },
+  {
+    day: 16, hour: 9, kind: 'task_operativa', apartmentId: 'ap-consoli', inspectorId: 'manuel',
     title: 'Lampadina e mensola per Consoli',
     tasks: [
       'Organizzarsi su quando portare lampadina e mensola a Consoli',
@@ -453,7 +448,27 @@ const TASK_PLAN: TaskSeed[] = [
     ],
   },
   {
-    day: 17, hour: 9, inspectorId: 'michelle',
+    day: 16, hour: 10, kind: 'controllo', apartmentId: 'ap-marsi', inspectorId: 'manuel',
+    tasks: [
+      'Verificare situazione lavandini e sistemare',
+      'Cambiare password internet',
+      'Check stato casa pulizie',
+    ],
+  },
+  { day: 16, hour: 10, kind: 'gestione_interna', inspectorId: 'michelle', title: 'Conteggi Società' },
+  {
+    day: 16, hour: 12, kind: 'gestione_interna', inspectorId: 'michelle',
+    title: 'Mandare Dashboard a Commercialista',
+  },
+
+  /* ---- giovedi' 17 ---- */
+  {
+    day: 17, hour: 9, kind: 'task_operativa', apartmentId: 'ap-marsi', inspectorId: 'mark',
+    title: 'Ricordati di farti lasciare per domani avvitatore e punte mattonelle da Manuel',
+    notes: 'Domani c’è da montare la maniglia doccia (la maniglia sta al tabacchi di Via della Giuliana vedi se vuoi prenderla oggi insieme alle punte da Manuel)',
+  },
+  {
+    day: 17, hour: 9, kind: 'task_operativa', inspectorId: 'michelle',
     title: 'Consegne alla squadra',
     tasks: [
       'Portare la carta aziendale a Mark',
@@ -461,38 +476,70 @@ const TASK_PLAN: TaskSeed[] = [
       'Portare a Manuel il dispenser per Mark',
     ],
   },
+  {
+    day: 17, hour: 10, kind: 'task_operativa', inspectorId: 'gianluca',
+    title: 'Appuntamento attivazione KrossBooking',
+  },
+  {
+    day: 17, hour: 10, kind: 'controllo', apartmentId: 'ap-livraghi', inspectorId: 'manuel',
+    tasks: [
+      'Mettere adesivo rosso dentro i cassetti rovinati',
+      'Prendere al tabacchi cuscino rosso e copertina rossa e portarli a Livraghi',
+      'Riportare a Mark il trapano e le punte: il 18 monta la maniglia a Via dei Marsi 10',
+    ],
+  },
+  { day: 17, hour: 16, kind: 'controllo', apartmentId: 'ap-giuliana', inspectorId: 'gianluca', tasks: [] },
+
+  /* ---- venerdi' 18 ---- */
+  {
+    day: 18, hour: 11, kind: 'task_operativa', inspectorId: 'mark',
+    title: 'Passare Tabacchi Via della Giuliana',
+    tasks: ['Prendere la coperta rosa', 'Prendere la maniglia nera'],
+  },
+  {
+    day: 18, hour: 12, kind: 'controllo', apartmentId: 'ap-marsi', inspectorId: 'mark',
+    tasks: [
+      'Montare la maniglia',
+      'Verificare eventuali perdite siano ok',
+      'Cambiare password internet',
+      'Controllo stato pulizia',
+    ],
+  },
+  {
+    day: 18, hour: 15, kind: 'controllo', apartmentId: 'ap-labicana', inspectorId: 'mark',
+    tasks: [
+      'Mettere la coperta rosa della Giuliana sul letto matrimoniale',
+      'Prendere i bicchieri rosa da Manuel e portarli in casa',
+      'Controllo stato pulizia',
+    ],
+  },
+  {
+    day: 18, hour: 17, kind: 'task_operativa', inspectorId: 'michelle',
+    title: 'Avviamento Burocratico Trastevere',
+  },
+
+  /* ---- domenica 20 ---- */
+  { day: 20, hour: 11, kind: 'controllo', apartmentId: 'ap-trionfale', inspectorId: 'mark', doneCount: 0 },
 ]
 
-const plannedTasks: Inspection[] = TASK_PLAN.map((row) => {
+const plannedInspections: Inspection[] = VOCI_PLAN.map((row, i) => {
   const at = new Date(TODAY.getFullYear(), TODAY.getMonth(), row.day, row.hour, 0, 0, 0)
-  const createdAt = new Date(at)
-  createdAt.setDate(createdAt.getDate() - 2)
-  createdAt.setHours(9, 0, 0, 0)
-  return {
-    id: `task-${row.inspectorId}-${row.day}`,
-    kind: 'task_operativa' as const,
-    title: row.title,
-    apartmentId: row.apartmentId,
-    inspectorId: row.inspectorId,
-    scheduledAt: iso(at),
-    tasks: inspectionTasks(row.tasks, 0, at, iso(createdAt)),
-    createdAt: iso(createdAt),
-  }
-})
-
-const plannedInspections: Inspection[] = INSPECTION_PLAN.map((row, i) => {
-  const at = new Date(TODAY.getFullYear(), TODAY.getMonth(), row.day, row.hour, 0, 0, 0)
-  const names = row.tasks ?? INSPECTION_TASKS.slice(i % 4, (i % 4) + 3)
+  /* Un controllo senza elenco proprio prende le verifiche di routine; le task
+     e la gestione interna, se non hanno verifiche, restano senza: sono voci
+     che dicono cosa fare gia' nel titolo. */
+  const names = row.tasks ?? (row.kind === 'controllo' ? INSPECTION_TASKS.slice(i % 4, (i % 4) + 3) : [])
   const createdAt = new Date(at)
   createdAt.setDate(createdAt.getDate() - 5)
   createdAt.setHours(9, 0, 0, 0)
   return {
-    id: `insp-${row.apartmentId}-${row.day}`,
-    kind: 'controllo' as const,
-    apartmentId: row.apartmentId,
+    id: `insp-${row.kind === 'controllo' ? row.apartmentId : `${row.kind}-${row.inspectorId}`}-${row.day}-${row.hour}`,
+    kind: row.kind,
+    apartmentId: row.kind === 'gestione_interna' ? undefined : row.apartmentId,
+    title: row.title,
     inspectorId: row.inspectorId,
     scheduledAt: iso(at),
     tasks: inspectionTasks(names, row.doneCount ?? 0, at, iso(createdAt)),
+    notes: row.notes,
     createdAt: iso(createdAt),
   }
 })
@@ -583,6 +630,20 @@ export const RECURRING_RULES: RecurringRule[] = [
 const monthKey = (d: Date) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`
 
 /**
+ * Scadenze spostate a mano dal responsabile in un mese preciso: il calendario
+ * del team e' quello vero, non quello teorico della regola. La chiave e' lo
+ * stesso identificativo della voce, cosi' lo spostamento vale per quel mese e
+ * non si ripete su tutti gli altri.
+ */
+const SPOSTAMENTI: Record<string, { day: number; hour: number; tasks?: string[] }> = {
+  'ric-f24-202609': {
+    day: 16, hour: 10,
+    tasks: ['Verifica gli importi', 'Esegui il pagamento', 'Pagamento Cedolare Secca'],
+  },
+  'ric-comfy-16-202609': { day: 18, hour: 10 },
+}
+
+/**
  * Le voci ricorrenti da `back` mesi indietro a `ahead` mesi avanti rispetto al
  * giorno indicato. L'id nasce da slug e mese: ricalcolarle ridà le stesse.
  */
@@ -591,19 +652,23 @@ export function recurringInspections(from: Date, back = 3, ahead = 12): Inspecti
   for (let k = -back; k <= ahead; k += 1) {
     const month = new Date(from.getFullYear(), from.getMonth() + k, 1)
     for (const rule of RECURRING_RULES) {
-      const at = rule.when(month)
-      at.setHours(rule.hour, 0, 0, 0)
+      const id = `ric-${rule.slug}-${monthKey(month)}`
+      const spostata = SPOSTAMENTI[id]
+      const at = spostata
+        ? new Date(month.getFullYear(), month.getMonth(), spostata.day)
+        : rule.when(month)
+      at.setHours(spostata?.hour ?? rule.hour, 0, 0, 0)
       const createdAt = new Date(month)
       createdAt.setHours(9, 0, 0, 0)
       out.push({
-        id: `ric-${rule.slug}-${monthKey(month)}`,
+        id,
         kind: 'task_operativa',
         title: rule.title,
         inspectorId: rule.inspectorId,
         scheduledAt: iso(at),
         recurring: true,
-        tasks: rule.tasks.map((name, i) => ({
-          id: `ric-${rule.slug}-${monthKey(month)}-t${i}`,
+        tasks: (spostata?.tasks ?? rule.tasks).map((name, i) => ({
+          id: `${id}-t${i}`,
           name,
           done: false,
           createdAt: iso(createdAt),
@@ -617,7 +682,6 @@ export function recurringInspections(from: Date, back = 3, ahead = 12): Inspecti
 
 export const inspections: Inspection[] = [
   ...plannedInspections,
-  ...plannedTasks,
   ...recurringInspections(TODAY),
 ]
 
