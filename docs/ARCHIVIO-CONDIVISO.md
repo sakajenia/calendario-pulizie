@@ -45,11 +45,9 @@ npx wrangler d1 create propromanager
 ```
 
 L'identificativo che risponde (`database_id`) va incollato in `wrangler.toml`.
-Poi:
-
-```
-npx wrangler d1 execute propromanager --remote --file=worker/schema.sql
-```
+Le tabelle e gli accessi si creano da soli alla prima apertura: non serve
+eseguire lo schema a mano. (Il file `worker/schema.sql` resta come riferimento
+di com'e' fatto l'archivio.)
 
 ## Come capire se sta funzionando
 

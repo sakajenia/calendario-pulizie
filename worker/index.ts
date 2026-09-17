@@ -140,6 +140,49 @@ async function scriviDati(req: Request, env: Env): Promise<Response> {
   return json({ scritti: righe.length, adesso })
 }
 
+/* -------------------------------------------------- preparazione ---- */
+
+/**
+ * Le impronte delle password degli accessi di partenza. Sono gia' quelle in
+ * uso nell'app - "propromanager" per il manager, le password lunghe per le
+ * ditte - salvate come impronta, mai in chiaro.
+ */
+const ACCESSI_INIZIALI: [string, string, string | null, string, string, string][] = [
+  ['u-admin', 'm2ab.srl@gmail.com', null,
+    'f0ef41d929da406ca215396b37ac6998c4a5c209ce37c2275c773795b3b6824e', 'admin', 'ProProManager'],
+  ['u-pulizie-angela', 'angela@propromanager.it', 'Angela',
+    '0d4caf2c36bd87799d0e49b82f2efc5a9e45cbcccb941e02df51f5e9aad146fc', 'operator', 'Angela'],
+  ['u-pulizie-comfy', 'comfy@propromanager.it', 'Comfy',
+    '09a9d8f35a9e4d179b0c8255ceb01c4a2e4516b0cca7ee26e164cb7d6ed89ef3', 'operator', 'Comfy'],
+]
+
+/* Fatto una volta per ogni istanza del Worker: non si ripete a ogni richiesta. */
+let tabellePronte = false
+
+/**
+ * Crea le tabelle e gli accessi se non ci sono gia'. Cosi' basta collegare il
+ * database: l'archivio si prepara da solo alla prima richiesta, senza dover
+ * incollare comandi a mano. Le istruzioni sono tutte "se non esiste", quindi
+ * rifarle non cancella niente.
+ */
+async function preparaArchivio(db: D1Database): Promise<void> {
+  if (tabellePronte) return
+  await db.batch([
+    db.prepare(`CREATE TABLE IF NOT EXISTS utente (
+      id TEXT PRIMARY KEY, email TEXT NOT NULL, username TEXT,
+      password_hash TEXT NOT NULL, ruolo TEXT NOT NULL, nome TEXT NOT NULL)`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS record (
+      tipo TEXT NOT NULL, id TEXT NOT NULL, dati TEXT,
+      eliminato INTEGER NOT NULL DEFAULT 0, aggiornato INTEGER NOT NULL,
+      PRIMARY KEY (tipo, id))`),
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_record_aggiornato ON record (aggiornato)'),
+    ...ACCESSI_INIZIALI.map((r) =>
+      db.prepare(`INSERT OR IGNORE INTO utente
+        (id, email, username, password_hash, ruolo, nome) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`).bind(...r)),
+  ])
+  tabellePronte = true
+}
+
 /* --------------------------------------------------------------- avvio ---- */
 
 export default {
@@ -155,6 +198,9 @@ export default {
     const segreto = env.SYNC_SECRET ?? 'propromanager-archivio'
 
     try {
+      /* L'archivio si prepara da solo: chi collega il database non deve poi
+         creare tabelle e accessi a mano. */
+      await preparaArchivio(env.DB)
       if (url.pathname === '/api/stato') return json({ ok: true })
       if (url.pathname === '/api/accesso' && req.method === 'POST') return accesso(req, env, segreto)
 
