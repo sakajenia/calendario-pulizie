@@ -77,7 +77,13 @@ async function chiama<T>(percorso: string, init?: RequestInit): Promise<Esito<T>
     if (risposta.status === 503) return { ok: false, errore: 'Archivio condiviso non collegato', assente: true }
     if (risposta.status === 401) {
       salvaGettone(null)
-      return { ok: false, errore: 'Accesso scaduto: rientra con la password', scaduto: true }
+      /* Sull'accesso il 401 dice il motivo vero (password errata, utente
+         inesistente): va mostrato, non coperto da un "accesso scaduto". */
+      if (percorso === '/accesso') {
+        const motivo = await risposta.json().then((c) => (c as { errore?: string }).errore).catch(() => undefined)
+        return { ok: false, errore: motivo ?? 'Password errata', scaduto: true }
+      }
+      return { ok: false, errore: 'Accesso scaduto: esci e rientra con la password', scaduto: true }
     }
     /* Un 200 che non e' JSON vuol dire che a rispondere non e' l'archivio: la
        pagina servita al posto dell'API, un portale di rete, un proxy. Vale

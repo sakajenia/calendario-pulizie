@@ -700,7 +700,7 @@ export const useStore = create<State>()(
             archivio: {
               stato: 'spento',
               messaggio: raggiungibile
-                ? 'Rientra con la password per sincronizzare con gli altri dispositivi'
+                ? 'Esci e rientra con la password per sincronizzare con gli altri dispositivi'
                 : 'Archivio condiviso non collegato',
             },
           })

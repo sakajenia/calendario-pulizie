@@ -118,7 +118,9 @@ export default function Compensi() {
   const requests = useStore((s) => s.requests)
 
   const [cursor, setCursor] = React.useState<Date>(TODAY)
-  const [basis, setBasis] = React.useState<Basis>('completate')
+  /* Si parte dalle pulizie del mese, non dalle sole completate: all'inizio
+     del mese quelle sono zero e la pagina sembrava rotta. */
+  const [basis, setBasis] = React.useState<Basis>('tutte')
 
   const apartmentById = React.useMemo(() => new Map(apartments.map((a) => [a.id, a])), [apartments])
 

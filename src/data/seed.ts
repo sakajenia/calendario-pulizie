@@ -38,7 +38,7 @@ const day = (offset: number, h = 10, m = 0) => {
 
 /** Ogni ditta di pulizie ha il proprio accesso e vede solo le proprie case. */
 export const users: User[] = [
-  { id: 'u-admin', name: 'ProProManager', email: 'm2ab.srl@gmail.com', phone: '+39 340 118 2277', role: 'admin', active: true, createdAt: iso(day(-420)) },
+  { id: 'u-admin', name: 'ProProManager', email: 'm2ab.srl@gmail.com', phone: '+39 340 118 2277', role: 'admin', password: 'propromanager', active: true, createdAt: iso(day(-420)) },
   /* Le ditte accedono col nome utente, non con l'email: e' quello che sanno a
      memoria. L'email resta valida e serve a raggiungerle. */
   { id: 'u-pulizie-comfy', name: 'Comfy', username: 'Comfy', email: 'comfy@propromanager.it', phone: '+39 349 772 1188', role: 'operator', companyId: 'comfy', password: 'BR4mjLLY7Qudf!%R', active: true, createdAt: iso(day(-260)) },
