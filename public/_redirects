@@ -1,4 +1,0 @@
-# Le pagine dell'app non sono file: /accessi, /dashboard e le altre esistono
-# solo dentro il browser. Senza questa riga, aprirle di diretto o ricaricarle
-# su Cloudflare Pages dà 404. Su Workers ci pensa già not_found_handling.
-/*  /index.html  200
