@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import {
   Bell, Building2, CalendarDays, ClipboardList, KeyRound, LayoutDashboard,
@@ -13,6 +13,7 @@ import { isManager } from '@/lib/permissions'
 import { ROLE_META } from '@/types'
 import { useTheme } from '@/hooks/useTheme'
 import { cn } from '@/lib/utils'
+import { SchermoRotto } from '@/components/feedback/SchermoRotto'
 
 interface NavEntry {
   to: string
@@ -80,6 +81,7 @@ export function AppShell() {
   const users = useStore((s) => s.users)
   const switchUser = useStore((s) => s.switchUser)
   const navigate = useNavigate()
+  const percorso = useLocation().pathname
   const { dark, toggle } = useTheme()
   const [mobileOpen, setMobileOpen] = React.useState(false)
 
@@ -215,7 +217,11 @@ export function AppShell() {
         <AvvisoArchivio />
 
         <main id="contenuto" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto focus:outline-none">
-          <Outlet />
+          {/* Un errore in una pagina non deve portarsi via il menu e il resto:
+              la chiave sul percorso fa ripartire pulito a ogni cambio pagina. */}
+          <SchermoRotto key={percorso}>
+            <Outlet />
+          </SchermoRotto>
         </main>
       </div>
     </div>
