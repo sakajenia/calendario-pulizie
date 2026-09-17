@@ -25,4 +25,4 @@ run_worker_first = ["/api/*"]
 [[d1_databases]]
 binding = "DB"
 database_name = "propromanager"
-database_id = "da-compilare-vedi-docs-ARCHIVIO-CONDIVISO"
+database_id = "cb426516-228d-4692-82da-10a1542b6843"
