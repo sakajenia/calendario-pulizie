@@ -9,7 +9,31 @@ export type UserRole = 'admin' | 'host' | 'operator'
  */
 export type AccountKind = 'manager' | 'pulizie'
 
-export const ROLE_META: Record<UserRole, { label: string; kind: AccountKind; hint: string }> = {
+/*
+ * Le tabelle qui sotto traducono un codice (un ruolo, uno stato, un
+ * incaricato) in come si mostra a schermo. Un codice sconosciuto - una riga
+ * vecchia, una arrivata storta dall'archivio condiviso - faceva cadere la
+ * pagina intera: lettura di "label" su niente, schermo bianco.
+ * Con questo non succede piu': quello che non si riconosce si mostra com'e',
+ * in grigio, e il resto della pagina resta in piedi. Ogni ripiego dichiara il
+ * proprio tipo, cosi' resta controllato come il resto.
+ */
+const NEUTRO = 'bg-muted text-muted-foreground ring-1 ring-inset ring-border'
+
+function conRipiego<K extends string, V>(
+  tabella: Record<K, V>, ripiego: (chiave: string) => unknown,
+): Record<K, V> {
+  return new Proxy(tabella, {
+    get(obiettivo, chiave) {
+      if (typeof chiave !== 'string' || chiave in obiettivo) {
+        return Reflect.get(obiettivo, chiave)
+      }
+      return ripiego(chiave) as V
+    },
+  })
+}
+
+export const ROLE_META: Record<UserRole, { label: string; kind: AccountKind; hint: string }> = conRipiego({
   admin: {
     label: 'Manager (amministratore)',
     kind: 'manager',
@@ -25,7 +49,7 @@ export const ROLE_META: Record<UserRole, { label: string; kind: AccountKind; hin
     kind: 'pulizie',
     hint: 'Vede le pulizie assegnate, le completa e lascia note.',
   },
-}
+}, (chiave): { label: string; kind: AccountKind; hint: string } => ({ label: chiave, kind: 'pulizie', hint: 'Ruolo non riconosciuto: permessi ridotti al minimo.' }))
 
 export interface User {
   id: string
@@ -93,7 +117,7 @@ export interface CleaningCompanyMeta {
   perCleaningFeeLabel?: string
 }
 
-export const COMPANY_META: Record<CleaningCompanyId, CleaningCompanyMeta> = {
+export const COMPANY_META: Record<CleaningCompanyId, CleaningCompanyMeta> = conRipiego({
   comfy: {
     id: 'comfy', label: 'Comfy Host',
     chip: 'bg-company-comfy/12 text-company-comfy ring-1 ring-inset ring-company-comfy/25',
@@ -109,7 +133,7 @@ export const COMPANY_META: Record<CleaningCompanyId, CleaningCompanyMeta> = {
     text: 'text-company-angela',
     perCleaningFee: 0,
   },
-}
+}, (chiave): CleaningCompanyMeta => ({ id: chiave as CleaningCompanyId, label: chiave, chip: NEUTRO, dot: 'bg-muted-foreground', text: 'text-muted-foreground', perCleaningFee: 0 }))
 
 /** Una riga di accesso: "Cassetta inferiore (pulizie)" -> "1405". */
 export interface AccessEntry {
@@ -242,7 +266,7 @@ export interface InspectorMeta {
   ring: string
 }
 
-export const INSPECTOR_META: Record<InspectorId, InspectorMeta> = {
+export const INSPECTOR_META: Record<InspectorId, InspectorMeta> = conRipiego({
   manuel: {
     id: 'manuel', label: 'Manuel',
     dot: 'bg-inspector-manuel',
@@ -271,7 +295,7 @@ export const INSPECTOR_META: Record<InspectorId, InspectorMeta> = {
     chip: 'bg-inspector-gianluca/12 text-inspector-gianluca ring-1 ring-inset ring-inspector-gianluca/25',
     ring: 'ring-inspector-gianluca/40',
   },
-}
+}, (chiave): InspectorMeta => ({ id: chiave as InspectorId, label: chiave, dot: 'bg-muted-foreground', text: 'text-muted-foreground', chip: NEUTRO, ring: 'ring-border' }))
 
 /**
  * Nel calendario interno non finiscono solo i controlli agli appartamenti:
@@ -295,7 +319,7 @@ export interface InspectionKindMeta {
   apartment: 'obbligatorio' | 'facoltativo' | 'assente'
 }
 
-export const INSPECTION_KIND_META: Record<InspectionKind, InspectionKindMeta> = {
+export const INSPECTION_KIND_META: Record<InspectionKind, InspectionKindMeta> = conRipiego({
   controllo: {
     id: 'controllo',
     label: 'Controllo',
@@ -317,7 +341,7 @@ export const INSPECTION_KIND_META: Record<InspectionKind, InspectionKindMeta> = 
     chip: 'bg-status-verify/12 text-status-verify ring-1 ring-inset ring-status-verify/25',
     apartment: 'assente',
   },
-}
+}, (chiave): InspectionKindMeta => ({ id: chiave as InspectionKind, label: chiave, hint: '', chip: NEUTRO, apartment: 'facoltativo' }))
 
 /** Una singola verifica da spuntare dentro un controllo, es. "nessuna formica". */
 export interface InspectionTask {
@@ -362,7 +386,7 @@ export type InspectionStatus = 'in_corso' | 'completata'
 export const inspectionStatus = (i: Inspection): InspectionStatus =>
   i.tasks.length > 0 && i.tasks.every((t) => t.done) ? 'completata' : 'in_corso'
 
-export const INSPECTION_STATUS_META: Record<InspectionStatus, { label: string; chip: string }> = {
+export const INSPECTION_STATUS_META: Record<InspectionStatus, { label: string; chip: string }> = conRipiego({
   in_corso: {
     label: 'In Corso',
     chip: 'bg-status-progress/12 text-status-progress ring-1 ring-inset ring-status-progress/25',
@@ -371,7 +395,7 @@ export const INSPECTION_STATUS_META: Record<InspectionStatus, { label: string; c
     label: 'Completata',
     chip: 'bg-status-done/12 text-status-done ring-1 ring-inset ring-status-done/25',
   },
-}
+}, (chiave): { label: string; chip: string } => ({ label: chiave, chip: NEUTRO }))
 
 /* ------------------------------------------------ interventi sul posto ---- */
 
@@ -411,7 +435,7 @@ export type ExpenseClass = (typeof EXPENSE_CLASSES)[number]
 export const EXPENSE_CLASS_META: Record<
   ExpenseClass,
   { id: ExpenseClass; label: string; hint: string; chip: string; dot: string }
-> = {
+> = conRipiego({
   aircover: {
     id: 'aircover',
     label: 'Aircover',
@@ -426,7 +450,7 @@ export const EXPENSE_CLASS_META: Record<
     chip: 'bg-status-pending/12 text-status-pending ring-1 ring-inset ring-status-pending/25',
     dot: 'bg-status-pending',
   },
-}
+}, (chiave): { id: ExpenseClass; label: string; hint: string; chip: string; dot: string } => ({ id: chiave as ExpenseClass, label: chiave, hint: '', chip: NEUTRO, dot: 'bg-muted-foreground' }))
 
 /** Tag di partenza per il luogo d'acquisto: l'elenco cresce con quelli usati. */
 export const EXPENSE_PLACES = ['Amazon', 'Negozio fisico'] as const
@@ -513,7 +537,7 @@ export interface StatusMeta {
   chip: string
 }
 
-export const STATUS_META: Record<RequestStatus, StatusMeta> = {
+export const STATUS_META: Record<RequestStatus, StatusMeta> = conRipiego({
   in_attesa: {
     value: 'in_attesa', label: 'In Attesa',
     dot: 'bg-status-pending',
@@ -539,7 +563,7 @@ export const STATUS_META: Record<RequestStatus, StatusMeta> = {
     dot: 'bg-status-cancelled',
     chip: 'bg-status-cancelled/12 text-status-cancelled ring-1 ring-inset ring-status-cancelled/25',
   },
-}
+}, (chiave): StatusMeta => ({ value: chiave as RequestStatus, label: chiave, dot: 'bg-muted-foreground', chip: NEUTRO }))
 
 /** Prezzo della pulizia per quel numero di ospiti, con rientro sul prezzo base. */
 export const priceForGuests = (a: Apartment, guests: number): number =>

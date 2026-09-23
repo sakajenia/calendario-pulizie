@@ -1,18 +1,37 @@
 import { format, formatDistanceToNow, isSameDay, parseISO } from 'date-fns'
 import { it } from 'date-fns/locale'
 
-export const asDate = (v: string | Date) => (typeof v === 'string' ? parseISO(v) : v)
+export const asDate = (v: string | Date | null | undefined) =>
+  typeof v === 'string' ? parseISO(v) : (v ?? new Date(NaN))
+
+const valida = (d: Date) => !Number.isNaN(d.getTime())
+
+/*
+ * Una data mancante o scritta male non deve far cadere la pagina. Prima
+ * arrivava fino in fondo a date-fns, che rispondeva "Invalid time value" e
+ * lasciava lo schermo bianco; adesso al suo posto compare un trattino e il
+ * resto dell'elenco si vede lo stesso.
+ */
+const formatta = (v: string | Date | null | undefined, come: string, locale?: typeof it) => {
+  const d = asDate(v)
+  return valida(d) ? format(d, come, locale ? { locale } : undefined) : '—'
+}
 
 /** Formato usato in tutta l'app originale: 31-08-2026 10:00 */
-export const fmtDateTime = (v: string | Date) => format(asDate(v), 'dd-MM-yyyy HH:mm')
-export const fmtDate = (v: string | Date) => format(asDate(v), 'dd-MM-yyyy')
-export const fmtTime = (v: string | Date) => format(asDate(v), 'HH:mm')
-export const fmtDayLong = (v: string | Date) => format(asDate(v), 'EEEE d MMMM yyyy', { locale: it })
-export const fmtMonthYear = (v: string | Date) => format(asDate(v), 'MMMM yyyy', { locale: it })
-export const fmtRelative = (v: string | Date) =>
-  formatDistanceToNow(asDate(v), { addSuffix: true, locale: it })
+export const fmtDateTime = (v: string | Date | null | undefined) => formatta(v, 'dd-MM-yyyy HH:mm')
+export const fmtDate = (v: string | Date | null | undefined) => formatta(v, 'dd-MM-yyyy')
+export const fmtTime = (v: string | Date | null | undefined) => formatta(v, 'HH:mm')
+export const fmtDayLong = (v: string | Date | null | undefined) => formatta(v, 'EEEE d MMMM yyyy', it)
+export const fmtMonthYear = (v: string | Date | null | undefined) => formatta(v, 'MMMM yyyy', it)
+export const fmtRelative = (v: string | Date | null | undefined) => {
+  const d = asDate(v)
+  return valida(d) ? formatDistanceToNow(d, { addSuffix: true, locale: it }) : '—'
+}
 
-export const sameDay = (a: string | Date, b: string | Date) => isSameDay(asDate(a), asDate(b))
+export const sameDay = (a: string | Date | null | undefined, b: string | Date | null | undefined) => {
+  const x = asDate(a), y = asDate(b)
+  return valida(x) && valida(y) && isSameDay(x, y)
+}
 
 export const fmtEur = (n: number) =>
   new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(n)

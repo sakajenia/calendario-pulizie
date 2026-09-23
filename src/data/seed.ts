@@ -1,5 +1,5 @@
 import type {
-  Apartment, AppNotification, CleaningRequest, ExtraCatalogItem, RequestStatus,
+  Apartment, AppNotification, CleaningCompanyId, CleaningRequest, ExtraCatalogItem, RequestStatus,
   TaskCatalogItem, User, Warehouse, WorkSheet, BedType, RequestBed,
   AdminExpense, Inspection, InspectionKind, InspectionTask, InspectorId, Intervention,
 } from '@/types'
@@ -40,13 +40,22 @@ const day = (offset: number, h = 10, m = 0) => {
 export const users: User[] = [
   { id: 'u-admin', name: 'ProProManager', email: 'm2ab.srl@gmail.com', phone: '+39 340 118 2277', role: 'admin', password: 'propromanager', active: true, createdAt: iso(day(-420)) },
   /* Le ditte accedono col nome utente, non con l'email: e' quello che sanno a
-     memoria. L'email resta valida e serve a raggiungerle. */
-  { id: 'u-pulizie-comfy', name: 'Comfy', username: 'Comfy', email: 'comfy@propromanager.it', phone: '+39 349 772 1188', role: 'operator', companyId: 'comfy', password: 'BR4mjLLY7Qudf!%R', active: true, createdAt: iso(day(-260)) },
+     memoria. L'email resta valida e serve a raggiungerle.
+     L'account Comfy e' stato revocato: le sue case restano, ma nessuno entra
+     piu' con quel nome (vedi ACCESSI_REVOCATI nel Worker). */
   { id: 'u-pulizie-angela', name: 'Angela', username: 'Angela', email: 'angela@propromanager.it', phone: '+39 348 551 9042', role: 'operator', companyId: 'angela', password: 'SHyA9onz$uM@i5cL', active: true, createdAt: iso(day(-255)) },
 ]
 
 /** Chi prende in carico le pulizie di un appartamento: l'account della sua ditta. */
-const CLEANER_BY_COMPANY = { comfy: 'u-pulizie-comfy', angela: 'u-pulizie-angela' } as const
+/*
+ * Accessi revocati. Non basta toglierli dall'elenco qui sopra: chi li aveva
+ * gia' sul dispositivo se li terrebbe, perche' un utente fuori dal seme viene
+ * trattato come aggiunto a mano e quindi conservato. Vanno nominati.
+ * Sparisce l'accesso, non il suo lavoro: case, pulizie e task restano.
+ */
+export const ACCESSI_REVOCATI = ['u-pulizie-comfy']
+
+const CLEANER_BY_COMPANY: Partial<Record<CleaningCompanyId, string>> = { angela: 'u-pulizie-angela' }
 
 const MATR: BedType = 'Letto Matrimoniale'
 const SING: BedType = 'Letto Singolo'

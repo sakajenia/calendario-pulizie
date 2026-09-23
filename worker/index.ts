@@ -152,9 +152,16 @@ const ACCESSI_INIZIALI: [string, string, string | null, string, string, string][
     'f0ef41d929da406ca215396b37ac6998c4a5c209ce37c2275c773795b3b6824e', 'admin', 'ProProManager'],
   ['u-pulizie-angela', 'angela@propromanager.it', 'Angela',
     '0d4caf2c36bd87799d0e49b82f2efc5a9e45cbcccb941e02df51f5e9aad146fc', 'operator', 'Angela'],
-  ['u-pulizie-comfy', 'comfy@propromanager.it', 'Comfy',
-    '09a9d8f35a9e4d179b0c8255ceb01c4a2e4516b0cca7ee26e164cb7d6ed89ef3', 'operator', 'Comfy'],
 ]
+
+/*
+ * Accessi revocati. Toglierli dall'elenco qui sopra non basta: nell'archivio
+ * la riga resterebbe e quella persona continuerebbe a entrare. Vanno tolti
+ * per davvero, a ogni avvio, cosi' la revoca vale su tutti i dispositivi.
+ * Si cancella solo la riga dell'accesso: le case, le pulizie e tutto il
+ * resto restano dove sono.
+ */
+const ACCESSI_REVOCATI = ['u-pulizie-comfy']
 
 /* Fatto una volta per ogni istanza del Worker: non si ripete a ogni richiesta. */
 let tabellePronte = false
@@ -179,6 +186,7 @@ async function preparaArchivio(db: D1Database): Promise<void> {
     ...ACCESSI_INIZIALI.map((r) =>
       db.prepare(`INSERT OR IGNORE INTO utente
         (id, email, username, password_hash, ruolo, nome) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`).bind(...r)),
+    ...ACCESSI_REVOCATI.map((id) => db.prepare('DELETE FROM utente WHERE id = ?1').bind(id)),
   ])
   tabellePronte = true
 }

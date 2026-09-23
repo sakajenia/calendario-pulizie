@@ -309,11 +309,19 @@ function migrateState(persisted: unknown): ReturnType<typeof baseData> & { curre
 
   /* Gli account di servizio li decidiamo noi: chi e' stato aggiunto dentro
      l'app resta com'e'. */
-  const suoi = (salvato.users ?? []).filter((u) => !base.users.some((b) => b.id === u.id))
+  const revocati = new Set(seed.ACCESSI_REVOCATI)
+  const suoi = (salvato.users ?? []).filter(
+    (u) => !base.users.some((b) => b.id === u.id) && !revocati.has(u.id),
+  )
 
+  const utenti = [...base.users, ...suoi]
+  /* Un account revocato puo' restare aperto su un telefono: se chi risulta
+     collegato non esiste piu', si torna alla schermata di accesso invece di
+     restare dentro con un utente fantasma. */
+  const collegato = salvato.currentUserId ?? null
   return {
-    currentUserId: salvato.currentUserId ?? null,
-    users: [...base.users, ...suoi],
+    currentUserId: utenti.some((u) => u.id === collegato) ? collegato : null,
+    users: utenti,
     apartments,
     requests: riallinea(salvato.requests, base.requests, rimossi, storici),
     taskCatalog: riallinea(salvato.taskCatalog, base.taskCatalog, rimossi, storici),
@@ -797,7 +805,7 @@ export const useStore = create<State>()(
        * ogni cambiamento, e con l'app ormai in uso quel gesto cancellerebbe le
        * task e le pulizie inserite a mano.
        */
-      version: 12,
+      version: 13,
       migrate: (persisted) => migrateState(persisted),
       partialize: (s) => ({
         currentUserId: s.currentUserId,

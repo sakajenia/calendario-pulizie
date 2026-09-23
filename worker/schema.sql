@@ -33,6 +33,8 @@ INSERT OR REPLACE INTO utente (id, email, username, password_hash, ruolo, nome) 
   ('u-admin', 'm2ab.srl@gmail.com', NULL,
    'f0ef41d929da406ca215396b37ac6998c4a5c209ce37c2275c773795b3b6824e', 'admin', 'ProProManager'),
   ('u-pulizie-angela', 'angela@propromanager.it', 'Angela',
-   '0d4caf2c36bd87799d0e49b82f2efc5a9e45cbcccb941e02df51f5e9aad146fc', 'operator', 'Angela'),
-  ('u-pulizie-comfy', 'comfy@propromanager.it', 'Comfy',
-   '09a9d8f35a9e4d179b0c8255ceb01c4a2e4516b0cca7ee26e164cb7d6ed89ef3', 'operator', 'Comfy');
+   '0d4caf2c36bd87799d0e49b82f2efc5a9e45cbcccb941e02df51f5e9aad146fc', 'operator', 'Angela');
+
+-- L'accesso Comfy e' stato revocato: se resta da un'installazione precedente,
+-- va tolto. Le case e le pulizie non si toccano.
+DELETE FROM utente WHERE id = 'u-pulizie-comfy';
