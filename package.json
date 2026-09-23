@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "rm -rf dist",
-    "build": "tsc -b && vite build",
+    "build": "(git log -1 --format='Commit in costruzione: %h - %s' || true) && rm -rf dist && tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "check:tokens": "node scripts/check-tokens.mjs",
