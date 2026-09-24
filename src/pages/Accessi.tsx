@@ -16,6 +16,7 @@ import {
   Badge, Button, Card, Dialog, EmptyState, Field, Input, Textarea,
 } from '@/components/ui'
 import { scopeApartments, useCurrentUser, useStore } from '@/data/store'
+import { linkDellaCasa } from '@/data/linkAccessi'
 import { isManager } from '@/lib/permissions'
 import { useToast } from '@/components/feedback/Toast'
 import { norm, plural } from '@/lib/format'
@@ -121,6 +122,7 @@ function AccessCard({
   onEdit: (a: Apartment) => void
 }) {
   const access = apartment.access ?? emptyAccess()
+  const link = linkDellaCasa(apartment)
   const zone = [apartment.district, apartment.city].filter(Boolean).join(' · ')
 
   return (
@@ -184,13 +186,13 @@ function AccessCard({
 
       <div className="flex flex-col gap-2 border-t border-border bg-muted/30 p-3">
         <SheetLink
-          url={access.leaveGuideUrl}
+          url={link.comeLasciare}
           label="Come lasciare la casa"
           icon={Camera}
           onAdd={mayEdit ? () => onEdit(apartment) : undefined}
         />
         <SheetLink
-          url={access.infoSheetUrl}
+          url={link.infoAccessi}
           label="Info accessi e materiali"
           icon={FileText}
           onAdd={mayEdit ? () => onEdit(apartment) : undefined}
@@ -214,6 +216,7 @@ function AccessForm({
   const upsertApartment = useStore((s) => s.upsertApartment)
   const toast = useToast()
   const [draft, setDraft] = React.useState<ApartmentAccess>(emptyAccess)
+  const link = apartment ? linkDellaCasa(apartment) : null
 
   React.useEffect(() => {
     if (!open || !apartment) return
@@ -337,28 +340,34 @@ function AccessForm({
           <Field
             label="Come lasciare la casa"
             htmlFor="accessi-foto"
-            hint="Link all’album con le foto di come va lasciata la casa."
+            hint={link?.comeLasciareFisso
+              ? 'Link fisso: uguale su tutti i dispositivi, non si cambia da qui.'
+              : 'Link all’album con le foto di come va lasciata la casa.'}
           >
             <Input
               id="accessi-foto"
               type="url"
               inputMode="url"
               placeholder="https://…"
-              value={draft.leaveGuideUrl ?? ''}
+              value={link?.comeLasciareFisso ? link.comeLasciare : draft.leaveGuideUrl ?? ''}
+              disabled={link?.comeLasciareFisso}
               onChange={(e) => setDraft((d) => ({ ...d, leaveGuideUrl: e.target.value }))}
             />
           </Field>
           <Field
             label="Info accessi e materiali"
             htmlFor="accessi-scheda"
-            hint="Link alla scheda con composizione della casa, accessi e materiali."
+            hint={link?.infoAccessiFisso
+              ? 'Link fisso: uguale su tutti i dispositivi, non si cambia da qui.'
+              : 'Link alla scheda con composizione della casa, accessi e materiali.'}
           >
             <Input
               id="accessi-scheda"
               type="url"
               inputMode="url"
               placeholder="https://…"
-              value={draft.infoSheetUrl ?? ''}
+              value={link?.infoAccessiFisso ? link.infoAccessi : draft.infoSheetUrl ?? ''}
+              disabled={link?.infoAccessiFisso}
               onChange={(e) => setDraft((d) => ({ ...d, infoSheetUrl: e.target.value }))}
             />
           </Field>
