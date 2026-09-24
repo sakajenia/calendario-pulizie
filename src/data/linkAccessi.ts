@@ -13,7 +13,8 @@
 import type { Apartment } from '@/types'
 
 interface LinkCasa {
-  /** Pagina con le foto e i controlli di come va lasciata la casa. */
+  /** Pagina con le foto e i controlli di come va lasciata la casa.
+      Stringa vuota = nessun link, nemmeno quello salvato a mano. */
   comeLasciare?: string
   /** Cartella Drive con accessi e materiali. */
   infoAccessi?: string
@@ -40,16 +41,14 @@ export const LINK_FISSI: Record<string, LinkCasa> = {
     comeLasciare: 'https://tools.affittibreviaroma.com/check-trastevere-scala-9',
     infoAccessi: 'https://drive.google.com/drive/folders/1oUyLfxMKNYf3M32j76n1lh3h2lZDcxcD?usp=sharing',
   },
-  /* KlaFrà · Via dei Marsi 10. "check-marsi-1" porta a pagina non trovata:
-     quella giusta ha il civico intero. */
+  /* KlaFrà · Via dei Marsi 10 */
   'ap-marsi': {
-    comeLasciare: 'https://tools.affittibreviaroma.com/check-marsi-10',
+    comeLasciare: 'https://tools.affittibreviaroma.com/check-marsi-1',
     infoAccessi: 'https://drive.google.com/drive/u/2/folders/1b0mqlTynQWiww8yRbqKvu-fb8DSxQ522',
   },
-  /* Consoli · Piazza dei Consoli 50. "check-consoli-5" porta a pagina non
-     trovata: quella giusta ha il civico intero. */
+  /* Consoli · Piazza dei Consoli 50 */
   'ap-consoli': {
-    comeLasciare: 'https://tools.affittibreviaroma.com/check-consoli-50',
+    comeLasciare: 'https://tools.affittibreviaroma.com/check-consoli-5',
     infoAccessi: 'https://drive.google.com/drive/u/2/folders/1qfSnM4Qw8NfQjsDNsMkMJu7FzmH2-d8A',
   },
   /* Stazione Centrale Roma · Via di Porta Labicana 19. Link "come lasciare
@@ -57,10 +56,10 @@ export const LINK_FISSI: Record<string, LinkCasa> = {
   'ap-labicana': {
     infoAccessi: 'https://drive.google.com/drive/folders/1nfdd2tdzYd_5TanFMHZ2yPAqCbiNWbkp?usp=drive_link',
   },
-  /* Villa di Prestigio · Via Appia Pignatelli 198. Link dettati cosi';
-     la pagina "check-llabicana-19" porta il nome di Porta Labicana. */
+  /* Villa di Prestigio · Via Appia Pignatelli 198. Nessun link "come
+     lasciare la casa": vale solo la cartella degli accessi. */
   'ap-appia': {
-    comeLasciare: 'https://tools.affittibreviaroma.com/check-llabicana-19',
+    comeLasciare: '',
     infoAccessi: 'https://drive.google.com/drive/folders/1L1pMBkaNfM5knj-qqvVyNZgSLu7LBnaF?usp=drive_link',
   },
 }
@@ -68,10 +67,12 @@ export const LINK_FISSI: Record<string, LinkCasa> = {
 /** I link da mostrare per una casa: quelli fissi prima, poi quelli salvati. */
 export function linkDellaCasa(apartment: Apartment) {
   const fissi = LINK_FISSI[apartment.id] ?? {}
+  const haComeLasciare = fissi.comeLasciare !== undefined
+  const haInfoAccessi = fissi.infoAccessi !== undefined
   return {
-    comeLasciare: fissi.comeLasciare ?? apartment.access?.leaveGuideUrl,
-    infoAccessi: fissi.infoAccessi ?? apartment.access?.infoSheetUrl,
-    comeLasciareFisso: Boolean(fissi.comeLasciare),
-    infoAccessiFisso: Boolean(fissi.infoAccessi),
+    comeLasciare: haComeLasciare ? fissi.comeLasciare || undefined : apartment.access?.leaveGuideUrl,
+    infoAccessi: haInfoAccessi ? fissi.infoAccessi || undefined : apartment.access?.infoSheetUrl,
+    comeLasciareFisso: haComeLasciare,
+    infoAccessiFisso: haInfoAccessi,
   }
 }

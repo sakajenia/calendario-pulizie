@@ -349,7 +349,7 @@ function AccessForm({
               type="url"
               inputMode="url"
               placeholder="https://…"
-              value={link?.comeLasciareFisso ? link.comeLasciare : draft.leaveGuideUrl ?? ''}
+              value={(link?.comeLasciareFisso ? link.comeLasciare : draft.leaveGuideUrl) ?? ''}
               disabled={link?.comeLasciareFisso}
               onChange={(e) => setDraft((d) => ({ ...d, leaveGuideUrl: e.target.value }))}
             />
@@ -366,7 +366,7 @@ function AccessForm({
               type="url"
               inputMode="url"
               placeholder="https://…"
-              value={link?.infoAccessiFisso ? link.infoAccessi : draft.infoSheetUrl ?? ''}
+              value={(link?.infoAccessiFisso ? link.infoAccessi : draft.infoSheetUrl) ?? ''}
               disabled={link?.infoAccessiFisso}
               onChange={(e) => setDraft((d) => ({ ...d, infoSheetUrl: e.target.value }))}
             />
