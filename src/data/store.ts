@@ -12,6 +12,7 @@ import {
   type RigaArchivio, type TipoSincronizzato,
 } from './archivio'
 import { buildNotifications } from '@/lib/notifications'
+import { allineaCheckIn } from '@/lib/checkin'
 import type { AppNotification } from '@/types'
 
 export interface RequestFilters {
@@ -123,6 +124,8 @@ interface State {
    * l'app resta com'e'.
    */
   ensureRecurringInspections: () => void
+  /** Mette, sposta o toglie le voci di check-in secondo l'opzione delle case. */
+  allineaCheckIn: () => void
   deleteInspections: (ids: string[]) => void
   /** Spunta o rimette in sospeso una singola verifica del controllo. */
   setInspectionTaskDone: (inspectionId: string, taskId: string, done: boolean) => void
@@ -609,6 +612,19 @@ export const useStore = create<State>()(
             .filter((k) => k !== 'seedIds')
             .some((k) => next[k] !== s[k]) || (s.seedIds ?? []).length === 0
           return cambiato ? next : {}
+        }),
+
+      allineaCheckIn: () =>
+        set((s) => {
+          const esito = allineaCheckIn(s.inspections, s.apartments, s.requests)
+          if (!esito) return {}
+          const rinate = new Set(esito.rinate)
+          return {
+            inspections: esito.inspections,
+            /* Le tolte viaggiano come eliminate verso gli altri telefoni; quelle
+               ricreate non lo sono piu', altrimenti sparirebbero al giro dopo. */
+            removedIds: segnaRimossi(s.removedIds.filter((id) => !rinate.has(id)), esito.tolte),
+          }
         }),
 
       upsertInspection: (i) =>

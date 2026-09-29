@@ -102,6 +102,8 @@ export function buildNotifications({
   for (const i of inspections) {
     /* Le scadenze fisse tornano ogni mese da sole: non sono una novita'. */
     if (i.recurring) continue
+    /* Neanche i check-in: nascono da soli dalle pulizie, a decine. */
+    if (i.checkInDi) continue
     const chi = INSPECTOR_META[i.inspectorId].label
     const tipo = INSPECTION_KIND_META[i.kind].label
     const dove = i.apartmentId ? houseName(apartments, i.apartmentId) : (i.title ?? tipo)

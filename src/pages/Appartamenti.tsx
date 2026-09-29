@@ -15,8 +15,8 @@ import {
   asDate, downloadFile, fmtDate, fmtDateTime, fmtEur, fmtNum, norm, plural, toCsv,
 } from '@/lib/format'
 import {
-  CLEANING_COMPANIES, COMPANY_META,
-  type Apartment, type ApartmentVisibility, type Bed, type BedType, type CleaningCompanyId,
+  CLEANING_COMPANIES, COMPANY_META, INSPECTORS, INSPECTOR_META,
+  type Apartment, type InspectorId, type ApartmentVisibility, type Bed, type BedType, type CleaningCompanyId,
   type CleaningRequest, type ListingProvider, type User,
 } from '@/types'
 import { useToast } from '@/components/feedback/Toast'
@@ -226,6 +226,12 @@ function ApartmentDetail({
               value={apartment.providerListingId ?? <span className="text-muted-foreground">—</span>}
             />
             <DetailRow label="Visibilità" value={VISIBILITY_LABEL[apartment.visibility]} />
+            <DetailRow
+              label="Check-in"
+              value={apartment.checkIn?.attivo && apartment.checkIn.incaricatoId
+                ? INSPECTOR_META[apartment.checkIn.incaricatoId].label
+                : <span className="text-muted-foreground">No</span>}
+            />
             {apartment.cleaningFrequencyDays !== undefined && (
               <DetailRow
                 label="Frequenza pulizie"
@@ -355,9 +361,11 @@ interface Draft {
   max: string
   notes: string
   beds: Bed[]
+  checkIn: boolean
+  checkInIncaricato: InspectorId | ''
 }
 
-type DraftErrors = Partial<Record<'name' | 'address' | 'district' | 'city' | 'owner' | 'listing' | 'base' | 'range', string>>
+type DraftErrors = Partial<Record<'name' | 'address' | 'district' | 'city' | 'owner' | 'listing' | 'base' | 'range' | 'checkIn', string>>
 
 const makeDraft = (a: Apartment | null, fallbackOwnerId: string): Draft => ({
   name: a?.name ?? '',
@@ -374,6 +382,8 @@ const makeDraft = (a: Apartment | null, fallbackOwnerId: string): Draft => ({
   max: a ? String(a.prices.max) : '',
   notes: a?.notes ?? '',
   beds: a ? a.beds.map((b) => ({ ...b })) : [],
+  checkIn: a?.checkIn?.attivo ?? false,
+  checkInIncaricato: a?.checkIn?.incaricatoId ?? '',
 })
 
 function ApartmentForm({
@@ -403,6 +413,7 @@ function ApartmentForm({
     if (!d.city.trim()) e.city = 'Inserisci una città'
     if (!d.ownerId) e.owner = 'Seleziona un proprietario'
     if (d.provider !== 'none' && !d.providerListingId.trim()) e.listing = 'Inserisci l’id listing'
+    if (d.checkIn && !d.checkInIncaricato) e.checkIn = 'Scegli chi fa il check-in'
 
     const base = toNum(d.base)
     const min = toNum(d.min)
@@ -423,6 +434,9 @@ function ApartmentForm({
     if (Object.keys(e).length > 0) return
 
     upsertApartment({
+      /* Si parte dalla casa com'era: senza, salvare da qui cancellava i codici
+         e i link della pagina Accessi, che questo modulo non mostra. */
+      ...initial,
       id: initial?.id ?? uid('ap'),
       name: draft.name.trim(),
       address: draft.address.trim(),
@@ -444,6 +458,9 @@ function ApartmentForm({
         perGuest: initial?.prices.perGuest,
       },
       cleaningFrequencyDays: initial?.cleaningFrequencyDays,
+      checkIn: draft.checkIn || initial?.checkIn
+        ? { attivo: draft.checkIn, incaricatoId: draft.checkInIncaricato || undefined }
+        : undefined,
       createdAt: initial?.createdAt ?? new Date().toISOString(),
     })
     onClose()
@@ -630,6 +647,36 @@ function ApartmentForm({
             </ul>
           )}
         </div>
+
+        <section className="space-y-3 rounded-lg border border-border p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <Label htmlFor="casa-checkin">Check-in</Label>
+              <p className="text-xs text-muted-foreground">
+                Il giorno di arrivo degli ospiti compare nel calendario Task Operative di chi lo fa.
+              </p>
+            </div>
+            <span id="casa-checkin">
+              <Switch
+                checked={draft.checkIn}
+                label="Check-in fatto dalla squadra"
+                onChange={(v) => setDraft((d) => ({ ...d, checkIn: v }))}
+              />
+            </span>
+          </div>
+          {draft.checkIn && (
+            <Field label="Chi fa il check-in" error={errors.checkIn}>
+              <Select
+                value={draft.checkInIncaricato}
+                onChange={(e) => setDraft((d) => ({ ...d, checkInIncaricato: e.target.value as InspectorId | '' }))}
+                options={[
+                  { value: '', label: 'Scegli…' },
+                  ...INSPECTORS.map((p) => ({ value: p, label: INSPECTOR_META[p].label })),
+                ]}
+              />
+            </Field>
+          )}
+        </section>
 
         <Field label="Note" hint="Accessi, keybox, rifornimenti: vengono mostrate agli operatori.">
           <Textarea

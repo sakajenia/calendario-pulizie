@@ -91,6 +91,14 @@ export function AppShell() {
      all'apertura, non quando qualcuno si ricorda di crearle. */
   React.useEffect(() => { ensureRecurring() }, [ensureRecurring])
 
+  /* I check-in seguono le case e le pulizie: ogni volta che cambiano (anche
+     per un aggiornamento arrivato da un altro telefono) si rimettono in pari. */
+  const allineaCheckIn = useStore((s) => s.allineaCheckIn)
+  const caseStato = useStore((s) => s.apartments)
+  const pulizieStato = useStore((s) => s.requests)
+  const vociStato = useStore((s) => s.inspections)
+  React.useEffect(() => { allineaCheckIn() }, [allineaCheckIn, caseStato, pulizieStato, vociStato])
+
   /* Lo scambio con l'archivio condiviso: quello che scrive il manager arriva
      agli operatori senza che nessuno debba fare niente. */
   useArchivioCondiviso()

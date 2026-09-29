@@ -174,6 +174,12 @@ export interface Apartment {
   cleaningFrequencyDays?: number
   /** Codici di accesso e schede collegate. */
   access?: ApartmentAccess
+  /**
+   * Check-in fatto da qualcuno della squadra. Se attivo, per ogni pulizia
+   * della casa compare nel calendario Task Operative una voce "Check-in"
+   * il giorno e all'ora di arrivo degli ospiti, intestata a chi lo fa.
+   */
+  checkIn?: { attivo: boolean; incaricatoId?: InspectorId }
   createdAt: string
 }
 
@@ -371,6 +377,12 @@ export interface Inspection {
    * novita' da notificare, e torna anche se la si cancella.
    */
   recurring?: boolean
+  /**
+   * Voce di check-in generata dall'opzione della casa: e' l'id della pulizia
+   * da cui nasce. Segue da sola data e incaricato, e sparisce se la pulizia
+   * viene annullata o l'opzione spenta.
+   */
+  checkInDi?: string
   createdAt: string
   updatedAt?: string
   updatedById?: string
