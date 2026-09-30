@@ -1,9 +1,10 @@
 /*
  * Le voci "Check-in" del calendario Task Operative.
  *
- * Non si scrivono a mano: nascono dall'opzione check-in della casa. Per ogni
- * pulizia di una casa con il check-in attivo c'e' una voce, il giorno e
- * all'ora di arrivo degli ospiti, intestata a chi e' incaricato. Cosi' chi
+ * Non si scrivono a mano: nascono dal check-in scelto sulla pulizia (nuova
+ * richiesta o modifica) oppure dall'opzione della casa, che vale per tutte le
+ * sue pulizie. C'e' una voce il giorno e all'ora di arrivo degli ospiti,
+ * intestata a chi e' incaricato. Cosi' chi
  * apre il calendario con il proprio nome trova il check-in del giorno.
  *
  * La voce segue la pulizia: se cambia l'orario di arrivo o l'incaricato si
@@ -14,7 +15,7 @@
  * la generano insieme producono la stessa riga, non un doppione.
  */
 import { startOfDay } from 'date-fns'
-import type { Apartment, CleaningRequest, Inspection } from '@/types'
+import type { Apartment, CleaningRequest, Inspection, InspectorId } from '@/types'
 import { asDate } from '@/lib/format'
 
 export const idCheckIn = (requestId: string) => `checkin-${requestId}`
@@ -35,13 +36,16 @@ export function allineaCheckIn(
   const oggi = startOfDay(now).getTime()
 
   /* Quello che dovrebbe esserci adesso, pulizia per pulizia. */
-  const attese = new Map<string, { r: CleaningRequest; a: Apartment }>()
+  const attese = new Map<string, { r: CleaningRequest; a: Apartment; chi: InspectorId }>()
   for (const r of requests) {
     if (r.status === 'cancellata') continue
     const a = case_.get(r.apartmentId)
-    if (!a?.checkIn?.attivo || !a.checkIn.incaricatoId) continue
+    if (!a) continue
+    /* Prima la scelta fatta sulla pulizia, poi l'opzione della casa. */
+    const chi = r.checkIn ?? (a.checkIn?.attivo ? a.checkIn.incaricatoId : undefined)
+    if (!chi) continue
     if (Number.isNaN(asDate(r.checkInAt).getTime())) continue
-    attese.set(idCheckIn(r.id), { r, a })
+    attese.set(idCheckIn(r.id), { r, a, chi })
   }
 
   let cambiato = false
@@ -55,9 +59,8 @@ export function allineaCheckIn(
     const atteso = attese.get(i.id)
     if (!atteso) { tolte.push(i.id); cambiato = true; continue }
     presenti.add(i.id)
-    const { r, a } = atteso
+    const { r, a, chi: incaricato } = atteso
     const titolo = `Check-in · ${a.name}`
-    const incaricato = a.checkIn!.incaricatoId!
     if (i.scheduledAt !== r.checkInAt || i.inspectorId !== incaricato || i.apartmentId !== a.id || i.title !== titolo) {
       prossime.push({ ...i, scheduledAt: r.checkInAt, inspectorId: incaricato, apartmentId: a.id, title: titolo })
       cambiato = true
@@ -68,7 +71,7 @@ export function allineaCheckIn(
 
   /* Le nuove solo da oggi in avanti: i check-in gia' passati non sono lavoro
      da fare, e riempirebbero il calendario di voci aperte nel passato. */
-  for (const [id, { r, a }] of attese) {
+  for (const [id, { r, a, chi }] of attese) {
     if (presenti.has(id)) continue
     if (asDate(r.checkInAt).getTime() < oggi) continue
     const ospiti = r.checkInPeople > 0 ? ` (${r.checkInPeople} ${r.checkInPeople === 1 ? 'ospite' : 'ospiti'})` : ''
@@ -77,7 +80,7 @@ export function allineaCheckIn(
       kind: 'task_operativa',
       apartmentId: a.id,
       title: `Check-in · ${a.name}`,
-      inspectorId: a.checkIn!.incaricatoId!,
+      inspectorId: chi,
       scheduledAt: r.checkInAt,
       tasks: [{ id: `${id}-accoglienza`, name: `Accogliere gli ospiti${ospiti}`, done: false }],
       checkInDi: r.id,

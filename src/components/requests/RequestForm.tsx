@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { Button, Checkbox, Dialog, Field, Input, Select, Switch, Textarea } from '@/components/ui'
 import { useCurrentUser, useStore, scopeApartments } from '@/data/store'
-import { REQUEST_STATUSES, STATUS_META, type CleaningRequest, type ExtraLine, type RequestBed, type RequestStatus } from '@/types'
+import { INSPECTORS, INSPECTOR_META, REQUEST_STATUSES, STATUS_META, type CleaningRequest, type InspectorId, type ExtraLine, type RequestBed, type RequestStatus } from '@/types'
 import { TODAY } from '@/data/seed'
 
 const toLocalInput = (iso: string) => {
@@ -48,10 +48,12 @@ export function RequestForm({
     () => initial ?? blank(apartments[0]?.id ?? '', user?.id ?? '', defaultDate),
   )
   const [error, setError] = React.useState<string>()
+  const [checkInAcceso, setCheckInAcceso] = React.useState(Boolean(initial?.checkIn))
 
   React.useEffect(() => {
     if (!open) return
     setError(undefined)
+    setCheckInAcceso(Boolean(initial?.checkIn))
     setDraft(initial ?? blank(apartments[0]?.id ?? '', user?.id ?? '', defaultDate))
   }, [open, initial, defaultDate, apartments, user?.id])
 
@@ -93,6 +95,7 @@ export function RequestForm({
       return setError('La frequenza della pulizia ricorrente deve essere di almeno 1 giorno')
     if (new Date(draft.checkInAt) < new Date(draft.checkOutAt))
       return setError('La data di check-in non può essere precedente alla data di check-out')
+    if (checkInAcceso && !draft.checkIn) return setError('Scegli chi fa il check-in')
 
     upsertRequest({
       ...draft,
@@ -206,6 +209,41 @@ export function RequestForm({
             />
           </Field>
         </div>
+
+        {/* Check-in: chi della squadra accoglie gli ospiti. La voce compare
+            nel suo calendario Task Operative il giorno e all'ora di arrivo. */}
+        <section className="space-y-3 rounded-lg border border-border p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Check-in</p>
+              <p className="text-xs text-muted-foreground">
+                {apartment?.checkIn?.attivo && apartment.checkIn.incaricatoId && !draft.checkIn
+                  ? `Già attivo per questa casa: lo fa ${INSPECTOR_META[apartment.checkIn.incaricatoId].label}.`
+                  : 'Compare nel calendario Task Operative di chi lo fa, il giorno e all’ora di arrivo.'}
+              </p>
+            </div>
+            <Switch
+              checked={checkInAcceso}
+              label="Check-in da fare"
+              onChange={(v) => {
+                setCheckInAcceso(v)
+                if (!v) set('checkIn', undefined)
+              }}
+            />
+          </div>
+          {checkInAcceso && (
+            <Field label="Chi fa il check-in">
+              <Select
+                value={draft.checkIn ?? ''}
+                options={[
+                  { value: '', label: 'Scegli…' },
+                  ...INSPECTORS.map((p) => ({ value: p, label: INSPECTOR_META[p].label })),
+                ]}
+                onChange={(e) => set('checkIn', (e.target.value || undefined) as InspectorId | undefined)}
+              />
+            </Field>
+          )}
+        </section>
 
         <Field label="Note">
           <Textarea

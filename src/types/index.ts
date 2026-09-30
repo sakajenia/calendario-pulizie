@@ -246,6 +246,12 @@ export interface CleaningRequest {
   completedAt?: string
   /** Chi ha segnato la pulizia come completata. */
   completedById?: string
+  /**
+   * Chi della squadra fa il check-in di questa pulizia. Se c'e', il giorno e
+   * l'ora di arrivo compare una voce "Check-in" nel suo calendario Task
+   * Operative. Vale anche senza l'opzione accesa sulla casa.
+   */
+  checkIn?: InspectorId
   /** Ultima modifica registrata sulla richiesta. */
   updatedAt?: string
   updatedById?: string
