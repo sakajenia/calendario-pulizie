@@ -38,6 +38,7 @@ export default {
           done: 'hsl(var(--status-done))',
           cancelled: 'hsl(var(--status-cancelled))',
         },
+        checkin: 'hsl(var(--checkin))',
         /* Chi esegue il controllo interno degli appartamenti. */
         inspector: {
           manuel: 'hsl(var(--inspector-manuel))',

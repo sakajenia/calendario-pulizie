@@ -23,7 +23,7 @@ import CalendarioControlli from '@/pages/CalendarioControlli'
 import { RequestCard, RequestDetail } from '@/components/requests/RequestDetail'
 import { RequestForm } from '@/components/requests/RequestForm'
 import { useIsDesktop } from '@/hooks/useMediaQuery'
-import { scopeApartments, scopeRequests, useCurrentUser, useStore } from '@/data/store'
+import { scopeApartments, scopeRequests, useConCheckIn, useCurrentUser, useStore } from '@/data/store'
 import { canCreateRequest, canEditRequest, isManager } from '@/lib/permissions'
 import { useToast } from '@/components/feedback/Toast'
 import { TODAY } from '@/data/seed'
@@ -61,6 +61,7 @@ function sortRequests(list: CleaningRequest[], key: SortKey): CleaningRequest[] 
 /* ------------------------------------------------------------------ pagina */
 
 function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
+  const conCheckIn = useConCheckIn()
   const user = useCurrentUser()
   const allRequests = useStore((s) => s.requests)
   const allApartments = useStore((s) => s.apartments)
@@ -457,7 +458,7 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
                       {list.length > 0 && (
                         <span className="flex w-full flex-wrap items-center gap-1">
                           {list.slice(0, 4).map((r) => (
-                            <StatusDot key={r.id} status={r.status} className="size-2" />
+                            <StatusDot key={r.id} status={r.status} checkIn={conCheckIn(r)} className="size-2" />
                           ))}
                           {list.length > 4 && (
                             <span className="text-[10px] font-semibold leading-none text-muted-foreground">
@@ -522,7 +523,7 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
                             {/* Nelle celle strette lo stato e' solo un pallino: l'etichetta testuale
                                 sbordava dalla card. Il testo completo resta in title/aria-label. */}
                             <span className="flex w-full min-w-0 items-center gap-1.5">
-                              <StatusDot status={r.status} className="size-2 shrink-0" />
+                              <StatusDot status={r.status} checkIn={conCheckIn(r)} className="size-2 shrink-0" />
                               <span className="min-w-0 flex-1 truncate text-[11px] font-semibold tabular-nums">
                                 {fmtTime(r.checkOutAt)}
                               </span>
@@ -578,6 +579,11 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
                 </button>
               )
             })}
+            {/* Solo legenda: il blu segna le pulizie con check-in. */}
+            <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2 py-1 text-[11px] font-medium text-muted-foreground">
+              <span className="inline-block size-2 rounded-full bg-checkin" />
+              Check-in
+            </span>
           </div>
         </Card>
 
@@ -907,7 +913,7 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
         <ul className="space-y-1.5 text-sm">
           {checked.map((r) => (
             <li key={r.id} className="flex items-center gap-2 border-b border-border/60 pb-1.5 last:border-0">
-              <StatusDot status={r.status} className="size-2" />
+              <StatusDot status={r.status} checkIn={conCheckIn(r)} className="size-2" />
               <span className="min-w-0 flex-1 truncate">{labelOf(r)}</span>
               <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{fmtTime(r.checkOutAt)}</span>
             </li>

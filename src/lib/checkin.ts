@@ -1,94 +1,24 @@
 /*
- * Le voci "Check-in" del calendario Task Operative.
+ * Il check-in degli ospiti, quando lo fa la ditta di pulizie.
  *
- * Non si scrivono a mano: nascono dal check-in scelto sulla pulizia (nuova
- * richiesta o modifica) oppure dall'opzione della casa, che vale per tutte le
- * sue pulizie. C'e' una voce il giorno e all'ora di arrivo degli ospiti,
- * intestata a chi e' incaricato. Cosi' chi
- * apre il calendario con il proprio nome trova il check-in del giorno.
- *
- * La voce segue la pulizia: se cambia l'orario di arrivo o l'incaricato si
- * sposta, se la pulizia viene annullata o eliminata, o l'opzione spenta,
- * sparisce. Quello che si spunta sulla voce resta.
- *
- * L'identificativo e' fisso (check-in + id della pulizia): due telefoni che
- * la generano insieme producono la stessa riga, non un doppione.
+ * Il manager lo accende sulla richiesta di pulizia, oppure sulla casa per
+ * tutte le sue pulizie. La ditta lo trova nelle sue richieste e nel
+ * calendario la pulizia ha il pallino blu, cosi' si riconosce a colpo d'occhio.
  */
-import { startOfDay } from 'date-fns'
-import type { Apartment, CleaningRequest, Inspection, InspectorId } from '@/types'
-import { asDate } from '@/lib/format'
+import type { Apartment, CleaningRequest, Inspection } from '@/types'
 
-export const idCheckIn = (requestId: string) => `checkin-${requestId}`
-
-interface Esito {
-  inspections: Inspection[]
-  /** Voci da togliere anche dagli altri dispositivi. */
-  tolte: string[]
-  /** Voci ricreate: non sono piu' "eliminate". */
-  rinate: string[]
+/** La scelta sulla pulizia vince; se non c'e', vale l'opzione della casa. */
+export function richiedeCheckIn(r: CleaningRequest, apartments: Apartment[]): boolean {
+  if (typeof r.checkIn === 'boolean') return r.checkIn
+  /* Una versione di prova salvava il nome di chi lo faceva: conta come acceso. */
+  if (r.checkIn) return true
+  return Boolean(apartments.find((a) => a.id === r.apartmentId)?.checkIn?.attivo)
 }
 
-export function allineaCheckIn(
-  inspections: Inspection[], apartments: Apartment[], requests: CleaningRequest[],
-  now: Date = new Date(),
-): Esito | null {
-  const case_ = new Map(apartments.map((a) => [a.id, a]))
-  const oggi = startOfDay(now).getTime()
-
-  /* Quello che dovrebbe esserci adesso, pulizia per pulizia. */
-  const attese = new Map<string, { r: CleaningRequest; a: Apartment; chi: InspectorId }>()
-  for (const r of requests) {
-    if (r.status === 'cancellata') continue
-    const a = case_.get(r.apartmentId)
-    if (!a) continue
-    /* Prima la scelta fatta sulla pulizia, poi l'opzione della casa. */
-    const chi = r.checkIn ?? (a.checkIn?.attivo ? a.checkIn.incaricatoId : undefined)
-    if (!chi) continue
-    if (Number.isNaN(asDate(r.checkInAt).getTime())) continue
-    attese.set(idCheckIn(r.id), { r, a, chi })
-  }
-
-  let cambiato = false
-  const tolte: string[] = []
-  const rinate: string[] = []
-  const presenti = new Set<string>()
-  const prossime: Inspection[] = []
-
-  for (const i of inspections) {
-    if (!i.checkInDi) { prossime.push(i); continue }
-    const atteso = attese.get(i.id)
-    if (!atteso) { tolte.push(i.id); cambiato = true; continue }
-    presenti.add(i.id)
-    const { r, a, chi: incaricato } = atteso
-    const titolo = `Check-in · ${a.name}`
-    if (i.scheduledAt !== r.checkInAt || i.inspectorId !== incaricato || i.apartmentId !== a.id || i.title !== titolo) {
-      prossime.push({ ...i, scheduledAt: r.checkInAt, inspectorId: incaricato, apartmentId: a.id, title: titolo })
-      cambiato = true
-    } else {
-      prossime.push(i)
-    }
-  }
-
-  /* Le nuove solo da oggi in avanti: i check-in gia' passati non sono lavoro
-     da fare, e riempirebbero il calendario di voci aperte nel passato. */
-  for (const [id, { r, a, chi }] of attese) {
-    if (presenti.has(id)) continue
-    if (asDate(r.checkInAt).getTime() < oggi) continue
-    const ospiti = r.checkInPeople > 0 ? ` (${r.checkInPeople} ${r.checkInPeople === 1 ? 'ospite' : 'ospiti'})` : ''
-    prossime.push({
-      id,
-      kind: 'task_operativa',
-      apartmentId: a.id,
-      title: `Check-in · ${a.name}`,
-      inspectorId: chi,
-      scheduledAt: r.checkInAt,
-      tasks: [{ id: `${id}-accoglienza`, name: `Accogliere gli ospiti${ospiti}`, done: false }],
-      checkInDi: r.id,
-      createdAt: now.toISOString(),
-    })
-    rinate.push(id)
-    cambiato = true
-  }
-
-  return cambiato ? { inspections: prossime, tolte, rinate } : null
+/**
+ * Per qualche ora il check-in e' finito nel calendario Task Operative della
+ * squadra. Non e' li' che serve: quelle voci si tolgono, il resto no.
+ */
+export function vociCheckInDaTogliere(inspections: Inspection[]): string[] {
+  return inspections.filter((i) => i.checkInDi).map((i) => i.id)
 }

@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { BedDouble, Check, Home, MapPin, StickyNote, Trash2, Users, X } from 'lucide-react'
 import { Dialog, Button, Select, Textarea } from '@/components/ui'
-import { StatusChip } from '@/components/StatusChip'
+import { CheckInBadge, StatusChip } from '@/components/StatusChip'
 import { HelpTip } from '@/components/HelpTip'
 import { useToast } from '@/components/feedback/Toast'
 import { useCurrentUser, useStore } from '@/data/store'
@@ -184,7 +184,10 @@ export function RequestDetail({
                 onChange={(e) => changeStatus(request, e.target.value as RequestStatus)}
               />
             ) : (
-              <StatusChip status={request.status} />
+              <span className="inline-flex flex-wrap items-center gap-1.5">
+                <StatusChip status={request.status} />
+                <CheckInBadge request={request} />
+              </span>
             )}
           </Row>
           <Row label="Assegnata a">{assignee?.name ?? <span className="text-muted-foreground">Non assegnata</span>}</Row>
@@ -355,7 +358,10 @@ export function RequestCard({
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <StatusChip status={request.status} />
+        <span className="inline-flex flex-wrap items-center gap-1.5">
+          <StatusChip status={request.status} />
+          <CheckInBadge request={request} />
+        </span>
         <span className="shrink-0 text-xs text-muted-foreground">{fmtDateTime(request.createdAt)}</span>
       </div>
 

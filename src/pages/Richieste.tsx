@@ -8,7 +8,7 @@ import {
   Badge, Button, Checkbox, Dialog, Dropdown, DropdownItem, DropdownSeparator,
   EmptyState, Field, Input, Select, Table, TableScroller, Td, Th, Tooltip,
 } from '@/components/ui'
-import { StatusChip, StatusDot } from '@/components/StatusChip'
+import { CheckInBadge, StatusChip, StatusDot } from '@/components/StatusChip'
 import { RequestCard, RequestDetail } from '@/components/requests/RequestDetail'
 import { RequestForm } from '@/components/requests/RequestForm'
 import { useToast } from '@/components/feedback/Toast'
@@ -787,7 +787,12 @@ export default function Richieste() {
                       {fmtDateTime(r.req.createdAt)}
                     </Td>
 
-                    <Td><StatusChip status={r.req.status} size="sm" /></Td>
+                    <Td>
+                      <span className="inline-flex flex-wrap items-center gap-1">
+                        <StatusChip status={r.req.status} size="sm" />
+                        <CheckInBadge request={r.req} />
+                      </span>
+                    </Td>
 
                     <Td className="whitespace-nowrap tabular-nums text-xs">{fmtDateTime(r.req.checkOutAt)}</Td>
                     <Td className="whitespace-nowrap tabular-nums text-xs">{fmtDateTime(r.req.checkInAt)}</Td>

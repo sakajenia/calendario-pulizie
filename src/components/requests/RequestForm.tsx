@@ -1,7 +1,8 @@
 import * as React from 'react'
 import { Button, Checkbox, Dialog, Field, Input, Select, Switch, Textarea } from '@/components/ui'
 import { useCurrentUser, useStore, scopeApartments } from '@/data/store'
-import { INSPECTORS, INSPECTOR_META, REQUEST_STATUSES, STATUS_META, type CleaningRequest, type InspectorId, type ExtraLine, type RequestBed, type RequestStatus } from '@/types'
+import { richiedeCheckIn } from '@/lib/checkin'
+import { REQUEST_STATUSES, STATUS_META, type CleaningRequest, type ExtraLine, type RequestBed, type RequestStatus } from '@/types'
 import { TODAY } from '@/data/seed'
 
 const toLocalInput = (iso: string) => {
@@ -48,16 +49,24 @@ export function RequestForm({
     () => initial ?? blank(apartments[0]?.id ?? '', user?.id ?? '', defaultDate),
   )
   const [error, setError] = React.useState<string>()
-  const [checkInAcceso, setCheckInAcceso] = React.useState(Boolean(initial?.checkIn))
+  const [checkInAcceso, setCheckInAcceso] = React.useState(false)
 
   React.useEffect(() => {
     if (!open) return
     setError(undefined)
-    setCheckInAcceso(Boolean(initial?.checkIn))
+    const iniziale = initial ?? blank(apartments[0]?.id ?? '', user?.id ?? '', defaultDate)
+    setCheckInAcceso(richiedeCheckIn(iniziale, allApartments))
     setDraft(initial ?? blank(apartments[0]?.id ?? '', user?.id ?? '', defaultDate))
   }, [open, initial, defaultDate, apartments, user?.id])
 
   const apartment = apartments.find((a) => a.id === draft.apartmentId)
+
+  /* Su una richiesta nuova, cambiando casa l'interruttore riparte da come e'
+     impostata quella casa. */
+  const checkInDiSerie = Boolean(apartment?.checkIn?.attivo)
+  React.useEffect(() => {
+    if (open && !initial) setCheckInAcceso(checkInDiSerie)
+  }, [open, initial, draft.apartmentId, checkInDiSerie])
   const set = <K extends keyof CleaningRequest>(k: K, v: CleaningRequest[K]) =>
     setDraft((d) => ({ ...d, [k]: v }))
 
@@ -95,10 +104,13 @@ export function RequestForm({
       return setError('La frequenza della pulizia ricorrente deve essere di almeno 1 giorno')
     if (new Date(draft.checkInAt) < new Date(draft.checkOutAt))
       return setError('La data di check-in non può essere precedente alla data di check-out')
-    if (checkInAcceso && !draft.checkIn) return setError('Scegli chi fa il check-in')
 
+    /* Si salva la scelta solo se diversa da quella di serie della casa: cosi'
+       accendere l'opzione sulla casa vale anche per questa pulizia. */
+    const diSerie = Boolean(apartment?.checkIn?.attivo)
     upsertRequest({
       ...draft,
+      checkIn: checkInAcceso === diSerie ? undefined : checkInAcceso,
       hostId: apartment?.ownerId ?? draft.hostId,
       perPersonExtras: draft.perPersonExtras.length ? draft.perPersonExtras : recalcPerPerson(draft.checkInPeople),
       apartmentExtras: draft.apartmentExtras.length
@@ -210,39 +222,21 @@ export function RequestForm({
           </Field>
         </div>
 
-        {/* Check-in: chi della squadra accoglie gli ospiti. La voce compare
-            nel suo calendario Task Operative il giorno e all'ora di arrivo. */}
-        <section className="space-y-3 rounded-lg border border-border p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">Check-in</p>
-              <p className="text-xs text-muted-foreground">
-                {apartment?.checkIn?.attivo && apartment.checkIn.incaricatoId && !draft.checkIn
-                  ? `Già attivo per questa casa: lo fa ${INSPECTOR_META[apartment.checkIn.incaricatoId].label}.`
-                  : 'Compare nel calendario Task Operative di chi lo fa, il giorno e all’ora di arrivo.'}
-              </p>
-            </div>
-            <Switch
-              checked={checkInAcceso}
-              label="Check-in da fare"
-              onChange={(v) => {
-                setCheckInAcceso(v)
-                if (!v) set('checkIn', undefined)
-              }}
-            />
+        {/* Check-in a carico della ditta di pulizie: la vede nelle sue
+            richieste e nel calendario la pulizia ha il pallino blu. */}
+        <section className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-sm font-medium">
+              <span className="inline-block size-2 rounded-full bg-checkin" />
+              Check-in
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {apartment?.checkIn?.attivo
+                ? 'Acceso di serie per questa casa: la ditta fa anche il check-in.'
+                : 'La ditta di pulizie fa anche il check-in degli ospiti.'}
+            </p>
           </div>
-          {checkInAcceso && (
-            <Field label="Chi fa il check-in">
-              <Select
-                value={draft.checkIn ?? ''}
-                options={[
-                  { value: '', label: 'Scegli…' },
-                  ...INSPECTORS.map((p) => ({ value: p, label: INSPECTOR_META[p].label })),
-                ]}
-                onChange={(e) => set('checkIn', (e.target.value || undefined) as InspectorId | undefined)}
-              />
-            </Field>
-          )}
+          <Switch checked={checkInAcceso} label="Check-in da fare" onChange={setCheckInAcceso} />
         </section>
 
         <Field label="Note">

@@ -63,7 +63,9 @@
        differenza di luminosita', non solo di tinta. */
     --status-pending: 32 88% 42%;
     --status-accepted: 162 76% 26%;
-    --status-progress: 214 82% 47%;
+    --status-progress: 188 82% 30%;
+    /* Check-in a carico della ditta: l'unico pallino blu del calendario. */
+    --checkin: 221 83% 53%;
     --status-verify: 268 62% 52%;
     --status-done: 346 72% 31%;
     --status-cancelled: 358 68% 46%;
@@ -128,7 +130,8 @@
 
     --status-pending: 32 92% 56%;
     --status-accepted: 162 62% 45%;
-    --status-progress: 214 88% 64%;
+    --status-progress: 188 70% 50%;
+    --checkin: 217 91% 65%;
     --status-verify: 268 76% 70%;
     --status-done: 346 58% 56%;
     --status-cancelled: 358 74% 62%;

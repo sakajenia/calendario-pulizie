@@ -12,7 +12,7 @@ import {
   type RigaArchivio, type TipoSincronizzato,
 } from './archivio'
 import { buildNotifications } from '@/lib/notifications'
-import { allineaCheckIn } from '@/lib/checkin'
+import { richiedeCheckIn, vociCheckInDaTogliere } from '@/lib/checkin'
 import type { AppNotification } from '@/types'
 
 export interface RequestFilters {
@@ -124,7 +124,7 @@ interface State {
    * l'app resta com'e'.
    */
   ensureRecurringInspections: () => void
-  /** Mette, sposta o toglie le voci di check-in secondo l'opzione delle case. */
+  /** Toglie le voci di check-in rimaste nel calendario della squadra. */
   allineaCheckIn: () => void
   deleteInspections: (ids: string[]) => void
   /** Spunta o rimette in sospeso una singola verifica del controllo. */
@@ -616,14 +616,12 @@ export const useStore = create<State>()(
 
       allineaCheckIn: () =>
         set((s) => {
-          const esito = allineaCheckIn(s.inspections, s.apartments, s.requests)
-          if (!esito) return {}
-          const rinate = new Set(esito.rinate)
+          const tolte = vociCheckInDaTogliere(s.inspections)
+          if (!tolte.length) return {}
           return {
-            inspections: esito.inspections,
-            /* Le tolte viaggiano come eliminate verso gli altri telefoni; quelle
-               ricreate non lo sono piu', altrimenti sparirebbero al giro dopo. */
-            removedIds: segnaRimossi(s.removedIds.filter((id) => !rinate.has(id)), esito.tolte),
+            inspections: s.inspections.filter((i) => !tolte.includes(i.id)),
+            /* Viaggiano come eliminate: spariscono anche dagli altri telefoni. */
+            removedIds: segnaRimossi(s.removedIds, tolte),
           }
         }),
 
@@ -937,4 +935,10 @@ export function useArchivioCondiviso() {
       window.removeEventListener('online', giro)
     }
   }, [collegato, sincronizza])
+}
+
+/** Dice se una pulizia comprende il check-in, tenendo conto della casa. */
+export function useConCheckIn() {
+  const apartments = useStore((s) => s.apartments)
+  return React.useCallback((r: CleaningRequest) => richiedeCheckIn(r, apartments), [apartments])
 }
