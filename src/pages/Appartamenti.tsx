@@ -1,7 +1,7 @@
 import * as React from 'react'
 import {
   BedDouble, Building2, ChevronDown, ChevronUp, ChevronsUpDown, Download, Eye,
-  MoreVertical, Pencil, Plus, Search, Trash2,
+  MoreVertical, Pencil, Plus, RefreshCw, Search, Trash2,
 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/AppShell'
 import {
@@ -362,9 +362,10 @@ interface Draft {
   notes: string
   beds: Bed[]
   checkIn: boolean
+  icalUrl: string
 }
 
-type DraftErrors = Partial<Record<'name' | 'address' | 'district' | 'city' | 'owner' | 'listing' | 'base' | 'range', string>>
+type DraftErrors = Partial<Record<'name' | 'address' | 'district' | 'city' | 'owner' | 'listing' | 'base' | 'range' | 'ical', string>>
 
 const makeDraft = (a: Apartment | null, fallbackOwnerId: string): Draft => ({
   name: a?.name ?? '',
@@ -382,6 +383,7 @@ const makeDraft = (a: Apartment | null, fallbackOwnerId: string): Draft => ({
   notes: a?.notes ?? '',
   beds: a ? a.beds.map((b) => ({ ...b })) : [],
   checkIn: a?.checkIn?.attivo ?? false,
+  icalUrl: a?.icalUrl ?? '',
 })
 
 function ApartmentForm({
@@ -411,6 +413,7 @@ function ApartmentForm({
     if (!d.city.trim()) e.city = 'Inserisci una città'
     if (!d.ownerId) e.owner = 'Seleziona un proprietario'
     if (d.provider !== 'none' && !d.providerListingId.trim()) e.listing = 'Inserisci l’id listing'
+    if (d.icalUrl.trim() && !/^https:\/\/\S+$/.test(d.icalUrl.trim())) e.ical = 'Il link deve iniziare con https://'
 
     const base = toNum(d.base)
     const min = toNum(d.min)
@@ -456,6 +459,7 @@ function ApartmentForm({
       },
       cleaningFrequencyDays: initial?.cleaningFrequencyDays,
       checkIn: draft.checkIn || initial?.checkIn ? { attivo: draft.checkIn } : undefined,
+      icalUrl: draft.icalUrl.trim() || undefined,
       createdAt: initial?.createdAt ?? new Date().toISOString(),
     })
     onClose()
@@ -643,6 +647,20 @@ function ApartmentForm({
           )}
         </div>
 
+        <Field
+          label="Calendario prenotazioni (link iCal)"
+          error={errors.ical}
+          hint="Airbnb: Calendario → Disponibilità → Collega calendari → Esporta calendario. Le pulizie si creano da sole il giorno di ogni partenza."
+        >
+          <Input
+            type="url"
+            inputMode="url"
+            placeholder="https://www.airbnb.it/calendar/ical/…"
+            value={draft.icalUrl}
+            onChange={(e) => setDraft((d) => ({ ...d, icalUrl: e.target.value }))}
+          />
+        </Field>
+
         <section className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
           <div className="min-w-0">
             <p className="flex items-center gap-2 text-sm font-medium">
@@ -683,6 +701,20 @@ export default function Appartamenti() {
   const deleteApartment = useStore((s) => s.deleteApartment)
   const restoreApartment = useStore((s) => s.upsertApartment)
   const toast = useToast()
+  const importaCalendari = useStore((s) => s.importaCalendari)
+  const [importando, setImportando] = React.useState(false)
+  const aggiornaDaCalendari = async () => {
+    setImportando(true)
+    const e = await importaCalendari()
+    setImportando(false)
+    toast({
+      title: e.ok ? 'Calendari aggiornati' : 'Calendari aggiornati in parte',
+      description: [
+        `${e.nuove} nuove, ${e.aggiornate} spostate, ${e.annullate} annullate.`,
+        ...e.errori,
+      ].join(' '),
+    })
+  }
 
   const [text, setText] = React.useState('')
   const [ownerFilter, setOwnerFilter] = React.useState('all')
@@ -855,6 +887,12 @@ export default function Appartamenti() {
         }
         actions={
           <>
+            {scoped.some((a) => a.icalUrl) && (
+              <Button variant="outline" onClick={aggiornaDaCalendari} disabled={importando} aria-label="Aggiorna da Airbnb" title="Aggiorna le pulizie dai calendari delle prenotazioni">
+                <RefreshCw className={cn(importando && 'animate-spin')} />
+                <span className="hidden sm:inline">Aggiorna da Airbnb</span>
+              </Button>
+            )}
             <Button variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
               <Download />
               <span className="hidden sm:inline">Esporta CSV</span>

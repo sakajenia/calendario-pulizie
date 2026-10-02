@@ -138,3 +138,7 @@ export const spingiNellArchivio = (record: RigaArchivio[]) =>
     method: 'POST',
     body: JSON.stringify({ record }),
   })
+
+/** Il calendario iCal di una casa, scaricato dal Worker (il browser non puo'). */
+export const scaricaCalendarioCasa = (url: string) =>
+  chiama<{ ics: string }>(`/calendario?url=${encodeURIComponent(url)}`)

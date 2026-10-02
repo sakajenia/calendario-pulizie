@@ -99,6 +99,20 @@ export function AppShell() {
   const vociStato = useStore((s) => s.inspections)
   React.useEffect(() => { allineaCheckIn() }, [allineaCheckIn, caseStato, pulizieStato, vociStato])
 
+  /* Pulizie dai calendari Airbnb/Booking: le scarica il manager all'apertura
+     e poi ogni mezz'ora, solo quando e' collegato all'archivio. Le ditte le
+     ricevono con la sincronizzazione, come tutte le altre. */
+  const importaCalendari = useStore((s) => s.importaCalendari)
+  const collegato = useStore((s) => s.archivio.stato === 'collegato')
+  const conCalendario = useStore((s) => s.apartments.some((a) => a.icalUrl))
+  const managerQui = isManager(user)
+  React.useEffect(() => {
+    if (!managerQui || !collegato || !conCalendario) return
+    void importaCalendari()
+    const giro = window.setInterval(() => { void importaCalendari() }, 30 * 60 * 1000)
+    return () => window.clearInterval(giro)
+  }, [managerQui, collegato, conCalendario, importaCalendari])
+
   /* Lo scambio con l'archivio condiviso: quello che scrive il manager arriva
      agli operatori senza che nessuno debba fare niente. */
   useArchivioCondiviso()

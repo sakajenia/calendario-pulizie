@@ -102,6 +102,17 @@ interface RigaSync {
   eliminato?: boolean
 }
 
+/**
+ * Le schede utente viaggiano tra i telefoni, la password no: nell'archivio
+ * dati la leggerebbe chiunque abbia accesso, ditte comprese. Le password vere
+ * stanno solo nella tabella utente, come impronta.
+ */
+function senzaPassword(tipo: string, dati: unknown): unknown {
+  if (tipo !== 'users' || !dati || typeof dati !== 'object') return dati
+  const { password: _tolta, ...resto } = dati as Record<string, unknown>
+  return resto
+}
+
 async function leggiDati(req: Request, env: Env): Promise<Response> {
   const da = Number(new URL(req.url).searchParams.get('da') ?? 0)
   const esito = await env.DB!
@@ -114,7 +125,7 @@ async function leggiDati(req: Request, env: Env): Promise<Response> {
     id: r.id,
     eliminato: r.eliminato === 1,
     aggiornato: r.aggiornato,
-    dati: r.dati ? JSON.parse(r.dati) : null,
+    dati: r.dati ? senzaPassword(r.tipo, JSON.parse(r.dati)) : null,
   }))
   /* L'orologio e' quello del server: se ogni dispositivo usasse il proprio,
      bastarebbero pochi secondi di sfasamento per perdere delle modifiche. */
@@ -135,9 +146,40 @@ async function scriviDati(req: Request, env: Env): Promise<Response> {
      ON CONFLICT (tipo, id) DO UPDATE SET dati = ?3, eliminato = ?4, aggiornato = ?5`,
   )
   await env.DB!.batch(
-    righe.map((r) => stmt.bind(r.tipo, r.id, r.eliminato ? null : JSON.stringify(r.dati), r.eliminato ? 1 : 0, adesso)),
+    righe.map((r) => stmt.bind(
+      r.tipo, r.id, r.eliminato ? null : JSON.stringify(senzaPassword(r.tipo, r.dati)), r.eliminato ? 1 : 0, adesso,
+    )),
   )
   return json({ scritti: righe.length, adesso })
+}
+
+/* --------------------------------------------- calendari prenotazioni ---- */
+
+/**
+ * Scarica il calendario iCal di una casa (Airbnb, Booking, Vrbo...). Il
+ * browser non puo' farlo da solo: quei siti non lo permettono da un'altra
+ * pagina. Solo i manager, solo https, e solo file di calendario.
+ */
+async function scaricaCalendario(req: Request, env: Env, utenteId: string): Promise<Response> {
+  const chi = await env.DB!.prepare('SELECT ruolo FROM utente WHERE id = ?1').bind(utenteId).first<{ ruolo: string }>()
+  if (chi?.ruolo !== 'admin' && chi?.ruolo !== 'host') return json({ errore: 'Solo i manager' }, 403)
+
+  let indirizzo: URL
+  try {
+    indirizzo = new URL(new URL(req.url).searchParams.get('url') ?? '')
+  } catch {
+    return json({ errore: 'Link del calendario non valido' }, 400)
+  }
+  if (indirizzo.protocol !== 'https:') return json({ errore: 'Il link deve iniziare con https://' }, 400)
+
+  const risposta = await fetch(indirizzo.toString(), {
+    headers: { accept: 'text/calendar, text/plain;q=0.8' },
+    redirect: 'follow',
+  }).catch(() => null)
+  if (!risposta?.ok) return json({ errore: `Calendario non raggiungibile (${risposta?.status ?? 'rete'})` }, 502)
+  const testo = (await risposta.text()).slice(0, 2_000_000)
+  if (!testo.includes('BEGIN:VCALENDAR')) return json({ errore: 'Il link non e\' un calendario iCal' }, 422)
+  return json({ ics: testo })
 }
 
 /* -------------------------------------------------- preparazione ---- */
@@ -165,6 +207,25 @@ const ACCESSI_REVOCATI = ['u-pulizie-comfy']
 
 /* Fatto una volta per ogni istanza del Worker: non si ripete a ogni richiesta. */
 let tabellePronte = false
+let segretoArchivio: string | null = null
+
+const casuale = () => [...crypto.getRandomValues(new Uint8Array(32))]
+  .map((b) => b.toString(16).padStart(2, '0')).join('')
+
+/**
+ * La chiave che firma gli accessi. Prima, senza SYNC_SECRET, si usava una
+ * frase scritta nel codice: chi la leggeva poteva fabbricarsi un accesso.
+ * Ora o la si imposta su Cloudflare, o vale quella casuale del database,
+ * che non esce mai da li'.
+ */
+async function segretoDi(env: Env): Promise<string> {
+  if (env.SYNC_SECRET) return env.SYNC_SECRET
+  if (segretoArchivio) return segretoArchivio
+  const riga = await env.DB!.prepare("SELECT valore FROM config WHERE chiave = 'segreto'").first<{ valore: string }>()
+  if (!riga?.valore) throw new Error('chiave di firma mancante')
+  segretoArchivio = riga.valore
+  return segretoArchivio
+}
 
 /**
  * Crea le tabelle e gli accessi se non ci sono gia'. Cosi' basta collegare il
@@ -183,6 +244,10 @@ async function preparaArchivio(db: D1Database): Promise<void> {
       eliminato INTEGER NOT NULL DEFAULT 0, aggiornato INTEGER NOT NULL,
       PRIMARY KEY (tipo, id))`),
     db.prepare('CREATE INDEX IF NOT EXISTS idx_record_aggiornato ON record (aggiornato)'),
+    db.prepare('CREATE TABLE IF NOT EXISTS config (chiave TEXT PRIMARY KEY, valore TEXT NOT NULL)'),
+    /* Una chiave casuale creata la prima volta e tenuta nel database: vale
+       quando su Cloudflare non e' impostato SYNC_SECRET. */
+    db.prepare("INSERT OR IGNORE INTO config (chiave, valore) VALUES ('segreto', ?1)").bind(casuale()),
     ...ACCESSI_INIZIALI.map((r) =>
       db.prepare(`INSERT OR IGNORE INTO utente
         (id, email, username, password_hash, ruolo, nome) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`).bind(...r)),
@@ -203,12 +268,11 @@ export default {
          locale, e lo dice invece di fingere che sia tutto a posto. */
       return json({ errore: 'Archivio condiviso non collegato' }, 503)
     }
-    const segreto = env.SYNC_SECRET ?? 'propromanager-archivio'
-
     try {
       /* L'archivio si prepara da solo: chi collega il database non deve poi
          creare tabelle e accessi a mano. */
       await preparaArchivio(env.DB)
+      const segreto = await segretoDi(env)
       if (url.pathname === '/api/stato') return json({ ok: true })
       if (url.pathname === '/api/accesso' && req.method === 'POST') return accesso(req, env, segreto)
 
@@ -217,6 +281,7 @@ export default {
 
       if (url.pathname === '/api/dati' && req.method === 'GET') return leggiDati(req, env)
       if (url.pathname === '/api/dati' && req.method === 'POST') return scriviDati(req, env)
+      if (url.pathname === '/api/calendario' && req.method === 'GET') return scaricaCalendario(req, env, utenteId)
       return json({ errore: 'Non trovato' }, 404)
     } catch (e) {
       return json({ errore: `Archivio non raggiungibile: ${String(e).slice(0, 200)}` }, 500)

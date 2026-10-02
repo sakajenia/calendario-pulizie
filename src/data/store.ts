@@ -7,12 +7,13 @@ import type {
 } from '@/types'
 import * as seed from './seed'
 import {
-  TIPI_SINCRONIZZATI, accediArchivio, archivioDisponibile, dimenticaGettone, haGettone,
+  TIPI_SINCRONIZZATI, accediArchivio, scaricaCalendarioCasa, archivioDisponibile, dimenticaGettone, haGettone,
   spingiNellArchivio, tiraDallArchivio,
   type RigaArchivio, type TipoSincronizzato,
 } from './archivio'
 import { buildNotifications } from '@/lib/notifications'
 import { richiedeCheckIn, vociCheckInDaTogliere } from '@/lib/checkin'
+import { leggiCalendario, pulizieDaCalendario } from '@/lib/ical'
 import type { AppNotification } from '@/types'
 
 export interface RequestFilters {
@@ -126,6 +127,11 @@ interface State {
   ensureRecurringInspections: () => void
   /** Toglie le voci di check-in rimaste nel calendario della squadra. */
   allineaCheckIn: () => void
+  /**
+   * Scarica i calendari delle prenotazioni delle case che hanno il link e
+   * crea, sposta o annulla le pulizie. Ritorna il riepilogo o l'errore.
+   */
+  importaCalendari: () => Promise<{ ok: boolean; nuove: number; aggiornate: number; annullate: number; errori: string[] }>
   deleteInspections: (ids: string[]) => void
   /** Spunta o rimette in sospeso una singola verifica del controllo. */
   setInspectionTaskDone: (inspectionId: string, taskId: string, done: boolean) => void
@@ -392,7 +398,8 @@ const improntaRiga = (r: { dati?: unknown }) => corta(JSON.stringify(r.dati ?? n
 
 /** Le raccolte che viaggiano, con dentro il loro nome per l'archivio. */
 const raccolteSincronizzate = (s: State): Record<TipoSincronizzato, { id: string }[]> => ({
-  users: s.users,
+  /* La password non viaggia: nell'archivio la leggerebbe chiunque. */
+  users: s.users.map(({ password: _tolta, ...u }) => u),
   apartments: s.apartments,
   requests: s.requests,
   inspections: s.inspections,
@@ -431,7 +438,9 @@ function righeCambiate(s: State): RigaArchivio[] {
 
 /** Porta dentro le righe arrivate dall'archivio. */
 function applicaRighe(s: State, record: Required<RigaArchivio>[]): Partial<State> {
-  const raccolte = raccolteSincronizzate(s)
+  /* Qui le schede utente restano quelle del dispositivo, password comprese:
+     l'archivio non le ha e non deve cancellarle. */
+  const raccolte = { ...raccolteSincronizzate(s), users: s.users }
   const prossime = Object.fromEntries(
     TIPI_SINCRONIZZATI.map((t) => [t, new Map(raccolte[t].map((x) => [x.id, x]))]),
   ) as Record<TipoSincronizzato, Map<string, { id: string }>>
@@ -650,6 +659,20 @@ export const useStore = create<State>()(
             .some((k) => next[k] !== s[k]) || (s.seedIds ?? []).length === 0
           return cambiato ? next : {}
         }),
+
+      importaCalendari: async () => {
+        const errori: string[] = []
+        let nuove = 0, aggiornate = 0, annullate = 0
+        for (const casa of get().apartments.filter((a) => a.icalUrl)) {
+          const esito = await scaricaCalendarioCasa(casa.icalUrl!)
+          if (!esito.ok) { errori.push(`${casa.name}: ${esito.errore}`); continue }
+          const piano = pulizieDaCalendario(casa, leggiCalendario(esito.dati.ics), get().requests)
+          const cambiate = [...piano.nuove, ...piano.aggiornate, ...piano.annullate]
+          if (cambiate.length) set((s) => ({ requests: cambiate.reduce((l, r) => upsertBy(l, r), s.requests) }))
+          nuove += piano.nuove.length; aggiornate += piano.aggiornate.length; annullate += piano.annullate.length
+        }
+        return { ok: errori.length === 0, nuove, aggiornate, annullate, errori }
+      },
 
       allineaCheckIn: () =>
         set((s) => {
@@ -876,7 +899,7 @@ export const useStore = create<State>()(
        * ogni cambiamento, e con l'app ormai in uso quel gesto cancellerebbe le
        * task e le pulizie inserite a mano.
        */
-      version: 14,
+      version: 15,
       migrate: (persisted) => migrateState(persisted),
       partialize: (s) => ({
         currentUserId: s.currentUserId,

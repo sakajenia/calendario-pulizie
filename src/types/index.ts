@@ -179,6 +179,8 @@ export interface Apartment {
    * tutte le sue pulizie, salvo scelta diversa sulla singola pulizia.
    */
   checkIn?: { attivo: boolean; incaricatoId?: InspectorId }
+  /** Link iCal del calendario prenotazioni (Airbnb, Booking...): le pulizie si creano da sole. */
+  icalUrl?: string
   createdAt: string
 }
 
@@ -257,6 +259,8 @@ export interface CleaningRequest {
    * pulizie.
    */
   senzaPulizia?: boolean
+  /** Prenotazione del calendario (Airbnb/Booking) da cui e' nata la pulizia. */
+  prenotazione?: string
   /** Ultima modifica registrata sulla richiesta. */
   updatedAt?: string
   updatedById?: string
