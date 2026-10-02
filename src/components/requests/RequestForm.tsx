@@ -1,9 +1,37 @@
 import * as React from 'react'
+import { Check } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { Button, Checkbox, Dialog, Field, Input, Select, Switch, Textarea } from '@/components/ui'
 import { useCurrentUser, useStore, scopeApartments } from '@/data/store'
 import { richiedeCheckIn } from '@/lib/checkin'
 import { REQUEST_STATUSES, STATUS_META, type CleaningRequest, type ExtraLine, type RequestBed, type RequestStatus } from '@/types'
 import { TODAY } from '@/data/seed'
+
+/** Una riga della scheda di lavoro: tutta la riga si tocca, comodo da telefono. */
+function Opzione({ attiva, onChange, nome, children }: {
+  attiva: boolean; onChange: (v: boolean) => void; nome: string; children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={attiva}
+      aria-label={nome}
+      onClick={() => onChange(!attiva)}
+      className="flex min-h-11 w-full items-center gap-3 rounded-md px-2 text-left transition-colors hover:bg-muted/60 focus-ring"
+    >
+      <span
+        className={cn(
+          'grid size-4 shrink-0 place-items-center rounded border transition-colors',
+          attiva ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background',
+        )}
+      >
+        {attiva && <Check className="size-3" strokeWidth={3} />}
+      </span>
+      {children}
+    </button>
+  )
+}
 
 const toLocalInput = (iso: string) => {
   const d = new Date(iso)
@@ -50,12 +78,14 @@ export function RequestForm({
   )
   const [error, setError] = React.useState<string>()
   const [checkInAcceso, setCheckInAcceso] = React.useState(false)
+  const [conPulizia, setConPulizia] = React.useState(!initial?.senzaPulizia)
 
   React.useEffect(() => {
     if (!open) return
     setError(undefined)
     const iniziale = initial ?? blank(apartments[0]?.id ?? '', user?.id ?? '', defaultDate)
     setCheckInAcceso(richiedeCheckIn(iniziale, allApartments))
+    setConPulizia(!iniziale.senzaPulizia)
     setDraft(initial ?? blank(apartments[0]?.id ?? '', user?.id ?? '', defaultDate))
   }, [open, initial, defaultDate, apartments, user?.id])
 
@@ -99,10 +129,11 @@ export function RequestForm({
   const submit = () => {
     if (!draft.apartmentId) return setError('Scegli appartamento')
     if (draft.checkInPeople <= 0) return setError('Inserire un numero di ospiti in ingresso superiore a 0')
-    if (!draft.beds.length) return setError('Selezionare almeno un letto da rifare')
+    if (!conPulizia && !checkInAcceso) return setError('Scegli cosa c’è da fare: pulizia, check-in o tutti e due')
+    if (conPulizia && !draft.beds.length) return setError('Selezionare almeno un letto da rifare')
     if (draft.recurrence?.enabled && draft.recurrence.everyDays < 1)
       return setError('La frequenza della pulizia ricorrente deve essere di almeno 1 giorno')
-    if (new Date(draft.checkInAt) < new Date(draft.checkOutAt))
+    if (conPulizia && new Date(draft.checkInAt) < new Date(draft.checkOutAt))
       return setError('La data di check-in non può essere precedente alla data di check-out')
 
     /* Si salva la scelta solo se diversa da quella di serie della casa: cosi'
@@ -111,6 +142,9 @@ export function RequestForm({
     upsertRequest({
       ...draft,
       checkIn: checkInAcceso === diSerie ? undefined : checkInAcceso,
+      senzaPulizia: conPulizia ? undefined : true,
+      /* Solo check-in: in calendario sta nel giorno dell'arrivo. */
+      ...(conPulizia ? {} : { checkOutAt: draft.checkInAt, workSheetId: undefined }),
       hostId: apartment?.ownerId ?? draft.hostId,
       perPersonExtras: draft.perPersonExtras.length ? draft.perPersonExtras : recalcPerPerson(draft.checkInPeople),
       apartmentExtras: draft.apartmentExtras.length
@@ -153,13 +187,15 @@ export function RequestForm({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Data e ora di uscita (Check-out)">
-            <Input
-              type="datetime-local"
-              value={toLocalInput(draft.checkOutAt)}
-              onChange={(e) => { const v = parseLocalInput(e.target.value); if (v) set('checkOutAt', v) }}
-            />
-          </Field>
+          {conPulizia && (
+            <Field label="Data e ora di uscita (Check-out)">
+              <Input
+                type="datetime-local"
+                value={toLocalInput(draft.checkOutAt)}
+                onChange={(e) => { const v = parseLocalInput(e.target.value); if (v) set('checkOutAt', v) }}
+              />
+            </Field>
+          )}
           <Field label="Data e ora di arrivo (Check-in)">
             <Input
               type="datetime-local"
@@ -203,13 +239,38 @@ export function RequestForm({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Scheda di lavoro">
-            <Select
-              value={draft.workSheetId ?? ''}
-              options={[{ value: '', label: 'Nessuna scheda di lavoro' }, ...workSheets.map((w) => ({ value: w.id, label: w.name }))]}
-              onChange={(e) => set('workSheetId', e.target.value || undefined)}
-            />
-          </Field>
+          {/* Scheda di lavoro: cosa c'e' da fare. Pulizia, check-in o tutti e
+              due; il solo check-in serve quando la casa e' gia' pulita e la
+              ditta deve solo accogliere gli ospiti. */}
+          <fieldset className="space-y-2 sm:col-span-2">
+            <legend className="mb-1.5 text-sm font-medium">Scheda di lavoro</legend>
+            <div className="divide-y divide-border rounded-lg border border-border">
+              <div className="space-y-2 p-1">
+                <Opzione attiva={conPulizia} onChange={setConPulizia} nome="Pulizia">
+                  <span className="text-sm font-medium">Pulizia</span>
+                </Opzione>
+                {conPulizia && (
+                  <div className="px-2 pb-2"><Select
+                    aria-label="Tipo di pulizia"
+                    value={draft.workSheetId ?? ''}
+                    options={[{ value: '', label: 'Pulizia (senza scheda)' }, ...workSheets.map((w) => ({ value: w.id, label: w.name }))]}
+                    onChange={(e) => set('workSheetId', e.target.value || undefined)}
+                  /></div>
+                )}
+              </div>
+              <div className="p-1">
+              <Opzione attiva={checkInAcceso} onChange={setCheckInAcceso} nome="Check-in">
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <span className="inline-block size-2 rounded-full bg-checkin" />
+                  Check-in
+                </span>
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {apartment?.checkIn?.attivo ? 'di serie per questa casa' : 'lo fa la ditta'}
+                </span>
+              </Opzione>
+              </div>
+            </div>
+          </fieldset>
           <Field label="Assegnata a">
             <Select
               value={draft.assigneeId ?? ''}
@@ -221,23 +282,6 @@ export function RequestForm({
             />
           </Field>
         </div>
-
-        {/* Check-in a carico della ditta di pulizie: la vede nelle sue
-            richieste e nel calendario la pulizia ha il pallino blu. */}
-        <section className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
-          <div className="min-w-0">
-            <p className="flex items-center gap-2 text-sm font-medium">
-              <span className="inline-block size-2 rounded-full bg-checkin" />
-              Check-in
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {apartment?.checkIn?.attivo
-                ? 'Acceso di serie per questa casa: la ditta fa anche il check-in.'
-                : 'La ditta di pulizie fa anche il check-in degli ospiti.'}
-            </p>
-          </div>
-          <Switch checked={checkInAcceso} label="Check-in da fare" onChange={setCheckInAcceso} />
-        </section>
 
         <Field label="Note">
           <Textarea

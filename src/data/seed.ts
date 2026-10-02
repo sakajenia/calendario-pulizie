@@ -244,7 +244,6 @@ export const taskCatalog: TaskCatalogItem[] = [
 
 export const workSheets: WorkSheet[] = [
   { id: 'ws-standard', name: 'Pulizia Standard', description: 'Turnover ordinario fra due soggiorni.', taskIds: ['tk-bagno', 'tk-cucina', 'tk-letti', 'tk-pavimenti', 'tk-amenities', 'tk-keybox'] },
-  { id: 'ws-rapida', name: 'Pulizia Rapida', description: 'Check-in ravvicinato, intervento essenziale.', taskIds: ['tk-bagno', 'tk-letti', 'tk-amenities'] },
   { id: 'ws-profonda', name: 'Pulizia Profonda', description: 'Intervento mensile con controllo impianti e documentazione fotografica.', taskIds: ['tk-bagno', 'tk-cucina', 'tk-letti', 'tk-pavimenti', 'tk-amenities', 'tk-keybox', 'tk-impianti', 'tk-foto'] },
 ]
 

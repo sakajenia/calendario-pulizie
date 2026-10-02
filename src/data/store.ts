@@ -346,13 +346,46 @@ function migrateState(persisted: unknown): ReturnType<typeof baseData> & { curre
 /* ------------------------------------------------- archivio condiviso ---- */
 
 /**
- * Cos'e' gia' stato scambiato con l'archivio, per chiave e impronta. Vive in
- * memoria e si ricostruisce da sola al primo giro dopo l'apertura: e' solo il
- * modo di non rimandare ogni volta tutto l'archivio.
+ * Cos'e' gia' stato scambiato con l'archivio, per chiave e impronta.
+ *
+ * Resta salvato sul dispositivo. Prima viveva solo in memoria: a ogni
+ * apertura dell'app il telefono credeva di non aver mai mandato niente e
+ * rimandava tutte le sue righe, comprese le copie vecchie. Cosi' una pulizia
+ * appena accettata dalla ditta su un altro telefono tornava "in attesa"
+ * (pallino giallo) appena il manager riapriva l'app.
  */
-const impronteInviate = new Map<string, string>()
+const CHIAVE_IMPRONTE = 'ppm-impronte'
+const impronteInviate = new Map<string, string>(
+  (() => {
+    try {
+      return Object.entries(JSON.parse(localStorage.getItem(CHIAVE_IMPRONTE) ?? '{}') as Record<string, string>)
+    } catch {
+      return []
+    }
+  })(),
+)
+const salvaImpronte = () => {
+  try {
+    localStorage.setItem(CHIAVE_IMPRONTE, JSON.stringify(Object.fromEntries(impronteInviate)))
+  } catch {
+    /* finestra privata: vale solo per questa sessione */
+  }
+}
 
-const improntaRiga = (r: { dati?: unknown }) => JSON.stringify(r.dati ?? null)
+/** Impronta corta (cyrb53) del contenuto: basta a dire "e' cambiato". */
+function corta(testo: string): string {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57
+  for (let i = 0; i < testo.length; i++) {
+    const c = testo.charCodeAt(i)
+    h1 = Math.imul(h1 ^ c, 2654435761)
+    h2 = Math.imul(h2 ^ c, 1597334677)
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909)
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909)
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36)
+}
+
+const improntaRiga = (r: { dati?: unknown }) => corta(JSON.stringify(r.dati ?? null))
 
 /** Le raccolte che viaggiano, con dentro il loro nome per l'archivio. */
 const raccolteSincronizzate = (s: State): Record<TipoSincronizzato, { id: string }[]> => ({
@@ -374,7 +407,7 @@ function righeCambiate(s: State): RigaArchivio[] {
     for (const dati of raccolte[tipo]) {
       const chiave = `${tipo}:${dati.id}`
       vivi.add(chiave)
-      const impronta = JSON.stringify(dati)
+      const impronta = corta(JSON.stringify(dati))
       if (impronteInviate.get(chiave) !== impronta) fuori.push({ tipo, id: dati.id, dati })
     }
   }
@@ -488,6 +521,7 @@ export const useStore = create<State>()(
       logout: () => {
         dimenticaGettone()
         impronteInviate.clear()
+        salvaImpronte()
         set({ currentUserId: null, filters: emptyFilters, archivio: { stato: 'verifica' } })
       },
       switchUser: (id) => set({ currentUserId: id, filters: emptyFilters }),
@@ -728,11 +762,30 @@ export const useStore = create<State>()(
           })
           return
         }
+        /* Primo giro su questo dispositivo (o dopo essere rientrati): prima si
+           prende tutto l'archivio, poi si manda solo quello che li' non c'e'.
+           Mandare per primi le proprie copie avrebbe coperto il lavoro fatto
+           dagli altri nel frattempo. */
+        if (impronteInviate.size === 0) {
+          const tutto = await tiraDallArchivio(0)
+          if (!tutto.ok) {
+            set({ archivio: statoArchivio(tutto) })
+            return
+          }
+          if (tutto.dati.record.length > 0) set((s) => applicaRighe(s, tutto.dati.record))
+          for (const r of tutto.dati.record) {
+            impronteInviate.set(`${r.tipo}:${r.id}`, r.eliminato ? 'eliminato' : improntaRiga(r))
+          }
+          set({ sincronizzatoFino: tutto.dati.adesso })
+          salvaImpronte()
+        }
+
         const prima = get()
 
-        /* Prima si manda, poi si prende: cosi' quello che ho appena scritto
-           non viene coperto da una versione piu' vecchia che arriva dal giro
-           precedente di qualcun altro. */
+        /* Poi, a ogni giro: prima si manda, poi si prende, cosi' quello che ho
+           appena scritto non viene coperto da una versione piu' vecchia che
+           arriva dal giro precedente di qualcun altro. Si manda solo cio' che
+           e' cambiato davvero su questo dispositivo. */
         const daMandare = righeCambiate(prima)
         if (daMandare.length > 0) {
           const inviato = await spingiNellArchivio(daMandare)
@@ -756,6 +809,7 @@ export const useStore = create<State>()(
             impronteInviate.set(`${r.tipo}:${r.id}`, r.eliminato ? 'eliminato' : improntaRiga(r))
           }
         }
+        salvaImpronte()
         set({
           sincronizzatoFino: Math.max(adesso, prima.sincronizzatoFino),
           archivio: { stato: 'collegato', ultimo: new Date().toISOString() },

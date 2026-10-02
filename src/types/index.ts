@@ -251,6 +251,12 @@ export interface CleaningRequest {
    * Nel calendario la pulizia ha il pallino blu.
    */
   checkIn?: boolean
+  /**
+   * Solo check-in, nessuna pulizia: la casa e' gia' pulita (magari da giorni)
+   * e la ditta deve solo accogliere gli ospiti. Non entra nei compensi delle
+   * pulizie.
+   */
+  senzaPulizia?: boolean
   /** Ultima modifica registrata sulla richiesta. */
   updatedAt?: string
   updatedById?: string

@@ -34,7 +34,7 @@ export function CheckInBadge({ request, className }: { request: CleaningRequest;
   return (
     <Badge className={cn('bg-checkin/12 text-checkin ring-1 ring-inset ring-checkin/25 px-2 py-0.5 text-[11px]', className)}>
       <span className="size-1.5 rounded-full bg-checkin" />
-      Check-in
+      {request.senzaPulizia ? 'Solo check-in' : 'Check-in'}
     </Badge>
   )
 }

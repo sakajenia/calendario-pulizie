@@ -129,6 +129,8 @@ export default function Compensi() {
     () =>
       requests.filter((r) => {
         if (isCancelled(r)) return false
+        /* Il solo check-in non e' una pulizia: non si paga come tale. */
+        if (r.senzaPulizia) return false
         if (basis === 'completate' && r.status !== 'completata') return false
         return isSameMonth(asDate(r.checkOutAt), cursor)
       }),
