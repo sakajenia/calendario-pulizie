@@ -328,7 +328,10 @@ function migrateState(persisted: unknown): ReturnType<typeof baseData> & { curre
     apartments,
     requests: riallinea(salvato.requests, base.requests, rimossi, storici),
     taskCatalog: riallinea(salvato.taskCatalog, base.taskCatalog, rimossi, storici),
-    workSheets: riallinea(salvato.workSheets, base.workSheets, rimossi, storici),
+    /* La Pulizia Rapida non serve piu': va tolta anche dai dispositivi che
+       l'avevano gia' salvata. */
+    workSheets: riallinea(salvato.workSheets, base.workSheets, rimossi, storici)
+      .filter((w) => w.id !== 'ws-rapida'),
     extraCatalog: riallinea(salvato.extraCatalog, base.extraCatalog, rimossi, storici),
     warehouses: riallinea(salvato.warehouses, base.warehouses, rimossi, storici),
     readNotifications: salvato.readNotifications ?? [],
@@ -873,7 +876,7 @@ export const useStore = create<State>()(
        * ogni cambiamento, e con l'app ormai in uso quel gesto cancellerebbe le
        * task e le pulizie inserite a mano.
        */
-      version: 13,
+      version: 14,
       migrate: (persisted) => migrateState(persisted),
       partialize: (s) => ({
         currentUserId: s.currentUserId,

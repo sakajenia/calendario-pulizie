@@ -253,7 +253,7 @@ export function RequestForm({
                   <div className="px-2 pb-2"><Select
                     aria-label="Tipo di pulizia"
                     value={draft.workSheetId ?? ''}
-                    options={[{ value: '', label: 'Pulizia (senza scheda)' }, ...workSheets.map((w) => ({ value: w.id, label: w.name }))]}
+                    options={[{ value: '', label: 'Pulizia (senza scheda)' }, ...workSheets.filter((w) => w.id !== 'ws-rapida').map((w) => ({ value: w.id, label: w.name }))]}
                     onChange={(e) => set('workSheetId', e.target.value || undefined)}
                   /></div>
                 )}
