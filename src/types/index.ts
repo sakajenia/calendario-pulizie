@@ -261,6 +261,16 @@ export interface CleaningRequest {
   senzaPulizia?: boolean
   /** Prenotazione del calendario (Airbnb/Booking) da cui e' nata la pulizia. */
   prenotazione?: string
+  /**
+   * Orari messi dall'ultimo import del calendario: se quelli della pulizia
+   * sono diversi, li ha cambiati qualcuno a mano e l'import non li tocca.
+   */
+  orariCalendario?: { checkOutAt: string; checkInAt: string }
+  /**
+   * Annullata dall'import perche' la prenotazione e' sparita (non rifiutata
+   * dalla ditta): se la prenotazione torna, la pulizia si riattiva.
+   */
+  annullataDaCalendario?: boolean
   /** Ultima modifica registrata sulla richiesta. */
   updatedAt?: string
   updatedById?: string

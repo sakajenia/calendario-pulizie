@@ -32,8 +32,13 @@ function data(valore: string): Date | null {
   return new Date(Number(a), Number(me) - 1, Number(g))
 }
 
-/** Date bloccate a mano, non prenotazioni: niente pulizia. */
-const BLOCCO = /not available|closed|blocked|non disponibile|unavailable/i
+/**
+ * Date bloccate a mano, non prenotazioni: niente pulizia. Attenzione: Booking
+ * esporta ogni prenotazione vera come "CLOSED - Not available", quindi si
+ * scartano solo i blocchi stile Airbnb ("Airbnb (Not available)") e i titoli
+ * che sono soltanto "Not available"/"Blocked"/"Non disponibile".
+ */
+const BLOCCO = /^\s*(airbnb\s*\(not available\)|not available|blocked|non disponibile)\s*$/i
 
 export function leggiCalendario(testo: string): Prenotazione[] {
   const out: Prenotazione[] = []
@@ -95,11 +100,11 @@ export function pulizieDaCalendario(
     const checkOutAt = alle(p.fine, 10)
     const checkInAt = alle(dopo?.inizio ?? p.fine, 15)
     const c = mie.get(id)
+    /* Se a mano c'e' gia' una pulizia per quella casa in quel giorno, non
+       se ne aggiunge un'altra. */
+    const doppia = esistenti.some((r) => r.id !== id && r.apartmentId === casa.id && r.status !== 'cancellata'
+      && giorno(new Date(r.checkOutAt)) === giorno(p.fine))
     if (!c) {
-      /* Se a mano c'e' gia' una pulizia per quella casa in quel giorno, non
-         se ne aggiunge un'altra. */
-      const doppia = esistenti.some((r) => r.apartmentId === casa.id && r.status !== 'cancellata'
-        && giorno(new Date(r.checkOutAt)) === giorno(p.fine))
       if (doppia) return
       esito.nuove.push({
         id, apartmentId: casa.id, hostId: casa.ownerId, status: 'in_attesa',
@@ -108,10 +113,27 @@ export function pulizieDaCalendario(
         beds: casa.beds.map((b) => ({ bedId: b.id, type: b.type, extras: [] })),
         perPersonExtras: [], apartmentExtras: [],
         notes: '', internalNotes: 'Creata dal calendario delle prenotazioni.',
-        prenotazione: p.uid,
+        prenotazione: p.uid, orariCalendario: { checkOutAt, checkInAt },
+      })
+    } else if (c.status === 'cancellata' && c.annullataDaCalendario) {
+      /* La prenotazione e' tornata: si riattiva la pulizia annullata dal
+         calendario. Quelle rifiutate dalla ditta (senza segno) restano cosi'. */
+      if (doppia) return
+      const { annullataDaCalendario: _, ...resto } = c
+      esito.aggiornate.push({
+        ...resto, status: 'in_attesa', checkOutAt, checkInAt, prenotazione: p.uid,
+        orariCalendario: { checkOutAt, checkInAt }, updatedAt: now.toISOString(),
       })
     } else if (c.status === 'in_attesa' && (c.checkInAt !== checkInAt || c.checkOutAt !== checkOutAt)) {
-      esito.aggiornate.push({ ...c, checkOutAt, checkInAt, updatedAt: now.toISOString() })
+      /* Si spostano gli orari solo se sono ancora quelli messi dal calendario:
+         se qualcuno li ha cambiati a mano, restano i suoi. Le righe vecchie
+         senza `orariCalendario` contano come non toccate. */
+      const prima = c.orariCalendario ?? { checkOutAt: c.checkOutAt, checkInAt: c.checkInAt }
+      if (c.checkOutAt !== prima.checkOutAt || c.checkInAt !== prima.checkInAt) return
+      esito.aggiornate.push({
+        ...c, checkOutAt, checkInAt, prenotazione: p.uid,
+        orariCalendario: { checkOutAt, checkInAt }, updatedAt: now.toISOString(),
+      })
     }
   })
 
@@ -119,7 +141,8 @@ export function pulizieDaCalendario(
   for (const [id, c] of mie) {
     if (attese.has(id) || c.status !== 'in_attesa') continue
     if (new Date(c.checkOutAt) < oggi) continue
-    esito.annullate.push({ ...c, status: 'cancellata', updatedAt: now.toISOString() })
+    /* Il segno distingue questo annullamento dal rifiuto della ditta. */
+    esito.annullate.push({ ...c, status: 'cancellata', annullataDaCalendario: true, updatedAt: now.toISOString() })
   }
   return esito
 }
