@@ -9,6 +9,7 @@ const APP_VERSION = '1.0.0'
 
 export default function Login() {
   const login = useStore((s) => s.loginArchivio)
+  const avviso = useStore((s) => s.avvisoAccesso)
   const navigate = useNavigate()
   const [email, setEmail] = React.useState('')
   const [password, setPassword] = React.useState('')
@@ -65,6 +66,9 @@ export default function Login() {
 
           <Card className="p-6 shadow-raised">
             <form onSubmit={submit} className="space-y-4" noValidate>
+              {avviso && !error && (
+                <p role="status" className="rounded-md bg-status-pending/10 px-3 py-2 text-sm text-foreground">{avviso}</p>
+              )}
               {/* Si entra con l'email o col nome utente: il campo non e' piu'
                   `type="email"`, che rifiuterebbe "Angela". */}
               <Field label="Email o nome utente" htmlFor="login-email">

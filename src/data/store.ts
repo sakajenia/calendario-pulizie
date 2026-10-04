@@ -58,6 +58,8 @@ interface State {
    * ancora.
    */
   removedIds: string[]
+  /** Messaggio da mostrare sulla schermata di accesso (es. sessione scaduta). */
+  avvisoAccesso?: string
   /**
    * Identificativi che sono arrivati dai dati di riferimento. Confrontandoli
    * con quelli attuali si capisce cosa e' un residuo di una versione passata e
@@ -505,7 +507,7 @@ export const useStore = create<State>()(
               }, ...s.users],
             }))
           }
-          set({ currentUserId: esito.dati.id, archivio: { stato: 'collegato' } })
+          set({ currentUserId: esito.dati.id, archivio: { stato: 'collegato' }, avvisoAccesso: undefined })
           return { ok: true }
         }
         /* Password sbagliata: e' una risposta dell'archivio, non un guasto. */
@@ -527,7 +529,7 @@ export const useStore = create<State>()(
            accettano ancora una password qualsiasi di almeno 6 caratteri. */
         const wrong = user.password ? password !== user.password : password.length < 6
         if (wrong) return { ok: false, error: 'Password errata fornita per questo utente' }
-        set({ currentUserId: user.id })
+        set({ currentUserId: user.id, avvisoAccesso: undefined })
         return { ok: true }
       },
       logout: () => {
@@ -772,6 +774,20 @@ export const useStore = create<State>()(
         set((s) => ({ readNotifications: [...new Set([...s.readNotifications, ...ids])] })),
 
       sincronizza: async () => {
+        /* Accesso scaduto: prima il telefono restava dentro e lavorava da solo,
+           e quello che si faceva (le accettazioni della ditta) non arrivava a
+           nessuno. Ora si torna all'accesso; i dati del telefono restano e
+           partono appena si rientra. */
+        const scaduto = () => {
+          dimenticaGettone()
+          impronteInviate.clear()
+          salvaImpronte()
+          set({
+            currentUserId: null,
+            avvisoAccesso: 'Sessione scaduta: rientra con la tua password. Il lavoro fatto su questo telefono non si perde.',
+            archivio: { stato: 'verifica' },
+          })
+        }
         /* Senza gettone non si scambia niente, ma si guarda lo stesso se
            l'archivio c'e': ricaricando la pagina il gettone resta e questo non
            serve, ma chi e' entrato in locale deve continuare a vedere
@@ -795,11 +811,22 @@ export const useStore = create<State>()(
         if (impronteInviate.size === 0) {
           const tutto = await tiraDallArchivio(0)
           if (!tutto.ok) {
+            if (tutto.scaduto) return scaduto()
             set({ archivio: statoArchivio(tutto) })
             return
           }
-          if (tutto.dati.record.length > 0) set((s) => applicaRighe(s, tutto.dati.record))
-          for (const r of tutto.dati.record) {
+          /* Una riga cambiata qui dopo l'ultima scrittura nell'archivio (per
+             esempio una pulizia accettata mentre l'accesso era scaduto) vince:
+             resta com'e' e parte al giro dopo. Le altre arrivano dall'archivio. */
+          const locali = raccolteSincronizzate(get())
+          const piuNuovaQui = (r: Required<RigaArchivio>) => {
+            const qui = (locali[r.tipo] ?? []).find((x) => x.id === r.id) as { updatedAt?: string } | undefined
+            const quando = qui?.updatedAt ? new Date(qui.updatedAt).getTime() : NaN
+            return Number.isFinite(quando) && quando > r.aggiornato
+          }
+          const daPrendere = tutto.dati.record.filter((r) => !piuNuovaQui(r))
+          if (daPrendere.length > 0) set((s) => applicaRighe(s, daPrendere))
+          for (const r of daPrendere) {
             impronteInviate.set(`${r.tipo}:${r.id}`, r.eliminato ? 'eliminato' : improntaRiga(r))
           }
           set({ sincronizzatoFino: tutto.dati.adesso })
@@ -816,6 +843,7 @@ export const useStore = create<State>()(
         if (daMandare.length > 0) {
           const inviato = await spingiNellArchivio(daMandare)
           if (!inviato.ok) {
+            if (inviato.scaduto) return scaduto()
             set({ archivio: statoArchivio(inviato) })
             return
           }
@@ -824,6 +852,7 @@ export const useStore = create<State>()(
 
         const arrivato = await tiraDallArchivio(prima.sincronizzatoFino)
         if (!arrivato.ok) {
+          if (arrivato.scaduto) return scaduto()
           set({ archivio: statoArchivio(arrivato) })
           return
         }
