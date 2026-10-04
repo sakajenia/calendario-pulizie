@@ -113,14 +113,51 @@ function senzaPassword(tipo: string, dati: unknown): unknown {
   return resto
 }
 
-async function leggiDati(req: Request, env: Env): Promise<Response> {
-  const da = Number(new URL(req.url).searchParams.get('da') ?? 0)
-  const esito = await env.DB!
-    .prepare('SELECT tipo, id, dati, eliminato, aggiornato FROM record WHERE aggiornato > ?1 ORDER BY aggiornato ASC LIMIT 5000')
-    .bind(Number.isFinite(da) ? da : 0)
-    .all<{ tipo: string; id: string; dati: string | null; eliminato: number; aggiornato: number }>()
+/** Righe al massimo per ogni richiesta di lettura. */
+const LIMITE_LETTURA = 5000
 
-  const record = (esito.results ?? []).map((r) => ({
+/**
+ * Margine di sicurezza sul segnalibro. Due scritture partite quasi insieme
+ * possono finire nell'archivio in ordine diverso da quello del loro orario:
+ * quella con l'orario piu' vecchio arriva per ultima. Se il segnalibro
+ * corresse fino all'ultimo istante, quella riga resterebbe indietro per
+ * sempre. Restando qualche secondo indietro la si rilegge al giro dopo:
+ * una riga arrivata due volte non fa danni, una riga persa si'.
+ */
+const MARGINE_LETTURA = 5000
+
+type RigaArchivio = { tipo: string; id: string; dati: string | null; eliminato: number; aggiornato: number }
+
+async function leggiDati(req: Request, env: Env): Promise<Response> {
+  const richiesto = Number(new URL(req.url).searchParams.get('da') ?? 0)
+  const da = Number.isFinite(richiesto) ? richiesto : 0
+  const esito = await env.DB!
+    .prepare('SELECT tipo, id, dati, eliminato, aggiornato FROM record WHERE aggiornato > ?1 ORDER BY aggiornato ASC LIMIT ?2')
+    .bind(da, LIMITE_LETTURA)
+    .all<RigaArchivio>()
+  let righe = esito.results ?? []
+
+  /* Se il limite taglia a meta' un gruppo di righe scritte nello stesso
+     istante, la parte rimasta fuori non arriverebbe mai: il giro dopo chiede
+     solo cio' che e' "dopo" quell'istante. Quindi l'ultimo gruppo, se
+     incompleto, si lascia tutto per il giro successivo. */
+  if (righe.length >= LIMITE_LETTURA) {
+    const ultimo = righe[righe.length - 1].aggiornato
+    const complete = righe.filter((r) => r.aggiornato < ultimo)
+    if (complete.length > 0) {
+      righe = complete
+    } else {
+      /* Tutta la pagina ha lo stesso orario: non si puo' lasciarla indietro
+         o non si andrebbe mai avanti. Si prende quel gruppo intero. */
+      const gruppo = await env.DB!
+        .prepare('SELECT tipo, id, dati, eliminato, aggiornato FROM record WHERE aggiornato = ?1')
+        .bind(ultimo)
+        .all<RigaArchivio>()
+      righe = gruppo.results ?? []
+    }
+  }
+
+  const record = righe.map((r) => ({
     tipo: r.tipo,
     id: r.id,
     eliminato: r.eliminato === 1,
@@ -128,17 +165,67 @@ async function leggiDati(req: Request, env: Env): Promise<Response> {
     dati: r.dati ? senzaPassword(r.tipo, JSON.parse(r.dati)) : null,
   }))
   /* L'orologio e' quello del server: se ogni dispositivo usasse il proprio,
-     bastarebbero pochi secondi di sfasamento per perdere delle modifiche. */
-  const adesso = record.length ? record[record.length - 1].aggiornato : Date.now()
+     bastarebbero pochi secondi di sfasamento per perdere delle modifiche.
+     Il segnalibro non va mai oltre l'ultima riga letta davvero (se non e'
+     arrivato niente resta dov'era) ne' oltre "adesso meno il margine". */
+  const letto = record.length ? record[record.length - 1].aggiornato : da
+  const adesso = Math.min(letto, Date.now() - MARGINE_LETTURA)
   return json({ record, adesso })
 }
 
-async function scriviDati(req: Request, env: Env): Promise<Response> {
+/**
+ * I soli campi di una pulizia che una ditta puo' cambiare: lo stato, a chi e'
+ * assegnata, le sue note e chi l'ha chiusa. Il resto (casa, date, prezzi...)
+ * lo decide il manager.
+ */
+const CAMPI_OPERATORE = [
+  'status', 'assigneeId', 'operatorNotes', 'completedAt', 'completedById', 'updatedAt', 'updatedById',
+] as const
+
+/**
+ * Le pulizie che una ditta puo' toccare: solo quelle che esistono gia'
+ * nell'archivio, e di ognuna solo i campi qui sopra, copiati sulla versione
+ * del server. Il resto si scarta in silenzio: un telefono con dati vecchi non
+ * deve far fallire l'intero invio.
+ */
+async function righeDellaDitta(env: Env, righe: RigaSync[]): Promise<RigaSync[]> {
+  const pulizie = righe.filter((r) => r.tipo === 'requests' && !r.eliminato && r.dati && typeof r.dati === 'object')
+  if (pulizie.length === 0) return []
+  const esito = await env.DB!
+    .prepare(`SELECT id, dati FROM record WHERE tipo = 'requests' AND eliminato = 0 AND dati IS NOT NULL
+      AND id IN (SELECT value FROM json_each(?1))`)
+    .bind(JSON.stringify(pulizie.map((r) => r.id)))
+    .all<{ id: string; dati: string }>()
+  const sulServer = new Map((esito.results ?? []).map((r) => [r.id, r.dati]))
+
+  const pronte: RigaSync[] = []
+  for (const r of pulizie) {
+    const salvata = sulServer.get(r.id)
+    if (!salvata) continue // pulizia nuova o cancellata: non tocca alla ditta
+    const unita = JSON.parse(salvata) as Record<string, unknown>
+    const arrivati = r.dati as Record<string, unknown>
+    for (const campo of CAMPI_OPERATORE) {
+      if (Object.prototype.hasOwnProperty.call(arrivati, campo)) unita[campo] = arrivati[campo]
+    }
+    pronte.push({ tipo: r.tipo, id: r.id, dati: unita, eliminato: false })
+  }
+  return pronte
+}
+
+async function scriviDati(req: Request, env: Env, ruolo: string): Promise<Response> {
   const corpo = await req.json<{ record?: RigaSync[] }>()
     .catch(() => ({} as { record?: RigaSync[] }))
-  const righe = (corpo.record ?? []).filter((r) => r && TIPI.includes(r.tipo as Tipo) && typeof r.id === 'string')
+  const valide = (corpo.record ?? []).filter((r) => r && TIPI.includes(r.tipo as Tipo) && typeof r.id === 'string')
+  if (valide.length > 2000) return json({ errore: 'Troppe righe in una volta sola' }, 413)
+
+  /* Chi puo' scrivere cosa. L'amministratore tutto. Il manager tutto tranne
+     le schede utente, altrimenti potrebbe cambiarsi il ruolo da solo. Le ditte
+     (e ogni ruolo sconosciuto) solo le pulizie gia' esistenti, e solo i loro
+     campi. Le righe non permesse si saltano senza bloccare le altre. */
+  const righe = ruolo === 'admin' ? valide
+    : ruolo === 'host' ? valide.filter((r) => r.tipo !== 'users')
+    : await righeDellaDitta(env, valide)
   if (righe.length === 0) return json({ scritti: 0, adesso: Date.now() })
-  if (righe.length > 2000) return json({ errore: 'Troppe righe in una volta sola' }, 413)
 
   const adesso = Date.now()
   const stmt = env.DB!.prepare(
@@ -160,9 +247,8 @@ async function scriviDati(req: Request, env: Env): Promise<Response> {
  * browser non puo' farlo da solo: quei siti non lo permettono da un'altra
  * pagina. Solo i manager, solo https, e solo file di calendario.
  */
-async function scaricaCalendario(req: Request, env: Env, utenteId: string): Promise<Response> {
-  const chi = await env.DB!.prepare('SELECT ruolo FROM utente WHERE id = ?1').bind(utenteId).first<{ ruolo: string }>()
-  if (chi?.ruolo !== 'admin' && chi?.ruolo !== 'host') return json({ errore: 'Solo i manager' }, 403)
+async function scaricaCalendario(req: Request, ruolo: string): Promise<Response> {
+  if (ruolo !== 'admin' && ruolo !== 'host') return json({ errore: 'Solo i manager' }, 403)
 
   let indirizzo: URL
   try {
@@ -279,9 +365,15 @@ export default {
       const utenteId = await leggiGettone(gettoneDallaRichiesta(req), segreto)
       if (!utenteId) return json({ errore: 'Accesso scaduto: rientra con la password' }, 401)
 
+      /* Il gettone resta valido per un mese anche se nel frattempo l'accesso
+         e' stato revocato: per questo a ogni richiesta si controlla che la
+         persona ci sia ancora, e con quale ruolo. */
+      const chi = await env.DB.prepare('SELECT ruolo FROM utente WHERE id = ?1').bind(utenteId).first<{ ruolo: string }>()
+      if (!chi) return json({ errore: 'Accesso revocato: chiedi al manager' }, 401)
+
       if (url.pathname === '/api/dati' && req.method === 'GET') return leggiDati(req, env)
-      if (url.pathname === '/api/dati' && req.method === 'POST') return scriviDati(req, env)
-      if (url.pathname === '/api/calendario' && req.method === 'GET') return scaricaCalendario(req, env, utenteId)
+      if (url.pathname === '/api/dati' && req.method === 'POST') return scriviDati(req, env, chi.ruolo)
+      if (url.pathname === '/api/calendario' && req.method === 'GET') return scaricaCalendario(req, chi.ruolo)
       return json({ errore: 'Non trovato' }, 404)
     } catch (e) {
       return json({ errore: `Archivio non raggiungibile: ${String(e).slice(0, 200)}` }, 500)

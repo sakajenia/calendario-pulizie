@@ -83,6 +83,11 @@ interface State {
   /** Accesso che passa dall'archivio condiviso, con rientro in locale. */
   loginArchivio: (identifier: string, password: string) => Promise<{ ok: boolean; error?: string }>
   logout: () => void
+  /**
+   * L'archivio ha rifiutato il gettone: si torna alla schermata di accesso
+   * con l'avviso. I dati del telefono restano e partono appena si rientra.
+   */
+  sessioneScaduta: () => void
   switchUser: (id: string) => void
 
   setFilters: (f: Partial<RequestFilters>) => void
@@ -398,6 +403,9 @@ function corta(testo: string): string {
 
 const improntaRiga = (r: { dati?: unknown }) => corta(JSON.stringify(r.dati ?? null))
 
+/** Quello che si annota dopo uno scambio: l'impronta, o la traccia di eliminazione. */
+const improntaScambiata = (r: RigaArchivio) => (r.eliminato ? 'eliminato' : improntaRiga(r))
+
 /** Le raccolte che viaggiano, con dentro il loro nome per l'archivio. */
 const raccolteSincronizzate = (s: State): Record<TipoSincronizzato, { id: string }[]> => ({
   /* La password non viaggia: nell'archivio la leggerebbe chiunque. */
@@ -419,7 +427,7 @@ function righeCambiate(s: State): RigaArchivio[] {
     for (const dati of raccolte[tipo]) {
       const chiave = `${tipo}:${dati.id}`
       vivi.add(chiave)
-      const impronta = corta(JSON.stringify(dati))
+      const impronta = improntaRiga({ dati })
       if (impronteInviate.get(chiave) !== impronta) fuori.push({ tipo, id: dati.id, dati })
     }
   }
@@ -438,6 +446,50 @@ function righeCambiate(s: State): RigaArchivio[] {
   return fuori
 }
 
+/** Le righe che viaggiano, per chiave `${tipo}:${id}`, cosi' come viaggiano. */
+function indiceRighe(s: State): Map<string, { id: string }> {
+  const indice = new Map<string, { id: string }>()
+  const raccolte = raccolteSincronizzate(s)
+  for (const tipo of TIPI_SINCRONIZZATI) {
+    for (const dati of raccolte[tipo]) indice.set(`${tipo}:${dati.id}`, dati)
+  }
+  return indice
+}
+
+/**
+ * Sceglie, fra le righe arrivate dall'archivio, quelle da portare dentro.
+ *
+ * Una riga che qui e' cambiata rispetto a `riferimento` (di norma l'impronta
+ * dell'ultimo scambio) resta com'e' e parte al giro dopo: e' lavoro fatto qui
+ * che l'archivio non ha ancora. Succede per esempio con una pulizia accettata
+ * mentre la rete era lenta: senza questo controllo tornava indietro alla
+ * versione appena mandata, e siccome a quel punto l'impronta combaciava, la
+ * modifica non partiva piu'. Le impronte sono quelle di `righeCambiate`
+ * (utenti senza password), cosi' si confronta la stessa cosa.
+ *
+ * Una riga eliminata qui non torna: se l'archivio non ha ancora saputo
+ * dell'eliminazione, ci si annota cosa c'e' li' e la traccia parte al giro
+ * dopo. Se invece l'eliminazione era gia' arrivata e qualcuno ha rimesso la
+ * riga dopo, vince l'archivio: insistere farebbe rimbalzare la stessa riga
+ * fra due telefoni.
+ */
+function daPrendere(
+  s: State, record: Required<RigaArchivio>[], riferimento: (chiave: string) => string | undefined,
+): Required<RigaArchivio>[] {
+  const qui = indiceRighe(s)
+  const rimossi = new Set(s.removedIds)
+  return record.filter((r) => {
+    const chiave = `${r.tipo}:${r.id}`
+    const riga = qui.get(chiave)
+    if (riga) return improntaRiga({ dati: riga }) === riferimento(chiave)
+    /* Qui non c'e' e non e' stata eliminata: niente da proteggere. */
+    if (r.eliminato || !rimossi.has(r.id)) return true
+    if (impronteInviate.get(chiave) === 'eliminato') return true
+    impronteInviate.set(chiave, improntaRiga(r))
+    return false
+  })
+}
+
 /** Porta dentro le righe arrivate dall'archivio. */
 function applicaRighe(s: State, record: Required<RigaArchivio>[]): Partial<State> {
   /* Qui le schede utente restano quelle del dispositivo, password comprese:
@@ -454,7 +506,10 @@ function applicaRighe(s: State, record: Required<RigaArchivio>[]): Partial<State
       prossime[r.tipo].delete(r.id)
       eliminati.push(r.id)
     } else if (r.dati && typeof r.dati === 'object') {
-      prossime[r.tipo].set(r.id, r.dati as { id: string })
+      /* La password dell'account creato qui non sta nell'archivio: si tiene
+         quella del dispositivo, altrimenti il primo aggiornamento la toglie. */
+      const password = r.tipo === 'users' ? (prossime.users.get(r.id) as User | undefined)?.password : undefined
+      prossime[r.tipo].set(r.id, (password ? { ...r.dati, password } : r.dati) as { id: string })
     }
   }
 
@@ -475,6 +530,64 @@ const statoArchivio = (esito: { errore: string; assente?: boolean }): State['arc
     ? { stato: 'spento', messaggio: esito.errore }
     : { stato: 'errore', messaggio: esito.errore }
 
+/**
+ * Un giro di scambio alla volta. Il battito, il ritorno in primo piano e il
+ * ritorno della rete possono chiamarlo insieme: due giri sovrapposti
+ * mandavano e prendevano le stesse righe e si coprivano a vicenda.
+ */
+let giroInCorso = false
+
+/* ------------------------------------------------- accesso senza rete ---- */
+
+/**
+ * Per entrare senza rete serve sapere che la password e' giusta, e le
+ * password vere stanno solo nell'archivio. Dopo ogni accesso riuscito li' si
+ * tiene sul telefono un'impronta (SHA-256) di identificativo e password: non
+ * si puo' risalire alla password, ma basta per riconoscerla la volta dopo.
+ * Prima, senza rete, entrava chiunque scrivesse almeno sei caratteri.
+ */
+const CHIAVE_VERIFICHE = 'ppm-verifiche'
+const SALE_VERIFICA = 'ppm-verifica-accesso-v1'
+
+const leggiVerifiche = (): Record<string, string> => {
+  try {
+    return JSON.parse(localStorage.getItem(CHIAVE_VERIFICHE) ?? '{}') as Record<string, string>
+  } catch {
+    return {}
+  }
+}
+
+/** Null se il browser non sa calcolarla (pagina non sicura): allora niente accesso senza rete. */
+async function improntaAccesso(identificativo: string, password: string): Promise<string | null> {
+  try {
+    const testo = new TextEncoder().encode(`${SALE_VERIFICA}|${identificativo}|${password}`)
+    const digest = await crypto.subtle.digest('SHA-256', testo)
+    return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+  } catch {
+    return null
+  }
+}
+
+/** Si annota per ogni modo di entrare: quello scritto, l'email e il nome utente. */
+async function ricordaAccesso(identificativi: (string | null | undefined)[], password: string) {
+  const verifiche = leggiVerifiche()
+  for (const id of new Set(identificativi.map((x) => x?.trim().toLowerCase()).filter(Boolean) as string[])) {
+    const impronta = await improntaAccesso(id, password)
+    if (impronta) verifiche[id] = impronta
+  }
+  try {
+    localStorage.setItem(CHIAVE_VERIFICHE, JSON.stringify(verifiche))
+  } catch {
+    /* finestra privata: senza rete non si entrera' */
+  }
+}
+
+/** Trova l'account dall'email o dal nome utente. */
+const trovaUtente = (users: User[], identifier: string) => {
+  const chiave = identifier.trim().toLowerCase()
+  return users.find((u) => u.email.toLowerCase() === chiave || u.username?.toLowerCase() === chiave)
+}
+
 export const useStore = create<State>()(
   persist(
     (set, get) => ({
@@ -486,7 +599,8 @@ export const useStore = create<State>()(
        * L'accesso prova prima l'archivio condiviso: e' li' che vivono le
        * password vere e da li' arriva il gettone che permette lo scambio.
        * Se l'archivio non c'e' si entra lo stesso, con i dati sul dispositivo,
-       * perche' l'app deve restare usabile anche senza rete.
+       * perche' l'app deve restare usabile anche senza rete: ma solo con la
+       * password gia' usata qui con la rete (vedi `ricordaAccesso`).
        */
       loginArchivio: async (identifier, password) => {
         const esito = await accediArchivio(identifier, password)
@@ -507,36 +621,55 @@ export const useStore = create<State>()(
               }, ...s.users],
             }))
           }
+          await ricordaAccesso([identifier, esito.dati.email, esito.dati.username], password)
           set({ currentUserId: esito.dati.id, archivio: { stato: 'collegato' }, avvisoAccesso: undefined })
           return { ok: true }
         }
         /* Password sbagliata: e' una risposta dell'archivio, non un guasto. */
         if (!esito.assente) return { ok: false, error: esito.errore }
         set({ archivio: statoArchivio(esito) })
-        return get().login(identifier, password)
+        const user = trovaUtente(get().users, identifier)
+        /* Gli account creati qui con la loro password valgono come prima. */
+        if (!user || user.password || !user.active) return get().login(identifier, password)
+        const chiave = identifier.trim().toLowerCase()
+        const salvata = leggiVerifiche()[chiave]
+        if (!salvata) return { ok: false, error: 'Serve la connessione per il primo accesso su questo telefono' }
+        if (salvata !== await improntaAccesso(chiave, password)) {
+          return { ok: false, error: 'Password errata fornita per questo utente' }
+        }
+        set({ currentUserId: user.id, avvisoAccesso: undefined })
+        return { ok: true }
       },
 
       login: (identifier, password) => {
         /* Si entra con l'email o col nome utente: le ditte di pulizie usano il
            nome, che e' quello che ricordano. */
-        const chiave = identifier.trim().toLowerCase()
-        const user = get().users.find(
-          (u) => u.email.toLowerCase() === chiave || u.username?.toLowerCase() === chiave,
-        )
+        const user = trovaUtente(get().users, identifier)
         if (!user) return { ok: false, error: 'Nessun utente trovato per questa email o nome utente' }
         if (!user.active) return { ok: false, error: 'Utente non attivo' }
-        /* Dove la password e' impostata vale quella; gli altri account
-           accettano ancora una password qualsiasi di almeno 6 caratteri. */
-        const wrong = user.password ? password !== user.password : password.length < 6
-        if (wrong) return { ok: false, error: 'Password errata fornita per questo utente' }
+        /* Qui vale solo la password salvata sul dispositivo. Gli altri account
+           hanno la password nell'archivio: prima accettavano qualsiasi cosa di
+           almeno sei caratteri, ora passano da `loginArchivio`. */
+        if (!user.password) return { ok: false, error: 'Serve la connessione per il primo accesso su questo telefono' }
+        if (password !== user.password) return { ok: false, error: 'Password errata fornita per questo utente' }
         set({ currentUserId: user.id, avvisoAccesso: undefined })
         return { ok: true }
       },
+      /* Le impronte dello scambio restano: quello che e' stato scambiato con
+         l'archivio resta vero anche dopo l'uscita. Azzerarle faceva ripartire
+         da "prendi tutto", che copriva il lavoro non ancora mandato e
+         rimetteva in elenco le righe eliminate qui. */
       logout: () => {
         dimenticaGettone()
-        impronteInviate.clear()
-        salvaImpronte()
         set({ currentUserId: null, filters: emptyFilters, archivio: { stato: 'verifica' } })
+      },
+      sessioneScaduta: () => {
+        dimenticaGettone()
+        set({
+          currentUserId: null,
+          avvisoAccesso: 'Sessione scaduta: rientra con la tua password. Il lavoro fatto su questo telefono non si perde.',
+          archivio: { stato: 'verifica' },
+        })
       },
       switchUser: (id) => set({ currentUserId: id, filters: emptyFilters }),
 
@@ -667,6 +800,13 @@ export const useStore = create<State>()(
         let nuove = 0, aggiornate = 0, annullate = 0
         for (const casa of get().apartments.filter((a) => a.icalUrl)) {
           const esito = await scaricaCalendarioCasa(casa.icalUrl!)
+          /* Gettone rifiutato: come nello scambio, si torna all'accesso.
+             Prima si restava dentro senza gettone e non partiva piu' niente. */
+          if (!esito.ok && esito.scaduto) {
+            get().sessioneScaduta()
+            errori.push(esito.errore)
+            break
+          }
           if (!esito.ok) { errori.push(`${casa.name}: ${esito.errore}`); continue }
           const piano = pulizieDaCalendario(casa, leggiCalendario(esito.dati.ics), get().requests)
           const cambiate = [...piano.nuove, ...piano.aggiornate, ...piano.annullate]
@@ -774,101 +914,101 @@ export const useStore = create<State>()(
         set((s) => ({ readNotifications: [...new Set([...s.readNotifications, ...ids])] })),
 
       sincronizza: async () => {
-        /* Accesso scaduto: prima il telefono restava dentro e lavorava da solo,
-           e quello che si faceva (le accettazioni della ditta) non arrivava a
-           nessuno. Ora si torna all'accesso; i dati del telefono restano e
-           partono appena si rientra. */
-        const scaduto = () => {
-          dimenticaGettone()
-          impronteInviate.clear()
-          salvaImpronte()
-          set({
-            currentUserId: null,
-            avvisoAccesso: 'Sessione scaduta: rientra con la tua password. Il lavoro fatto su questo telefono non si perde.',
-            archivio: { stato: 'verifica' },
-          })
-        }
-        /* Senza gettone non si scambia niente, ma si guarda lo stesso se
-           l'archivio c'e': ricaricando la pagina il gettone resta e questo non
-           serve, ma chi e' entrato in locale deve continuare a vedere
-           l'avviso, non trovarselo sparito al primo ricaricamento. */
-        if (!haGettone()) {
-          const raggiungibile = await archivioDisponibile()
-          set({
-            archivio: {
-              stato: 'spento',
-              messaggio: raggiungibile
-                ? 'Esci e rientra con la password per sincronizzare con gli altri dispositivi'
-                : 'Archivio condiviso non collegato',
-            },
-          })
-          return
-        }
-        /* Primo giro su questo dispositivo (o dopo essere rientrati): prima si
-           prende tutto l'archivio, poi si manda solo quello che li' non c'e'.
-           Mandare per primi le proprie copie avrebbe coperto il lavoro fatto
-           dagli altri nel frattempo. */
-        if (impronteInviate.size === 0) {
-          const tutto = await tiraDallArchivio(0)
-          if (!tutto.ok) {
-            if (tutto.scaduto) return scaduto()
-            set({ archivio: statoArchivio(tutto) })
+        if (giroInCorso) return
+        giroInCorso = true
+        try {
+          /* Accesso scaduto: prima il telefono restava dentro e lavorava da
+             solo, e quello che si faceva (le accettazioni della ditta) non
+             arrivava a nessuno. Ora si torna all'accesso; i dati del telefono
+             restano e partono appena si rientra. */
+          const scaduto = () => get().sessioneScaduta()
+          /* Senza gettone non si scambia niente, ma si guarda lo stesso se
+             l'archivio c'e'. Se c'e' e qualcuno e' dentro, il gettone e' andato
+             perso (rifiutato a meta' di un'altra chiamata): si torna
+             all'accesso, come per la sessione scaduta. Chi lavora senza
+             archivio collegato resta dentro e vede solo l'avviso. */
+          if (!haGettone()) {
+            const raggiungibile = await archivioDisponibile()
+            if (haGettone()) return
+            if (raggiungibile && get().currentUserId) return scaduto()
+            set({
+              archivio: {
+                stato: 'spento',
+                messaggio: raggiungibile
+                  ? 'Esci e rientra con la password per sincronizzare con gli altri dispositivi'
+                  : 'Archivio condiviso non collegato',
+              },
+            })
             return
           }
-          /* Una riga cambiata qui dopo l'ultima scrittura nell'archivio (per
-             esempio una pulizia accettata mentre l'accesso era scaduto) vince:
-             resta com'e' e parte al giro dopo. Le altre arrivano dall'archivio. */
-          const locali = raccolteSincronizzate(get())
-          const piuNuovaQui = (r: Required<RigaArchivio>) => {
-            const qui = (locali[r.tipo] ?? []).find((x) => x.id === r.id) as { updatedAt?: string } | undefined
-            const quando = qui?.updatedAt ? new Date(qui.updatedAt).getTime() : NaN
-            return Number.isFinite(quando) && quando > r.aggiornato
+          /* Primo giro su un dispositivo che non ha mai scambiato niente:
+             prima si prende tutto l'archivio, poi si manda solo quello che li'
+             non c'e'. Mandare per primi le proprie copie avrebbe coperto il
+             lavoro fatto dagli altri. Qui vince l'archivio, salvo due cose:
+             quello che e' stato eliminato qui non torna (parte la traccia) e
+             quello che si tocca mentre si aspetta la risposta resta.
+             Dopo un'uscita o una sessione scaduta non si passa di qui: le
+             impronte restano, e il giro normale manda il lavoro fatto nel
+             frattempo senza farlo coprire. */
+          if (impronteInviate.size === 0) {
+            const primaDelTutto = new Map(
+              [...indiceRighe(get())].map(([chiave, riga]) => [chiave, improntaRiga({ dati: riga })]),
+            )
+            const tutto = await tiraDallArchivio(0)
+            if (!tutto.ok) {
+              if (tutto.scaduto) return scaduto()
+              set({ archivio: statoArchivio(tutto) })
+              return
+            }
+            const presi = daPrendere(get(), tutto.dati.record, (chiave) => primaDelTutto.get(chiave))
+            if (presi.length > 0) set((s) => applicaRighe(s, presi))
+            for (const r of presi) impronteInviate.set(`${r.tipo}:${r.id}`, improntaScambiata(r))
+            set({ sincronizzatoFino: tutto.dati.adesso })
+            salvaImpronte()
           }
-          const daPrendere = tutto.dati.record.filter((r) => !piuNuovaQui(r))
-          if (daPrendere.length > 0) set((s) => applicaRighe(s, daPrendere))
-          for (const r of daPrendere) {
-            impronteInviate.set(`${r.tipo}:${r.id}`, r.eliminato ? 'eliminato' : improntaRiga(r))
+
+          const prima = get()
+
+          /* Poi, a ogni giro: prima si manda, poi si prende, cosi' quello che
+             ho appena scritto non viene coperto da una versione piu' vecchia
+             che arriva dal giro precedente di qualcun altro. Si manda solo cio'
+             che e' cambiato davvero su questo dispositivo. */
+          const daMandare = righeCambiate(prima)
+          if (daMandare.length > 0) {
+            const inviato = await spingiNellArchivio(daMandare)
+            if (!inviato.ok) {
+              if (inviato.scaduto) return scaduto()
+              set({ archivio: statoArchivio(inviato) })
+              return
+            }
+            for (const r of daMandare) impronteInviate.set(`${r.tipo}:${r.id}`, improntaScambiata(r))
+            salvaImpronte()
           }
-          set({ sincronizzatoFino: tutto.dati.adesso })
-          salvaImpronte()
-        }
 
-        const prima = get()
-
-        /* Poi, a ogni giro: prima si manda, poi si prende, cosi' quello che ho
-           appena scritto non viene coperto da una versione piu' vecchia che
-           arriva dal giro precedente di qualcun altro. Si manda solo cio' che
-           e' cambiato davvero su questo dispositivo. */
-        const daMandare = righeCambiate(prima)
-        if (daMandare.length > 0) {
-          const inviato = await spingiNellArchivio(daMandare)
-          if (!inviato.ok) {
-            if (inviato.scaduto) return scaduto()
-            set({ archivio: statoArchivio(inviato) })
+          const arrivato = await tiraDallArchivio(prima.sincronizzatoFino)
+          if (!arrivato.ok) {
+            if (arrivato.scaduto) return scaduto()
+            set({ archivio: statoArchivio(arrivato) })
             return
           }
-          for (const r of daMandare) impronteInviate.set(`${r.tipo}:${r.id}`, improntaRiga(r))
-        }
 
-        const arrivato = await tiraDallArchivio(prima.sincronizzatoFino)
-        if (!arrivato.ok) {
-          if (arrivato.scaduto) return scaduto()
-          set({ archivio: statoArchivio(arrivato) })
-          return
-        }
-
-        const { record, adesso } = arrivato.dati
-        if (record.length > 0) {
-          set((s) => applicaRighe(s, record))
-          for (const r of record) {
-            impronteInviate.set(`${r.tipo}:${r.id}`, r.eliminato ? 'eliminato' : improntaRiga(r))
+          /* Si prende solo cio' che qui non e' cambiato dall'ultimo scambio:
+             fra le righe che tornano ci sono anche le nostre appena mandate, e
+             una modifica fatta mentre si aspettava la rete non va coperta. */
+          const { adesso } = arrivato.dati
+          const record = daPrendere(get(), arrivato.dati.record, (chiave) => impronteInviate.get(chiave))
+          if (record.length > 0) {
+            set((s) => applicaRighe(s, record))
+            for (const r of record) impronteInviate.set(`${r.tipo}:${r.id}`, improntaScambiata(r))
           }
+          salvaImpronte()
+          set({
+            sincronizzatoFino: Math.max(adesso, prima.sincronizzatoFino),
+            archivio: { stato: 'collegato', ultimo: new Date().toISOString() },
+          })
+        } finally {
+          giroInCorso = false
         }
-        salvaImpronte()
-        set({
-          sincronizzatoFino: Math.max(adesso, prima.sincronizzatoFino),
-          archivio: { stato: 'collegato', ultimo: new Date().toISOString() },
-        })
       },
 
       resetData: () => set({ ...baseData(), filters: emptyFilters }),
