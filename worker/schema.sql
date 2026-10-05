@@ -41,11 +41,18 @@ CREATE TABLE IF NOT EXISTS record (
 CREATE INDEX IF NOT EXISTS idx_record_aggiornato ON record (aggiornato);
 
 -- Gli accessi: le password non si salvano in chiaro, si salva la loro impronta.
-INSERT OR REPLACE INTO utente (id, email, username, password_hash, ruolo, nome, company) VALUES
+-- Solo se mancano: rilanciare questo file su un archivio in uso non deve
+-- riattivare chi l'amministratore ha sospeso, ne' rimettere la ditta di
+-- partenza a chi e' stata cambiata.
+INSERT OR IGNORE INTO utente (id, email, username, password_hash, ruolo, nome, company) VALUES
   ('u-admin', 'm2ab.srl@gmail.com', NULL,
    'f0ef41d929da406ca215396b37ac6998c4a5c209ce37c2275c773795b3b6824e', 'admin', 'ProProManager', NULL),
   ('u-pulizie-angela', 'angela@propromanager.it', 'Angela',
    '0d4caf2c36bd87799d0e49b82f2efc5a9e45cbcccb941e02df51f5e9aad146fc', 'operator', 'Angela', 'angela');
+
+-- Negli archivi nati prima della colonna company la riga di Angela c'e' gia',
+-- senza ditta: la si mette solo se manca, come fa il Worker all'avvio.
+UPDATE utente SET company = 'angela' WHERE id = 'u-pulizie-angela' AND company IS NULL;
 
 -- L'accesso Comfy e' stato revocato: se resta da un'installazione precedente,
 -- va tolto. Le case e le pulizie non si toccano.
