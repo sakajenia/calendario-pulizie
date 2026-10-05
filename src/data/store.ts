@@ -327,15 +327,29 @@ const SEME_ATTUALE = new Set(seed.SEED_IDS)
  * ancora in attesa, nessuna modifica registrata, verifiche come nel seme -
  * e prendono la versione di riferimento, che poi parte al giro di scambio.
  * Quelle modificate a mano restano come sono.
+ *
+ * E solo quelle mai scambiate con l'archivio (nessuna impronta, vedi
+ * `impronteInviate`). Una riga gia' scambiata e' la copia dell'archivio, o
+ * una copia rimasta indietro che il prossimo giro aggiorna: correggerla qui
+ * la faceva sembrare una modifica fatta su questo telefono, e al giro dopo
+ * copriva il lavoro degli altri (lo spostamento fatto dal manager, per
+ * esempio, che non tocca stato ne' autore). Su un telefono che non ha mai
+ * scambiato niente, la correzione vale finche' il primo giro non porta la
+ * copia dell'archivio, che vince.
  */
 function riportaAlMeseDelPiano<T extends { id: string }>(
+  tipo: 'requests' | 'inspections',
   salvati: T[], dalSeme: T[], quando: (x: T) => string, intatta: (x: T, giusta: T) => boolean,
 ): T[] {
+  /* Mentre il primo giro aspetta l'archivio, una correzione qui sembrerebbe
+     una modifica fatta sul telefono e coprirebbe la copia in arrivo. */
+  if (primaPresaInCorso) return salvati
   const riferimento = new Map(dalSeme.map((x) => [x.id, x]))
   let cambiate = 0
   const fuori = salvati.map((x) => {
     const giusta = riferimento.get(x.id)
     if (!giusta || !SEME_ATTUALE.has(x.id)) return x
+    if (impronteInviate.has(`${tipo}:${x.id}`)) return x
     if (seed.nelMeseDelPiano(quando(x)) || !seed.nelMeseDelPiano(quando(giusta))) return x
     if (!intatta(x, giusta)) return x
     cambiate += 1
@@ -346,13 +360,13 @@ function riportaAlMeseDelPiano<T extends { id: string }>(
 
 const pulizieAlMeseDelPiano = (salvate: CleaningRequest[], dalSeme: CleaningRequest[]) =>
   riportaAlMeseDelPiano(
-    salvate, dalSeme, (r) => r.checkOutAt,
+    'requests', salvate, dalSeme, (r) => r.checkOutAt,
     (r) => r.status === 'in_attesa' && !r.updatedAt && !r.updatedById && !r.completedAt,
   )
 
 const vociAlMeseDelPiano = (salvate: Inspection[], dalSeme: Inspection[]) =>
   riportaAlMeseDelPiano(
-    salvate, dalSeme, (i) => i.scheduledAt,
+    'inspections', salvate, dalSeme, (i) => i.scheduledAt,
     /* Le verifiche devono essere quelle del riferimento, spuntate allo stesso
        modo: alcune voci del seme nascono gia' chiuse, e restano correggibili;
        una spunta (o una verifica) in piu' o in meno vuol dire lavoro vero. */
@@ -848,6 +862,51 @@ function annotaScambiate(s: State, righe: Required<RigaArchivio>[], ditta: boole
 }
 
 /**
+ * Le righe che l'archivio rimanda indietro dopo un invio (`rifiutate`):
+ * quelle che non ha preso, o ha preso diverse da come sono partite, con la
+ * copia che vale sul server. Quello che non ha la forma giusta si ignora.
+ */
+function righeRifiutate(grezze: unknown): Required<RigaArchivio>[] {
+  if (!Array.isArray(grezze)) return []
+  const fuori: Required<RigaArchivio>[] = []
+  for (const r of grezze as Partial<RigaArchivio>[]) {
+    if (!r || typeof r !== 'object' || typeof r.id !== 'string') continue
+    if (!TIPI_SINCRONIZZATI.includes(r.tipo as TipoSincronizzato)) continue
+    fuori.push({
+      tipo: r.tipo as TipoSincronizzato,
+      id: r.id,
+      dati: r.dati ?? null,
+      eliminato: r.eliminato === true,
+      aggiornato: typeof r.aggiornato === 'number' ? r.aggiornato : 0,
+    })
+  }
+  return fuori
+}
+
+/**
+ * Fra le copie rimandate dall'archivio, quelle da prendere: le righe che qui
+ * sono ancora come sono partite (`partite`, impronta per chiave). Una riga
+ * toccata di nuovo mentre si aspettava la risposta resta com'e' e riparte al
+ * giro dopo, senza impronta nuova.
+ */
+function daRiprendere(
+  s: State, rifiutate: Required<RigaArchivio>[], partite: Map<string, string>,
+): Required<RigaArchivio>[] {
+  const qui = indiceRighe(s)
+  return rifiutate.filter((r) => {
+    const chiave = `${r.tipo}:${r.id}`
+    const partita = partite.get(chiave)
+    if (partita === undefined) return false
+    const riga = qui.get(chiave)
+    return (riga ? improntaRiga({ dati: riga }) : 'eliminato') === partita
+  })
+}
+
+/** La ditta di chi ha fatto l'accesso: e' quella con cui l'archivio filtra le righe. */
+const dittaDellAccesso = (s: State): string | null =>
+  s.users.find((u) => u.id === accessoReale(s))?.companyId ?? null
+
+/**
  * Le righe come partono da un telefono di ditta: solo le pulizie, e di
  * ognuna solo i campi cambiati (vedi `modificheDitta`). Il resto il Worker lo
  * scarterebbe comunque.
@@ -892,6 +951,11 @@ const statoArchivio = (esito: { errore: string; assente?: boolean }): State['arc
  * mandavano e prendevano le stesse righe e si coprivano a vicenda.
  */
 let giroInCorso = false
+/**
+ * Il primo giro (quello che prende tutto l'archivio) sta aspettando la
+ * risposta: la correzione di settembre si ferma (vedi `riportaAlMeseDelPiano`).
+ */
+let primaPresaInCorso = false
 
 /* ------------------------------------------------- accesso senza rete ---- */
 
@@ -1209,9 +1273,9 @@ export const useStore = create<State>()(
             ...base.inspections,
             ...ricorrenti.filter((r) => !base.inspections.some((b) => b.id === r.id)),
           ]
-          /* La correzione del mese vale anche qui: una copia di ottobre puo'
-             arrivare dopo, dall'archivio, mandata da un telefono rimasto alla
-             versione vecchia. Tocca solo le righe che nessuno ha modificato. */
+          /* La correzione del mese vale anche qui, e anche qui tocca solo le
+             righe che nessuno ha modificato e che non sono mai state
+             scambiate con l'archivio (vedi `riportaAlMeseDelPiano`). */
           const inspections = senzaDoppioni(
             vociAlMeseDelPiano(riallinea(s.inspections, riferimento, rimossi, storici), base.inspections),
             storici,
@@ -1411,7 +1475,8 @@ export const useStore = create<State>()(
             const primaDelTutto = new Map(
               [...indiceRighe(get())].map(([chiave, riga]) => [chiave, improntaRiga({ dati: riga })]),
             )
-            const tutto = await tiraDallArchivio(0)
+            primaPresaInCorso = true
+            const tutto = await tiraDallArchivio(0).finally(() => { primaPresaInCorso = false })
             if (superato()) return
             if (!tutto.ok) {
               if (tutto.scaduto) return scaduto()
@@ -1439,6 +1504,7 @@ export const useStore = create<State>()(
                pulizie (vedi `modificheDitta`); le impronte restano quelle
                delle righe intere, che sono quelle che si confrontano. */
             const perArchivio = ditta ? righePerLaDitta(daMandare) : daMandare
+            let rifiutate: Required<RigaArchivio>[] = []
             if (perArchivio.length > 0) {
               const inviato = await spingiNellArchivio(perArchivio)
               if (superato()) return
@@ -1447,10 +1513,33 @@ export const useStore = create<State>()(
                 set({ archivio: statoArchivio(inviato) })
                 return
               }
+              rifiutate = righeRifiutate(inviato.dati.rifiutate)
             }
+            /* Le righe che l'archivio ha rimandato indietro non si segnano
+               come mandate: prima il telefono annotava la sua versione anche
+               quando il Worker l'aveva scartata (l'"Annulla" della ditta su
+               un rifiuto, per esempio), e restava diverso dall'archivio per
+               sempre. Si prende la copia del server, e quella si annota
+               (impronta e, per le ditte, la copia dei campi della ditta). */
+            const rimandate = new Set(rifiutate.map((r) => `${r.tipo}:${r.id}`))
             for (const r of daMandare) {
+              if (rimandate.has(`${r.tipo}:${r.id}`)) continue
               impronteInviate.set(`${r.tipo}:${r.id}`, improntaScambiata(r))
               if (ditta && r.tipo === 'requests' && !r.eliminato) copieDitta.set(r.id, campiDitta(r.dati))
+            }
+            if (rifiutate.length > 0) {
+              const partite = new Map(daMandare.map((r) => [`${r.tipo}:${r.id}`, improntaScambiata(r)]))
+              const riprese = daRiprendere(get(), rifiutate, partite)
+              if (riprese.length > 0) {
+                applicaSeCambia(riprese)
+                /* Un'eliminazione rifiutata: la riga torna, e non e' piu'
+                   "eliminata qui" (altrimenti la traccia ripartirebbe). */
+                const tornate = new Set(riprese.filter((r) => !r.eliminato).map((r) => r.id))
+                if (get().removedIds.some((id) => tornate.has(id))) {
+                  set((s) => ({ removedIds: s.removedIds.filter((id) => !tornate.has(id)) }))
+                }
+                annotaScambiate(get(), riprese, ditta)
+              }
             }
             salvaImpronte()
             if (ditta) salvaCopieDitta()
@@ -1468,6 +1557,7 @@ export const useStore = create<State>()(
              fra le righe che tornano ci sono anche le nostre appena mandate, e
              una modifica fatta mentre si aspettava la rete non va coperta. */
           const { adesso } = arrivato.dati
+          const dittaPrima = dittaDellAccesso(get())
           const record = daPrendere(get(), arrivato.dati.record, (chiave) => impronteInviate.get(chiave))
           if (record.length > 0) {
             applicaSeCambia(record)
@@ -1475,6 +1565,16 @@ export const useStore = create<State>()(
           }
           salvaImpronte()
           if (ditta) salvaCopieDitta()
+          /* Il manager ha spostato questo account a un'altra ditta: da ora
+             l'archivio manda le case e le pulizie della ditta nuova, ma quelle
+             gia' "viste" dal segnalibro non arriverebbero piu'. Si riparte
+             come su un telefono nuovo: il prossimo giro prende tutto quello
+             che ora e' visibile. */
+          if (dittaDellAccesso(get()) !== dittaPrima) {
+            dimenticaSincronizzazione()
+            set({ sincronizzatoFino: 0, archivio: { stato: 'collegato', ultimo: new Date().toISOString() } })
+            return
+          }
           set({
             sincronizzatoFino: Math.max(adesso, prima.sincronizzatoFino),
             archivio: { stato: 'collegato', ultimo: new Date().toISOString() },
@@ -1547,8 +1647,9 @@ export const useStore = create<State>()(
        * `ensureRecurringInspections`, che aggiunge senza cancellare. Prima si
        * buttava via tutto a ogni cambiamento, e con l'app ormai in uso quel
        * gesto cancellerebbe le task e le pulizie inserite a mano.
-       * 16: le pulizie e le voci del seme finite fuori da settembre 2026 (e
-       * mai toccate) tornano a settembre (vedi `riportaAlMeseDelPiano`).
+       * 16: le pulizie e le voci del seme finite fuori da settembre 2026 (mai
+       * toccate ne' scambiate con l'archivio) tornano a settembre (vedi
+       * `riportaAlMeseDelPiano`).
        */
       version: 16,
       migrate: (persisted) => migrateState(persisted),

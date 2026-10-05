@@ -246,13 +246,14 @@ const CAMPI_OPERATORE = [
 
 /**
  * Fra i campi della ditta, quelli che si possono svuotare: la nota
- * cancellata, l'incarico restituito. Il telefono li manda come `null`. Gli
+ * cancellata, l'incarico restituito, la chiusura annullata (data e autore
+ * del completamento). Il telefono li manda come `null`. Gli
  * altri, se arrivano `null`, restano come sono sul server: uno stato o una
  * data di chiusura non si cancellano per sbaglio. Un campo che non arriva
  * proprio resta com'e', per tutti: il telefono manda solo quello che ha
  * cambiato.
  */
-const CAMPI_SVUOTABILI: readonly string[] = ['operatorNotes', 'assigneeId']
+const CAMPI_SVUOTABILI: readonly string[] = ['operatorNotes', 'assigneeId', 'completedAt', 'completedById']
 
 /**
  * Gli stati che l'app conosce. Uno stato diverso, arrivato da chiunque, non
@@ -265,82 +266,240 @@ const statoValido = (stato: unknown): stato is string => typeof stato === 'strin
 /**
  * I passaggi di stato permessi a una ditta: accettare o rifiutare una
  * pulizia in attesa, iniziarla, chiuderla, e tornare indietro di un passo
- * (annullare l'accettazione o la chiusura). Una pulizia rifiutata
- * (cancellata) la riapre solo il manager.
+ * (annullare l'accettazione, il rifiuto o la chiusura). Sono anche i gesti
+ * di "Annulla" sul telefono: prima il rifiuto annullato (cancellata -> in
+ * attesa) e la chiusura annullata di una pulizia in corso (completata -> in
+ * corso) qui non passavano, la riga si saltava in silenzio e il telefono
+ * restava diverso dall'archivio.
  */
 const PASSAGGI_OPERATORE: Record<string, readonly string[]> = {
   in_attesa: ['accettata', 'cancellata'],
   accettata: ['in_corso', 'completata', 'in_attesa'],
   in_corso: ['completata', 'accettata'],
-  completata: ['accettata'],
+  completata: ['accettata', 'in_corso'],
+  cancellata: ['in_attesa'],
 }
+
+/**
+ * Se la ditta puo' portare la pulizia salvata allo stato `dopo`. Una pulizia
+ * annullata dal calendario delle prenotazioni (la prenotazione e' sparita)
+ * non la riapre la ditta: il suo "Annulla" vale solo per il proprio rifiuto.
+ */
+function passaggioPermesso(salvata: Record<string, unknown>, dopo: string): boolean {
+  const prima = salvata.status
+  const permessi = typeof prima === 'string' ? PASSAGGI_OPERATORE[prima] : undefined
+  if (!permessi?.includes(dopo)) return false
+  return !(prima === 'cancellata' && salvata.annullataDaCalendario)
+}
+
+/**
+ * Una riga che l'archivio non ha preso, o ha preso diversa da come e'
+ * arrivata. Torna al telefono con la copia del server (quella che vale) nel
+ * campo `rifiutate` della risposta: prima il telefono la credeva mandata e
+ * restava diverso dall'archivio per sempre, perche' una riga rifiutata non
+ * cambia orario e quindi non torna neanche con la lettura. I telefoni delle
+ * versioni di prima il campo lo ignorano.
+ */
+interface RigaRifiutata {
+  tipo: string
+  id: string
+  dati: unknown
+  eliminato: boolean
+  aggiornato: number
+}
+
+const comeRifiutata = (r: RigaArchivio): RigaRifiutata => ({
+  tipo: r.tipo,
+  id: r.id,
+  dati: r.dati ? senzaPassword(r.tipo, JSON.parse(r.dati)) : null,
+  eliminato: r.eliminato === 1,
+  aggiornato: r.aggiornato,
+})
+
+/** Le copie dell'archivio di queste righe, per chiave `tipo:id` (eliminate comprese). */
+async function copieSulServer(env: Env, righe: { tipo: string; id: string }[]): Promise<Map<string, RigaArchivio>> {
+  const perTipo = new Map<string, Set<string>>()
+  for (const r of righe) {
+    if (!perTipo.has(r.tipo)) perTipo.set(r.tipo, new Set())
+    perTipo.get(r.tipo)!.add(r.id)
+  }
+  const fuori = new Map<string, RigaArchivio>()
+  for (const [tipo, ids] of perTipo) {
+    const esito = await env.DB!
+      .prepare(`SELECT tipo, id, dati, eliminato, aggiornato FROM record
+        WHERE tipo = ?1 AND id IN (SELECT value FROM json_each(?2))`)
+      .bind(tipo, JSON.stringify([...ids]))
+      .all<RigaArchivio>()
+    for (const r of esito.results ?? []) fuori.set(`${r.tipo}:${r.id}`, r)
+  }
+  return fuori
+}
+
+/** L'esito del controllo di un invio. */
+interface Vaglio {
+  /** Le righe da scrivere, gia' nella forma in cui si scrivono. */
+  pronte: RigaSync[]
+  /** Le righe saltate, con la copia del server. */
+  rifiutate: RigaRifiutata[]
+  /** Righe scritte diverse da come sono arrivate: tornano con la versione scritta. */
+  cambiate: RigaSync[]
+  /** Le case passate a un'altra ditta (vedi `scriviDati`). */
+  caseSpostate: string[]
+}
+
+const vaglioVuoto = (): Vaglio => ({ pronte: [], rifiutate: [], cambiate: [], caseSpostate: [] })
 
 /**
  * Le pulizie che una ditta puo' toccare: solo quelle che esistono gia'
  * nell'archivio, solo nelle case affidate a quella ditta, e di ognuna solo i
- * campi qui sopra, copiati sulla versione del server. Il resto si scarta in
- * silenzio: un telefono con dati vecchi non deve far fallire l'intero invio.
+ * campi qui sopra, copiati sulla versione del server. Il resto si scarta: un
+ * telefono con dati vecchi non deve far fallire l'intero invio.
  * Anche un cambio di stato non permesso fa saltare la riga intera: meglio
  * non salvare niente che salvare la nota senza lo stato a cui si riferiva.
+ * Quella riga torna indietro con la copia del server (vedi `RigaRifiutata`);
+ * le pulizie di altre ditte no, perche' la ditta non le deve vedere.
  */
-async function righeDellaDitta(env: Env, righe: RigaSync[], company: string | null): Promise<RigaSync[]> {
-  if (!company) return []
+async function righeDellaDitta(env: Env, righe: RigaSync[], company: string | null): Promise<Vaglio> {
+  const vaglio = vaglioVuoto()
+  if (!company) return vaglio
   const pulizie = righe.filter((r) => r.tipo === 'requests' && !r.eliminato && r.dati && typeof r.dati === 'object')
-  if (pulizie.length === 0) return []
+  if (pulizie.length === 0) return vaglio
   /* La casa si legge dall'archivio, non da quello che manda il telefono:
      altrimenti basterebbe scrivere un'altra casa per passare il controllo. */
   const esito = await env.DB!
-    .prepare(`SELECT p.id, p.dati FROM record p
+    .prepare(`SELECT p.tipo, p.id, p.dati, p.eliminato, p.aggiornato FROM record p
       JOIN record c ON c.tipo = 'apartments' AND c.eliminato = 0 AND c.dati IS NOT NULL
         AND c.id = json_extract(p.dati, '$.apartmentId')
       WHERE p.tipo = 'requests' AND p.eliminato = 0 AND p.dati IS NOT NULL
         AND p.id IN (SELECT value FROM json_each(?1))
         AND json_extract(c.dati, '$.companyId') = ?2`)
     .bind(JSON.stringify(pulizie.map((r) => r.id)), company)
-    .all<{ id: string; dati: string }>()
-  const sulServer = new Map((esito.results ?? []).map((r) => [r.id, r.dati]))
+    .all<RigaArchivio>()
+  const sulServer = new Map((esito.results ?? []).map((r) => [r.id, r]))
 
-  const pronte: RigaSync[] = []
   for (const r of pulizie) {
     const salvata = sulServer.get(r.id)
-    if (!salvata) continue // pulizia nuova, cancellata o di un'altra ditta: non tocca a lei
-    const unita = JSON.parse(salvata) as Record<string, unknown>
+    if (!salvata?.dati) continue // pulizia nuova, cancellata o di un'altra ditta: non tocca a lei
+    const unita = JSON.parse(salvata.dati) as Record<string, unknown>
     const arrivati = r.dati as Record<string, unknown>
 
     /* Lo stato prima di tutto: se il passaggio non e' permesso, la riga non
-       passa. Lo stesso stato di prima (i telefoni vecchi mandano la riga
-       intera) non e' un passaggio e va bene. */
+       passa e torna indietro com'e' sul server. Lo stesso stato di prima (i
+       telefoni vecchi mandano la riga intera) non e' un passaggio e va bene. */
     const nuovoStato = arrivati.status
     if (nuovoStato !== undefined && nuovoStato !== null && nuovoStato !== unita.status) {
-      if (!statoValido(nuovoStato)) continue
-      const permessi = typeof unita.status === 'string' ? PASSAGGI_OPERATORE[unita.status] : undefined
-      if (!permessi?.includes(nuovoStato)) continue
+      if (!statoValido(nuovoStato) || !passaggioPermesso(unita, nuovoStato)) {
+        vaglio.rifiutate.push(comeRifiutata(salvata))
+        continue
+      }
     }
 
     /* Presente con un valore = si scrive; presente e `null` = si toglie, ma
-       solo per i campi svuotabili; assente = resta quello del server. */
+       solo per i campi svuotabili; assente = resta quello del server. Un
+       `null` su un campo che non si svuota (uno stato, un orario) lascia la
+       riga diversa da quella del telefono: torna indietro come e' stata scritta. */
+    let diversa = false
     for (const campo of CAMPI_OPERATORE) {
       if (!Object.prototype.hasOwnProperty.call(arrivati, campo)) continue
       const valore = arrivati[campo]
       if (valore === null || valore === undefined) {
         if (CAMPI_SVUOTABILI.includes(campo)) delete unita[campo]
+        else if (unita[campo] !== undefined) diversa = true
       } else {
         unita[campo] = valore
       }
     }
-    pronte.push({ tipo: r.tipo, id: r.id, dati: unita, eliminato: false })
+    const pronta: RigaSync = { tipo: r.tipo, id: r.id, dati: unita, eliminato: false }
+    vaglio.pronte.push(pronta)
+    if (diversa) vaglio.cambiate.push(pronta)
   }
-  return pronte
+  return vaglio
 }
 
+/** I campi senza i quali una pulizia non si puo' mostrare (oltre allo stato). */
+const CAMPI_RICHIESTI: readonly string[] = ['apartmentId', 'checkOutAt', 'checkInAt']
+
+/** Una pulizia intera: casa, orari e uno stato che l'app conosce. */
+const puliziaCompleta = (d: Record<string, unknown>) =>
+  CAMPI_RICHIESTI.every((c) => typeof d[c] === 'string' && d[c] !== '') && statoValido(d.status)
+
 /**
- * Le pulizie scritte da un manager devono avere uno stato che l'app conosce:
- * altrimenti la riga si salta, come per le ditte. Le tracce di eliminazione
- * passano: non portano dati.
+ * Una pulizia arrivata a pezzi: e' quello che manda il telefono di una ditta
+ * (solo i campi cambiati). Puo' arrivare anche con un gettone da manager,
+ * quando l'account e' appena stato promosso e il telefono non lo sa ancora.
  */
-const conStatoValido = (r: RigaSync) =>
-  r.tipo !== 'requests' || !!r.eliminato
-  || (!!r.dati && typeof r.dati === 'object' && statoValido((r.dati as Record<string, unknown>).status))
+const puliziaAPezzi = (d: Record<string, unknown>) =>
+  typeof d.apartmentId !== 'string' || typeof d.checkOutAt !== 'string'
+
+/**
+ * Le righe scritte da un manager. L'amministratore scrive tutto, il manager
+ * (host) tutto tranne le schede utente, altrimenti potrebbe cambiarsi il
+ * ruolo da solo. Le tracce di eliminazione passano: non portano dati.
+ *
+ * Le pulizie devono essere intere (vedi `puliziaCompleta`): altrimenti la
+ * riga si salta e torna indietro, come per le ditte. Una pulizia a pezzi
+ * (vedi `puliziaAPezzi`) non prende il posto di quella del server - prima
+ * restava una riga senza casa ne' orari, che bloccava la pagina delle pulizie
+ * su tutti i telefoni - ma si unisce a quella: un campo presente si scrive,
+ * uno a `null` si toglie (salvo casa, orari e stato).
+ *
+ * Per le case si guarda anche la ditta: se cambia, la casa finisce in
+ * `caseSpostate` (vedi `scriviDati`).
+ */
+async function righeDelManager(env: Env, righe: RigaSync[], ruolo: string): Promise<Vaglio> {
+  const vaglio = vaglioVuoto()
+  const scartate: RigaSync[] = []
+  const aPezzi: RigaSync[] = []
+  for (const r of righe) {
+    const dati = r.dati && typeof r.dati === 'object' ? r.dati as Record<string, unknown> : null
+    if (r.tipo === 'users' && ruolo !== 'admin') scartate.push(r)
+    else if (r.tipo !== 'requests' || r.eliminato) vaglio.pronte.push(r)
+    else if (!dati) scartate.push(r)
+    else if (puliziaAPezzi(dati)) aPezzi.push(r)
+    else if (puliziaCompleta(dati)) vaglio.pronte.push(r)
+    else scartate.push(r)
+  }
+  const caseScritte = vaglio.pronte.filter((r) => r.tipo === 'apartments' && !r.eliminato && r.dati && typeof r.dati === 'object')
+  const daLeggere = [...scartate, ...aPezzi, ...caseScritte]
+  if (daLeggere.length === 0) return vaglio
+  const copie = await copieSulServer(env, daLeggere)
+
+  /* Una riga saltata che l'archivio non ha non torna indietro: non c'e'
+     niente da rimandare. */
+  for (const r of scartate) {
+    const copia = copie.get(`${r.tipo}:${r.id}`)
+    if (copia) vaglio.rifiutate.push(comeRifiutata(copia))
+  }
+
+  for (const r of aPezzi) {
+    const copia = copie.get(`${r.tipo}:${r.id}`)
+    if (!copia) continue // niente a cui unirla
+    if (copia.eliminato === 1 || !copia.dati) { vaglio.rifiutate.push(comeRifiutata(copia)); continue }
+    const unita = JSON.parse(copia.dati) as Record<string, unknown>
+    for (const [campo, valore] of Object.entries(r.dati as Record<string, unknown>)) {
+      if (campo === 'id') continue
+      if (valore === null || valore === undefined) {
+        if (!CAMPI_RICHIESTI.includes(campo) && campo !== 'status') delete unita[campo]
+      } else {
+        unita[campo] = valore
+      }
+    }
+    if (!puliziaCompleta(unita)) { vaglio.rifiutate.push(comeRifiutata(copia)); continue }
+    const pronta: RigaSync = { tipo: r.tipo, id: r.id, dati: unita, eliminato: false }
+    vaglio.pronte.push(pronta)
+    vaglio.cambiate.push(pronta)
+  }
+
+  for (const r of caseScritte) {
+    const copia = copie.get(`${r.tipo}:${r.id}`)
+    const prima = copia?.dati && copia.eliminato !== 1
+      ? (JSON.parse(copia.dati) as Record<string, unknown>).companyId ?? null
+      : null
+    const dopo = (r.dati as Record<string, unknown>).companyId ?? null
+    if (prima !== dopo) vaglio.caseSpostate.push(r.id)
+  }
+  return vaglio
+}
 
 const RUOLI: readonly string[] = ['admin', 'host', 'operator']
 
@@ -386,28 +545,47 @@ async function scriviDati(req: Request, env: Env, chi: Chi): Promise<Response> {
   if (valide.length > 2000) return json({ errore: 'Troppe righe in una volta sola' }, 413)
 
   /* Chi puo' scrivere cosa. L'amministratore tutto. Il manager tutto tranne
-     le schede utente, altrimenti potrebbe cambiarsi il ruolo da solo. Le ditte
-     (e ogni ruolo sconosciuto) solo le pulizie gia' esistenti delle proprie
-     case, e solo i loro campi. Le righe non permesse si saltano senza bloccare le altre. */
-  const righe = ruolo === 'admin' ? valide.filter(conStatoValido)
-    : ruolo === 'host' ? valide.filter((r) => r.tipo !== 'users' && conStatoValido(r))
+     le schede utente (vedi `righeDelManager`). Le ditte (e ogni ruolo
+     sconosciuto) solo le pulizie gia' esistenti delle proprie case, e solo i
+     loro campi. Le righe non permesse si saltano senza bloccare le altre, e
+     tornano indietro in `rifiutate` con la copia del server. */
+  const vaglio = eManager(ruolo)
+    ? await righeDelManager(env, valide, ruolo)
     : await righeDellaDitta(env, valide, chi.company)
-  if (righe.length === 0) return json({ scritti: 0, adesso: Date.now() })
+  const righe = vaglio.pronte
+  if (righe.length === 0) return json({ scritti: 0, adesso: Date.now(), rifiutate: vaglio.rifiutate })
 
   const adesso = Date.now()
   const stmt = env.DB!.prepare(
     `INSERT INTO record (tipo, id, dati, eliminato, aggiornato) VALUES (?1, ?2, ?3, ?4, ?5)
      ON CONFLICT (tipo, id) DO UPDATE SET dati = ?3, eliminato = ?4, aggiornato = ?5`,
   )
+  /* Una casa passata a un'altra ditta: le sue pulizie prendono l'orario di
+     adesso, cosi' la ditta nuova le riceve al prossimo giro. Altrimenti
+     restavano "vecchie" rispetto al suo segnalibro e non arrivavano mai.
+     (La ditta di prima tiene le copie che aveva: non le riceve piu', ma
+     nemmeno le perde dal telefono.) */
+  const spostaPulizie = env.DB!.prepare(
+    `UPDATE record SET aggiornato = ?2 WHERE tipo = 'requests' AND eliminato = 0 AND dati IS NOT NULL
+     AND json_extract(dati, '$.apartmentId') = ?1`,
+  )
   await env.DB!.batch([
     ...righe.map((r) => stmt.bind(
       r.tipo, r.id, r.eliminato ? null : JSON.stringify(senzaPassword(r.tipo, r.dati)), r.eliminato ? 1 : 0, adesso,
     )),
+    ...vaglio.caseSpostate.map((id) => spostaPulizie.bind(id, adesso)),
     /* Nello stesso blocco: passano insieme la scheda e l'accesso, o nessuno
        dei due. Solo l'amministratore arriva qui con delle schede utente. */
     ...(ruolo === 'admin' ? accessiDaSchede(env.DB!, righe, chi) : []),
   ])
-  return json({ scritti: righe.length, adesso })
+  /* Le righe scritte diverse da come sono arrivate tornano come sono ora. */
+  const rifiutate: RigaRifiutata[] = [
+    ...vaglio.rifiutate,
+    ...vaglio.cambiate.map((r) => ({
+      tipo: r.tipo, id: r.id, dati: senzaPassword(r.tipo, r.dati), eliminato: false, aggiornato: adesso,
+    })),
+  ]
+  return json({ scritti: righe.length, adesso, rifiutate })
 }
 
 /* --------------------------------------------- calendari prenotazioni ---- */
