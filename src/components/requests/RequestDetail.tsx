@@ -128,9 +128,11 @@ export function RequestDetail({
   const mayEdit = canEditRequest(user, request)
   const mayDelete = canDeleteRequest(user, request)
   const mayChangeStatus = canChangeStatus(user, request)
-  const mayComplete = canCompleteRequest(user, request)
+  /* Con gli appartamenti la ditta completa e annota ogni pulizia delle sue
+     case, non solo quelle assegnate a nome di un suo addetto. */
+  const mayComplete = canCompleteRequest(user, request, apartments)
   const mayRespond = canRespondToRequest(user, request)
-  const mayAnnotate = canAnnotateRequest(user, request)
+  const mayAnnotate = canAnnotateRequest(user, request, apartments)
   const isDone = request.status === 'completata'
   const completedBy = users.find((u) => u.id === request.completedById)
   const ap = apartments.find((a) => a.id === request.apartmentId)
@@ -154,10 +156,11 @@ export function RequestDetail({
           <Button variant="outline" onClick={onClose}>Chiudi</Button>
           {mayRespond && (
             <>
-              <Button variant="outline" onClick={() => rispondi(request, 'rifiuta')}>
+              {/* Sul telefono almeno 44px: e' il gesto che la ditta fa di piu'. */}
+              <Button variant="outline" className="h-11 sm:h-10" onClick={() => rispondi(request, 'rifiuta')}>
                 <X /> Rifiuta
               </Button>
-              <Button onClick={() => rispondi(request, 'accetta')}>
+              <Button className="h-11 sm:h-10" onClick={() => rispondi(request, 'accetta')}>
                 <Check /> Accetta
               </Button>
             </>
@@ -362,17 +365,19 @@ export function RequestCard({
           <StatusChip status={request.status} />
           <CheckInBadge request={request} />
         </span>
-        <span className="shrink-0 text-xs text-muted-foreground">{fmtDateTime(request.createdAt)}</span>
+        <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">{fmtDateTime(request.createdAt)}</span>
       </div>
 
       <div className="mt-3 space-y-1.5">
-        <p className="flex items-center gap-2 text-sm font-medium">
-          <MapPin className="size-4 shrink-0 text-brand" />
+        {/* Due righe per l'indirizzo: tagliato a una sola, sul telefono si
+            perdevano proprio citta' e quartiere. */}
+        <p className="flex items-start gap-2 text-sm font-medium">
+          <MapPin className="mt-0.5 size-4 shrink-0 text-brand" />
           {ap ? (
-            <span className="truncate">{`${ap.address}, ${ap.district} - ${ap.city}`}</span>
+            <span className="line-clamp-2 min-w-0">{`${ap.address}, ${ap.district} - ${ap.city}`}</span>
           ) : (
             /* Un appartamento eliminato non deve lasciare una riga vuota. */
-            <span className="truncate text-muted-foreground">
+            <span className="line-clamp-2 min-w-0 text-muted-foreground">
               {request.spotApartmentName ?? 'Appartamento non disponibile'}
             </span>
           )}
@@ -383,11 +388,11 @@ export function RequestCard({
         </p>
       </div>
 
-      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 border-t border-border/60 pt-3 text-sm">
+      <dl className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 border-t border-border/60 pt-3 text-sm">
         <dt className="font-medium text-brand">Check-out</dt>
-        <dd className="text-right tabular-nums">{fmtDateTime(request.checkOutAt)}</dd>
+        <dd className="whitespace-nowrap text-right tabular-nums">{fmtDateTime(request.checkOutAt)}</dd>
         <dt className="font-medium text-brand">Check-in</dt>
-        <dd className="text-right tabular-nums">{fmtDateTime(request.checkInAt)}</dd>
+        <dd className="whitespace-nowrap text-right tabular-nums">{fmtDateTime(request.checkInAt)}</dd>
         <dt className="flex items-center gap-1.5 text-muted-foreground"><Users className="size-3.5" /> Ospiti</dt>
         <dd className="text-right tabular-nums">{request.checkInPeople}</dd>
       </dl>
@@ -401,9 +406,10 @@ export function RequestCard({
 
       {mayRespond && (
         <div className="mt-3 flex flex-wrap gap-2 border-t border-border/60 pt-3">
+          {/* Sul telefono almeno 44px di altezza: si tocca con il pollice. */}
           <Button
             size="sm"
-            className="flex-1"
+            className="h-11 flex-1 text-sm lg:h-8 lg:text-xs"
             onClick={(e) => rispondi(e, 'accetta')}
             aria-label={`Accetta la pulizia di ${ap?.name ?? 'questo appartamento'}`}
           >
@@ -412,7 +418,7 @@ export function RequestCard({
           <Button
             size="sm"
             variant="outline"
-            className="flex-1"
+            className="h-11 flex-1 text-sm lg:h-8 lg:text-xs"
             onClick={(e) => rispondi(e, 'rifiuta')}
             aria-label={`Rifiuta la pulizia di ${ap?.name ?? 'questo appartamento'}`}
           >

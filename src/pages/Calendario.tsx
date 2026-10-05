@@ -1,4 +1,4 @@
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import * as React from 'react'
 import {
   addDays, addMonths, addWeeks, eachDayOfInterval, endOfMonth, endOfWeek, format,
@@ -7,7 +7,7 @@ import {
 import { it } from 'date-fns/locale'
 import {
   BedDouble, CalendarCheck, CalendarDays, CheckSquare, ChevronDown, ChevronLeft,
-  ChevronRight, Plus, RotateCw, Search, SearchX, Trash2, Users, X,
+  ChevronRight, Inbox, Plus, RotateCw, Search, SearchX, Trash2, Users, X,
 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/AppShell'
 import { FirstRunGuide } from '@/components/FirstRunGuide'
@@ -24,7 +24,7 @@ import { RequestCard, RequestDetail } from '@/components/requests/RequestDetail'
 import { RequestForm } from '@/components/requests/RequestForm'
 import { useIsDesktop } from '@/hooks/useMediaQuery'
 import { scopeApartments, scopeRequests, useConCheckIn, useCurrentUser, useStore } from '@/data/store'
-import { canCreateRequest, canEditRequest, isManager } from '@/lib/permissions'
+import { canCreateRequest, canEditRequest, isManager, isOperator } from '@/lib/permissions'
 import { useToast } from '@/components/feedback/Toast'
 import { TODAY } from '@/data/seed'
 import { fmtDayLong, fmtMonthYear, fmtTime, norm, plural } from '@/lib/format'
@@ -213,6 +213,12 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
   const totalBeds = visible.reduce((n, r) => n + r.beds.length, 0)
   const totalGuests = visible.reduce((n, r) => n + r.checkInPeople, 0)
   const todayCount = byDay.get(dayKey(TODAY))?.length ?? 0
+  /* Per la ditta le pulizie in attesa sono il lavoro da sbrigare per primo:
+     tutte, non solo quelle del mese visualizzato. */
+  const daAccettare = React.useMemo(
+    () => (isOperator(user) ? scoped.filter((r) => r.status === 'in_attesa').length : 0),
+    [scoped, user],
+  )
   const filtersOn = text.trim().length > 0 || statuses.length > 0
 
   /* ---- azioni ---- */
@@ -369,13 +375,30 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
 
       <FirstRunGuide />
 
+      {/* Scorciatoia della ditta: un tocco porta all'elenco gia' filtrato
+          sulle pulizie da accettare, dove si risponde dalla scheda. */}
+      {daAccettare > 0 && (
+        <div className="shrink-0 px-4 pt-4">
+          <Link
+            to="/richieste?stato=in_attesa"
+            className="flex min-h-12 items-center gap-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-2.5 text-sm font-semibold text-brand shadow-card transition-colors hover:bg-primary/15 focus-ring"
+          >
+            <Inbox className="size-5 shrink-0" />
+            <span className="min-w-0 flex-1">Da accettare ({daAccettare})</span>
+            <ChevronRight className="size-4 shrink-0" />
+          </Link>
+        </div>
+      )}
+
       {/* La colonna unica del telefono va bloccata a `minmax(0,1fr)`: senza,
           la griglia si allarga fino al contenuto piu' largo e l'app scorre di
           lato invece di stare nello schermo. */}
-      <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-4 pb-24 grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,55fr)_minmax(0,45fr)] lg:content-stretch lg:overflow-hidden lg:pb-4">
+      {/* Sotto lg il fondo lascia posto al pulsante "+" flottante (e alla
+          barra di sistema dei telefoni): senza, copriva l'ultima riga. */}
+      <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-4 pb-[calc(7rem+env(safe-area-inset-bottom))] grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,55fr)_minmax(0,45fr)] lg:content-stretch lg:overflow-hidden lg:pb-4">
         {/* ---------------------------------------------------- calendario */}
         <Card className="flex min-w-0 flex-col lg:min-h-0 lg:overflow-hidden">
-          <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
             <div className="flex items-center gap-0.5">
               <Button variant="ghost" size="icon" onClick={() => move(-1)} aria-label="Periodo precedente">
                 <ChevronLeft />
@@ -412,16 +435,18 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
           </div>
 
           {view === 'mese' ? (
-            <div className="flex flex-col p-2 lg:min-h-0 lg:flex-1">
+            /* Da lg in su le righe hanno un minimo di 52px: quando la testata
+               e' alta non si schiacciano piu' a 18px, e la scheda scorre. */
+            <div className="flex flex-col p-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
               <div className="grid grid-cols-7 pb-1">
                 {WEEKDAYS.map((w) => (
-                  <div key={w} className="py-1 text-center text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  <div key={w} className="py-1 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     {w}
                   </div>
                 ))}
               </div>
 
-              <div className="grid auto-rows-[minmax(58px,auto)] grid-cols-7 gap-1 lg:min-h-0 lg:flex-1 lg:auto-rows-fr">
+              <div className="grid auto-rows-[minmax(58px,auto)] grid-cols-7 gap-1 lg:flex-1 lg:auto-rows-[minmax(52px,1fr)]">
                 {gridDays.map((d) => {
                   const list = byDay.get(dayKey(d)) ?? []
                   const outside = !isSameMonth(d, cursor)
@@ -502,7 +527,7 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
                         >
                           {d.getDate()}
                         </span>
-                        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           {format(d, 'EEE', { locale: it })}
                         </span>
                         <span className="ml-auto text-[11px] font-medium tabular-nums text-muted-foreground">
@@ -545,8 +570,10 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
             </div>
           )}
 
-          {/* legenda-filtro per stato, con i conteggi del periodo visualizzato */}
-          <div className="no-scrollbar flex items-center gap-1 overflow-x-auto border-t border-border px-2.5 py-2">
+          {/* legenda-filtro per stato, con i conteggi del periodo visualizzato.
+              Va a capo invece di scorrere: la voce "Check-in", ultima, restava
+              tagliata fuori dal bordo. */}
+          <div className="flex shrink-0 flex-wrap items-center gap-1 border-t border-border px-2.5 py-2">
             <button
               type="button"
               onClick={() => setStatuses([])}
@@ -793,18 +820,10 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
       </div>
 
       {/* ----------------------------------------------- FAB, solo sotto lg */}
-      <div className="fixed bottom-6 right-6 z-30 flex flex-col items-end gap-3 lg:hidden">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={reload}
-          title="Aggiorna la vista"
-          aria-label="Aggiorna la vista"
-          className="h-12 w-12 rounded-full bg-card shadow-raised"
-        >
-          <RotateCw className={cn(reloading && 'animate-spin')} />
-        </Button>
-        {mayCreate && (
+      {/* Sul telefono niente pulsante di aggiornamento: la sincronizzazione e'
+          automatica, e due pulsanti tondi coprivano le celle dei giorni. */}
+      {mayCreate && (
+        <div className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 z-30 lg:hidden">
           <Button
             size="icon"
             onClick={openNew}
@@ -814,8 +833,8 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
           >
             <Plus className="size-5" />
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       <Dialog
         open={dayDialogOpen && selectedDay !== null && !isDesktop}

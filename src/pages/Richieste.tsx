@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsUpDown, ClipboardList,
   Download, Eye, MoreVertical, Pencil, Plus, RefreshCw, SlidersHorizontal, Trash2, X,
@@ -317,6 +318,22 @@ export default function Richieste() {
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = React.useState<string[] | null>(null)
 
+  /* Dal calendario la ditta arriva con `?stato=in_attesa` ("Da accettare"):
+     si parte da quelle sole, senza altri filtri che ne nascondano qualcuna.
+     Il parametro si consuma subito, come `?nuova=1` nel calendario. */
+  const [searchParams, setSearchParams] = useSearchParams()
+  React.useEffect(() => {
+    const stato = searchParams.get('stato') as RequestStatus | null
+    if (!stato) return
+    if (REQUEST_STATUSES.includes(stato)) {
+      resetFilters()
+      setFilters({ status: stato })
+    }
+    const next = new URLSearchParams(searchParams)
+    next.delete('stato')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams, resetFilters, setFilters])
+
   const closeFilters = React.useCallback(() => setFiltersOpen(false), [])
   const closeDetail = React.useCallback(() => setDetailId(null), [])
   const closeForm = React.useCallback(() => { setFormOpen(false); setEditingId(null) }, [])
@@ -521,9 +538,10 @@ export default function Richieste() {
       <PageHeader
         title="Richieste"
         subtitle={
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          /* Niente barra fra le due parti: andando a capo restava appesa a
+             fine riga. Le separa lo spazio. */
+          <span className="flex flex-wrap items-center gap-x-4 gap-y-0.5">
             <span>{rangeText}</span>
-            <span aria-hidden className="text-border">|</span>
             <span>{fmtNum(filtered.length)} di {plural(scoped.length, 'richiesta', 'richieste')}</span>
           </span>
         }
@@ -552,12 +570,14 @@ export default function Richieste() {
         }
       />
 
+      {/* Pillole alte 40px sotto lg: con il dito le 26px di prima si
+          mancavano. Da lg in su, col mouse, tornano compatte. */}
       <div className="no-scrollbar flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border bg-card px-5 py-2.5 md:flex-wrap md:overflow-visible">
         <button
           type="button"
           onClick={() => setFilters({ status: 'all' })}
           className={cn(
-            'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium transition-colors focus-ring',
+            'inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-ring lg:min-h-8 lg:px-2.5',
             filters.status === 'all'
               ? 'border-primary/40 bg-primary/10 text-brand'
               : 'border-border text-muted-foreground hover:text-foreground',
@@ -573,7 +593,7 @@ export default function Richieste() {
             type="button"
             onClick={() => setFilters({ status: filters.status === s ? 'all' : s })}
             className={cn(
-              'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium transition-colors focus-ring',
+              'inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-ring lg:min-h-8 lg:px-2.5',
               filters.status === s
                 ? 'border-primary/40 bg-primary/10 text-brand'
                 : 'border-border text-muted-foreground hover:text-foreground',
@@ -658,8 +678,10 @@ export default function Richieste() {
         </div>
       )}
 
+      {/* Le schede valgono fino a lg: la tabella chiede 1240px e a 768
+          nascondeva meta' delle colonne dietro lo scorrimento laterale. */}
       {pageRows.length > 0 && (
-        <div className="stagger space-y-3 p-4 md:hidden">
+        <div className="stagger space-y-3 p-4 lg:hidden">
           {pageRows.map((r) => (
             <RequestCard
               key={r.req.id}
@@ -670,7 +692,7 @@ export default function Richieste() {
         </div>
       )}
 
-      <TableScroller className={cn(pageRows.length > 0 && 'hidden md:flex')} innerClassName="overflow-x-auto">
+      <TableScroller className={cn(pageRows.length > 0 && 'hidden lg:flex')} innerClassName="overflow-x-auto">
         {pageRows.length === 0 ? (
           <EmptyState
             icon={ClipboardList}
@@ -727,7 +749,7 @@ export default function Richieste() {
                 const rowDelete = canDeleteRequest(user, r.req)
                 const rowStatus = canChangeStatus(user, r.req)
                 /* Il manager ha gia' il cambio di stato: la scorciatoia serve all'addetto. */
-                const rowComplete = !rowStatus && canCompleteRequest(user, r.req) && r.req.status !== 'completata'
+                const rowComplete = !rowStatus && canCompleteRequest(user, r.req, allApartments) && r.req.status !== 'completata'
                 return (
                   <tr
                     key={r.req.id}
@@ -824,7 +846,7 @@ export default function Richieste() {
         )}
       </TableScroller>
 
-      <div className="mt-auto flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3 md:sticky md:bottom-0 md:z-10">
+      <div className="mt-auto flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-5 py-3 lg:sticky lg:bottom-0 lg:z-10">
         <div className="flex items-center gap-2">
           <Button
             variant="outline" size="icon" aria-label="Pagina precedente"
