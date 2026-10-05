@@ -78,14 +78,17 @@ async function accesso(req: Request, env: Env, segreto: string): Promise<Respons
   if (!id || !password) return json({ errore: 'Servono nome utente e password' }, 400)
 
   const riga = await env.DB!
-    .prepare('SELECT id, email, username, password_hash, ruolo, nome FROM utente WHERE lower(email) = ?1 OR lower(username) = ?1')
+    .prepare('SELECT id, email, username, password_hash, ruolo, nome, attivo FROM utente WHERE lower(email) = ?1 OR lower(username) = ?1')
     .bind(id)
-    .first<{ id: string; email: string; username: string | null; password_hash: string; ruolo: string; nome: string }>()
+    .first<{ id: string; email: string; username: string | null; password_hash: string; ruolo: string; nome: string; attivo: number }>()
 
   if (!riga) return json({ errore: 'Nessun utente trovato per questa email o nome utente' }, 401)
   if (await impronta(SALE + password) !== riga.password_hash) {
     return json({ errore: 'Password errata fornita per questo utente' }, 401)
   }
+  /* Dopo la password, non prima: chi non la conosce non deve poter sapere
+     se un account esiste ed e' stato sospeso. */
+  if (riga.attivo !== 1) return json({ errore: 'Accesso disattivato: chiedi al manager' }, 401)
 
   return json({
     gettone: await creaGettone(riga.id, segreto),
@@ -94,6 +97,17 @@ async function accesso(req: Request, env: Env, segreto: string): Promise<Respons
 }
 
 /* ---------------------------------------------------------------- dati ---- */
+
+/** Chi sta chiamando, cosi' come lo dice la tabella utente (non il telefono). */
+interface Chi {
+  id: string
+  ruolo: string
+  /** Per le ditte: quale ditta. Vuoto = nessuna casa visibile. */
+  company: string | null
+}
+
+/** I ruoli che vedono e gestiscono tutto. Ogni altro ruolo, anche sconosciuto, vede solo la sua ditta. */
+const eManager = (ruolo: string) => ruolo === 'admin' || ruolo === 'host'
 
 interface RigaSync {
   tipo: string
@@ -128,7 +142,43 @@ const MARGINE_LETTURA = 5000
 
 type RigaArchivio = { tipo: string; id: string; dati: string | null; eliminato: number; aggiornato: number }
 
-async function leggiDati(req: Request, env: Env): Promise<Response> {
+/**
+ * Le case affidate a una ditta. Senza ditta (o con una ditta che non ha
+ * case) l'elenco e' vuoto: meglio non vedere niente che vedere tutto.
+ */
+async function caseDellaDitta(env: Env, company: string | null): Promise<Set<string>> {
+  if (!company) return new Set()
+  const esito = await env.DB!
+    .prepare(`SELECT id FROM record WHERE tipo = 'apartments' AND eliminato = 0 AND dati IS NOT NULL
+      AND json_extract(dati, '$.companyId') = ?1`)
+    .bind(company)
+    .all<{ id: string }>()
+  return new Set((esito.results ?? []).map((r) => r.id))
+}
+
+/**
+ * Cosa vede una ditta: le sue case, le pulizie di quelle case e la propria
+ * scheda utente. Niente altri utenti, controlli, interventi o spese: prima
+ * scaricava tutto, codici delle porte delle altre ditte compresi. Le tracce
+ * di eliminazione di case e pulizie passano: non portano dati, e servono a
+ * togliere dal telefono quello che il manager ha cancellato.
+ */
+function visibileAllaDitta(
+  r: RigaArchivio, dati: Record<string, unknown> | null, chi: Chi, caseDitta: Set<string>,
+): boolean {
+  if (r.tipo === 'users') return r.id === chi.id
+  if (r.tipo === 'apartments') {
+    if (r.eliminato === 1) return true
+    return !!chi.company && dati?.companyId === chi.company && caseDitta.has(r.id)
+  }
+  if (r.tipo === 'requests') {
+    if (r.eliminato === 1) return true
+    return typeof dati?.apartmentId === 'string' && caseDitta.has(dati.apartmentId)
+  }
+  return false
+}
+
+async function leggiDati(req: Request, env: Env, chi: Chi): Promise<Response> {
   const richiesto = Number(new URL(req.url).searchParams.get('da') ?? 0)
   const da = Number.isFinite(richiesto) ? richiesto : 0
   const esito = await env.DB!
@@ -157,19 +207,31 @@ async function leggiDati(req: Request, env: Env): Promise<Response> {
     }
   }
 
-  const record = righe.map((r) => ({
-    tipo: r.tipo,
-    id: r.id,
-    eliminato: r.eliminato === 1,
-    aggiornato: r.aggiornato,
-    dati: r.dati ? senzaPassword(r.tipo, JSON.parse(r.dati)) : null,
-  }))
   /* L'orologio e' quello del server: se ogni dispositivo usasse il proprio,
      bastarebbero pochi secondi di sfasamento per perdere delle modifiche.
      Il segnalibro non va mai oltre l'ultima riga letta davvero (se non e'
-     arrivato niente resta dov'era) ne' oltre "adesso meno il margine". */
-  const letto = record.length ? record[record.length - 1].aggiornato : da
+     arrivato niente resta dov'era) ne' oltre "adesso meno il margine".
+     Si calcola sulla pagina intera, prima di togliere quello che una ditta
+     non deve vedere: calcolato dopo, una pagina fatta tutta di righe altrui
+     lascerebbe il segnalibro fermo, e si rileggerebbe la stessa pagina per
+     sempre. */
+  const letto = righe.length ? righe[righe.length - 1].aggiornato : da
   const adesso = Math.min(letto, Date.now() - MARGINE_LETTURA)
+
+  const filtra = !eManager(chi.ruolo)
+  const caseDitta = filtra ? await caseDellaDitta(env, chi.company) : new Set<string>()
+  const record: { tipo: string; id: string; eliminato: boolean; aggiornato: number; dati: unknown }[] = []
+  for (const r of righe) {
+    const dati = r.dati ? JSON.parse(r.dati) as Record<string, unknown> : null
+    if (filtra && !visibileAllaDitta(r, dati, chi, caseDitta)) continue
+    record.push({
+      tipo: r.tipo,
+      id: r.id,
+      eliminato: r.eliminato === 1,
+      aggiornato: r.aggiornato,
+      dati: dati ? senzaPassword(r.tipo, dati) : null,
+    })
+  }
   return json({ record, adesso })
 }
 
@@ -183,36 +245,84 @@ const CAMPI_OPERATORE = [
 ] as const
 
 /**
- * Le pulizie che una ditta puo' toccare: solo quelle che esistono gia'
- * nell'archivio, e di ognuna solo i campi qui sopra, copiati sulla versione
- * del server. Il resto si scarta in silenzio: un telefono con dati vecchi non
- * deve far fallire l'intero invio.
+ * Fra i campi della ditta, quelli che si possono svuotare. Il telefono non
+ * manda i campi vuoti (JSON.stringify li salta), quindi per questi due un
+ * campo che manca vuol dire "tolto": la nota cancellata, l'incarico
+ * restituito. Gli altri, se mancano, restano come sono sul server: uno stato
+ * o una data di chiusura non si cancellano per sbaglio.
  */
-async function righeDellaDitta(env: Env, righe: RigaSync[]): Promise<RigaSync[]> {
+const CAMPI_SVUOTABILI: readonly string[] = ['operatorNotes', 'assigneeId']
+
+/**
+ * Le pulizie che una ditta puo' toccare: solo quelle che esistono gia'
+ * nell'archivio, solo nelle case affidate a quella ditta, e di ognuna solo i
+ * campi qui sopra, copiati sulla versione del server. Il resto si scarta in
+ * silenzio: un telefono con dati vecchi non deve far fallire l'intero invio.
+ */
+async function righeDellaDitta(env: Env, righe: RigaSync[], company: string | null): Promise<RigaSync[]> {
+  if (!company) return []
   const pulizie = righe.filter((r) => r.tipo === 'requests' && !r.eliminato && r.dati && typeof r.dati === 'object')
   if (pulizie.length === 0) return []
+  /* La casa si legge dall'archivio, non da quello che manda il telefono:
+     altrimenti basterebbe scrivere un'altra casa per passare il controllo. */
   const esito = await env.DB!
-    .prepare(`SELECT id, dati FROM record WHERE tipo = 'requests' AND eliminato = 0 AND dati IS NOT NULL
-      AND id IN (SELECT value FROM json_each(?1))`)
-    .bind(JSON.stringify(pulizie.map((r) => r.id)))
+    .prepare(`SELECT p.id, p.dati FROM record p
+      JOIN record c ON c.tipo = 'apartments' AND c.eliminato = 0 AND c.dati IS NOT NULL
+        AND c.id = json_extract(p.dati, '$.apartmentId')
+      WHERE p.tipo = 'requests' AND p.eliminato = 0 AND p.dati IS NOT NULL
+        AND p.id IN (SELECT value FROM json_each(?1))
+        AND json_extract(c.dati, '$.companyId') = ?2`)
+    .bind(JSON.stringify(pulizie.map((r) => r.id)), company)
     .all<{ id: string; dati: string }>()
   const sulServer = new Map((esito.results ?? []).map((r) => [r.id, r.dati]))
 
   const pronte: RigaSync[] = []
   for (const r of pulizie) {
     const salvata = sulServer.get(r.id)
-    if (!salvata) continue // pulizia nuova o cancellata: non tocca alla ditta
+    if (!salvata) continue // pulizia nuova, cancellata o di un'altra ditta: non tocca a lei
     const unita = JSON.parse(salvata) as Record<string, unknown>
     const arrivati = r.dati as Record<string, unknown>
     for (const campo of CAMPI_OPERATORE) {
       if (Object.prototype.hasOwnProperty.call(arrivati, campo)) unita[campo] = arrivati[campo]
+      else if (CAMPI_SVUOTABILI.includes(campo)) delete unita[campo]
     }
     pronte.push({ tipo: r.tipo, id: r.id, dati: unita, eliminato: false })
   }
   return pronte
 }
 
-async function scriviDati(req: Request, env: Env, ruolo: string): Promise<Response> {
+const RUOLI: readonly string[] = ['admin', 'host', 'operator']
+
+/**
+ * Quando l'amministratore cambia una scheda utente, l'accesso vero (la
+ * tabella utente) la segue: sospeso o eliminato = non entra piu', anche con
+ * un gettone ancora valido; e ruolo e ditta sono quelli che decide lui, non
+ * quelli che il telefono della persona crede di avere. La password non si
+ * tocca mai da qui. La propria scheda si salta: un telefono con dati vecchi
+ * non deve poter togliere all'amministratore il suo stesso accesso.
+ * Le schede di persone senza accesso al server non cambiano niente.
+ */
+function accessiDaSchede(db: D1Database, righe: RigaSync[], chi: Chi): D1PreparedStatement[] {
+  const fuori: D1PreparedStatement[] = []
+  for (const r of righe) {
+    if (r.tipo !== 'users' || r.id === chi.id) continue
+    if (r.eliminato) {
+      fuori.push(db.prepare('UPDATE utente SET attivo = 0 WHERE id = ?1').bind(r.id))
+      continue
+    }
+    if (!r.dati || typeof r.dati !== 'object') continue
+    const d = r.dati as Record<string, unknown>
+    const attivo = d.active === false ? 0 : d.active === true ? 1 : null
+    const ruolo = typeof d.role === 'string' && RUOLI.includes(d.role) ? d.role : null
+    const company = typeof d.companyId === 'string' && d.companyId ? d.companyId : null
+    fuori.push(db.prepare(`UPDATE utente SET attivo = COALESCE(?2, attivo), ruolo = COALESCE(?3, ruolo),
+      company = ?4 WHERE id = ?1`).bind(r.id, attivo, ruolo, company))
+  }
+  return fuori
+}
+
+async function scriviDati(req: Request, env: Env, chi: Chi): Promise<Response> {
+  const ruolo = chi.ruolo
   const corpo = await req.json<{ record?: RigaSync[] }>()
     .catch(() => ({} as { record?: RigaSync[] }))
   const valide = (corpo.record ?? []).filter((r) => r && TIPI.includes(r.tipo as Tipo) && typeof r.id === 'string')
@@ -220,11 +330,11 @@ async function scriviDati(req: Request, env: Env, ruolo: string): Promise<Respon
 
   /* Chi puo' scrivere cosa. L'amministratore tutto. Il manager tutto tranne
      le schede utente, altrimenti potrebbe cambiarsi il ruolo da solo. Le ditte
-     (e ogni ruolo sconosciuto) solo le pulizie gia' esistenti, e solo i loro
-     campi. Le righe non permesse si saltano senza bloccare le altre. */
+     (e ogni ruolo sconosciuto) solo le pulizie gia' esistenti delle proprie
+     case, e solo i loro campi. Le righe non permesse si saltano senza bloccare le altre. */
   const righe = ruolo === 'admin' ? valide
     : ruolo === 'host' ? valide.filter((r) => r.tipo !== 'users')
-    : await righeDellaDitta(env, valide)
+    : await righeDellaDitta(env, valide, chi.company)
   if (righe.length === 0) return json({ scritti: 0, adesso: Date.now() })
 
   const adesso = Date.now()
@@ -232,11 +342,14 @@ async function scriviDati(req: Request, env: Env, ruolo: string): Promise<Respon
     `INSERT INTO record (tipo, id, dati, eliminato, aggiornato) VALUES (?1, ?2, ?3, ?4, ?5)
      ON CONFLICT (tipo, id) DO UPDATE SET dati = ?3, eliminato = ?4, aggiornato = ?5`,
   )
-  await env.DB!.batch(
-    righe.map((r) => stmt.bind(
+  await env.DB!.batch([
+    ...righe.map((r) => stmt.bind(
       r.tipo, r.id, r.eliminato ? null : JSON.stringify(senzaPassword(r.tipo, r.dati)), r.eliminato ? 1 : 0, adesso,
     )),
-  )
+    /* Nello stesso blocco: passano insieme la scheda e l'accesso, o nessuno
+       dei due. Solo l'amministratore arriva qui con delle schede utente. */
+    ...(ruolo === 'admin' ? accessiDaSchede(env.DB!, righe, chi) : []),
+  ])
   return json({ scritti: righe.length, adesso })
 }
 
@@ -282,6 +395,23 @@ const ACCESSI_INIZIALI: [string, string, string | null, string, string, string][
     '0d4caf2c36bd87799d0e49b82f2efc5a9e45cbcccb941e02df51f5e9aad146fc', 'operator', 'Angela'],
 ]
 
+/**
+ * La ditta di ogni accesso pulizie di partenza. Si scrive solo se manca:
+ * se poi l'amministratore la cambia, a ogni avvio non torna indietro.
+ */
+const DITTE_INIZIALI: [string, string][] = [['u-pulizie-angela', 'angela']]
+
+/**
+ * Colonne aggiunte dopo la prima versione. "CREATE TABLE IF NOT EXISTS" non
+ * tocca una tabella che c'e' gia', quindi negli archivi gia' in uso vanno
+ * aggiunte a parte. Ognuna da sola: se c'e' gia', l'errore si ignora e non
+ * deve far saltare le altre.
+ */
+const COLONNE_AGGIUNTE = [
+  'ALTER TABLE utente ADD COLUMN company TEXT',
+  'ALTER TABLE utente ADD COLUMN attivo INTEGER NOT NULL DEFAULT 1',
+]
+
 /*
  * Accessi revocati. Toglierli dall'elenco qui sopra non basta: nell'archivio
  * la riga resterebbe e quella persona continuerebbe a entrare. Vanno tolti
@@ -324,7 +454,8 @@ async function preparaArchivio(db: D1Database): Promise<void> {
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS utente (
       id TEXT PRIMARY KEY, email TEXT NOT NULL, username TEXT,
-      password_hash TEXT NOT NULL, ruolo TEXT NOT NULL, nome TEXT NOT NULL)`),
+      password_hash TEXT NOT NULL, ruolo TEXT NOT NULL, nome TEXT NOT NULL,
+      company TEXT, attivo INTEGER NOT NULL DEFAULT 1)`),
     db.prepare(`CREATE TABLE IF NOT EXISTS record (
       tipo TEXT NOT NULL, id TEXT NOT NULL, dati TEXT,
       eliminato INTEGER NOT NULL DEFAULT 0, aggiornato INTEGER NOT NULL,
@@ -339,6 +470,15 @@ async function preparaArchivio(db: D1Database): Promise<void> {
         (id, email, username, password_hash, ruolo, nome) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`).bind(...r)),
     ...ACCESSI_REVOCATI.map((id) => db.prepare('DELETE FROM utente WHERE id = ?1').bind(id)),
   ])
+  for (const sql of COLONNE_AGGIUNTE) {
+    try {
+      await db.prepare(sql).run()
+    } catch (e) {
+      if (!/duplicate column/i.test(String(e))) throw e
+    }
+  }
+  await db.batch(DITTE_INIZIALI.map(([id, company]) =>
+    db.prepare('UPDATE utente SET company = ?2 WHERE id = ?1 AND company IS NULL').bind(id, company)))
   tabellePronte = true
 }
 
@@ -368,11 +508,15 @@ export default {
       /* Il gettone resta valido per un mese anche se nel frattempo l'accesso
          e' stato revocato: per questo a ogni richiesta si controlla che la
          persona ci sia ancora, e con quale ruolo. */
-      const chi = await env.DB.prepare('SELECT ruolo FROM utente WHERE id = ?1').bind(utenteId).first<{ ruolo: string }>()
-      if (!chi) return json({ errore: 'Accesso revocato: chiedi al manager' }, 401)
+      const riga = await env.DB.prepare('SELECT ruolo, company, attivo FROM utente WHERE id = ?1')
+        .bind(utenteId).first<{ ruolo: string; company: string | null; attivo: number }>()
+      if (!riga) return json({ errore: 'Accesso revocato: chiedi al manager' }, 401)
+      /* Sospeso dall'amministratore: fuori subito, non alla scadenza del gettone. */
+      if (riga.attivo !== 1) return json({ errore: 'Accesso disattivato: chiedi al manager' }, 401)
+      const chi: Chi = { id: utenteId, ruolo: riga.ruolo, company: riga.company }
 
-      if (url.pathname === '/api/dati' && req.method === 'GET') return leggiDati(req, env)
-      if (url.pathname === '/api/dati' && req.method === 'POST') return scriviDati(req, env, chi.ruolo)
+      if (url.pathname === '/api/dati' && req.method === 'GET') return leggiDati(req, env, chi)
+      if (url.pathname === '/api/dati' && req.method === 'POST') return scriviDati(req, env, chi)
       if (url.pathname === '/api/calendario' && req.method === 'GET') return scaricaCalendario(req, chi.ruolo)
       return json({ errore: 'Non trovato' }, 404)
     } catch (e) {
