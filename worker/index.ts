@@ -245,19 +245,43 @@ const CAMPI_OPERATORE = [
 ] as const
 
 /**
- * Fra i campi della ditta, quelli che si possono svuotare. Il telefono non
- * manda i campi vuoti (JSON.stringify li salta), quindi per questi due un
- * campo che manca vuol dire "tolto": la nota cancellata, l'incarico
- * restituito. Gli altri, se mancano, restano come sono sul server: uno stato
- * o una data di chiusura non si cancellano per sbaglio.
+ * Fra i campi della ditta, quelli che si possono svuotare: la nota
+ * cancellata, l'incarico restituito. Il telefono li manda come `null`. Gli
+ * altri, se arrivano `null`, restano come sono sul server: uno stato o una
+ * data di chiusura non si cancellano per sbaglio. Un campo che non arriva
+ * proprio resta com'e', per tutti: il telefono manda solo quello che ha
+ * cambiato.
  */
 const CAMPI_SVUOTABILI: readonly string[] = ['operatorNotes', 'assigneeId']
+
+/**
+ * Gli stati che l'app conosce. Uno stato diverso, arrivato da chiunque, non
+ * deve raggiungere gli altri telefoni: la pagina delle pulizie si blocca.
+ */
+const STATI: readonly string[] = ['in_attesa', 'accettata', 'in_corso', 'completata', 'cancellata']
+
+const statoValido = (stato: unknown): stato is string => typeof stato === 'string' && STATI.includes(stato)
+
+/**
+ * I passaggi di stato permessi a una ditta: accettare o rifiutare una
+ * pulizia in attesa, iniziarla, chiuderla, e tornare indietro di un passo
+ * (annullare l'accettazione o la chiusura). Una pulizia rifiutata
+ * (cancellata) la riapre solo il manager.
+ */
+const PASSAGGI_OPERATORE: Record<string, readonly string[]> = {
+  in_attesa: ['accettata', 'cancellata'],
+  accettata: ['in_corso', 'completata', 'in_attesa'],
+  in_corso: ['completata', 'accettata'],
+  completata: ['accettata'],
+}
 
 /**
  * Le pulizie che una ditta puo' toccare: solo quelle che esistono gia'
  * nell'archivio, solo nelle case affidate a quella ditta, e di ognuna solo i
  * campi qui sopra, copiati sulla versione del server. Il resto si scarta in
  * silenzio: un telefono con dati vecchi non deve far fallire l'intero invio.
+ * Anche un cambio di stato non permesso fa saltare la riga intera: meglio
+ * non salvare niente che salvare la nota senza lo stato a cui si riferiva.
  */
 async function righeDellaDitta(env: Env, righe: RigaSync[], company: string | null): Promise<RigaSync[]> {
   if (!company) return []
@@ -282,14 +306,41 @@ async function righeDellaDitta(env: Env, righe: RigaSync[], company: string | nu
     if (!salvata) continue // pulizia nuova, cancellata o di un'altra ditta: non tocca a lei
     const unita = JSON.parse(salvata) as Record<string, unknown>
     const arrivati = r.dati as Record<string, unknown>
+
+    /* Lo stato prima di tutto: se il passaggio non e' permesso, la riga non
+       passa. Lo stesso stato di prima (i telefoni vecchi mandano la riga
+       intera) non e' un passaggio e va bene. */
+    const nuovoStato = arrivati.status
+    if (nuovoStato !== undefined && nuovoStato !== null && nuovoStato !== unita.status) {
+      if (!statoValido(nuovoStato)) continue
+      const permessi = typeof unita.status === 'string' ? PASSAGGI_OPERATORE[unita.status] : undefined
+      if (!permessi?.includes(nuovoStato)) continue
+    }
+
+    /* Presente con un valore = si scrive; presente e `null` = si toglie, ma
+       solo per i campi svuotabili; assente = resta quello del server. */
     for (const campo of CAMPI_OPERATORE) {
-      if (Object.prototype.hasOwnProperty.call(arrivati, campo)) unita[campo] = arrivati[campo]
-      else if (CAMPI_SVUOTABILI.includes(campo)) delete unita[campo]
+      if (!Object.prototype.hasOwnProperty.call(arrivati, campo)) continue
+      const valore = arrivati[campo]
+      if (valore === null || valore === undefined) {
+        if (CAMPI_SVUOTABILI.includes(campo)) delete unita[campo]
+      } else {
+        unita[campo] = valore
+      }
     }
     pronte.push({ tipo: r.tipo, id: r.id, dati: unita, eliminato: false })
   }
   return pronte
 }
+
+/**
+ * Le pulizie scritte da un manager devono avere uno stato che l'app conosce:
+ * altrimenti la riga si salta, come per le ditte. Le tracce di eliminazione
+ * passano: non portano dati.
+ */
+const conStatoValido = (r: RigaSync) =>
+  r.tipo !== 'requests' || !!r.eliminato
+  || (!!r.dati && typeof r.dati === 'object' && statoValido((r.dati as Record<string, unknown>).status))
 
 const RUOLI: readonly string[] = ['admin', 'host', 'operator']
 
@@ -314,9 +365,15 @@ function accessiDaSchede(db: D1Database, righe: RigaSync[], chi: Chi): D1Prepare
     const d = r.dati as Record<string, unknown>
     const attivo = d.active === false ? 0 : d.active === true ? 1 : null
     const ruolo = typeof d.role === 'string' && RUOLI.includes(d.role) ? d.role : null
+    /* La ditta si cambia solo se la scheda la porta: una scheda senza
+       companyId (un telefono vecchio, una scheda mandata a pezzi) non deve
+       lasciare la persona senza case. `null` o vuota = tolta davvero. */
+    const haDitta = Object.prototype.hasOwnProperty.call(d, 'companyId')
+      && (d.companyId === null || typeof d.companyId === 'string')
     const company = typeof d.companyId === 'string' && d.companyId ? d.companyId : null
     fuori.push(db.prepare(`UPDATE utente SET attivo = COALESCE(?2, attivo), ruolo = COALESCE(?3, ruolo),
-      company = ?4 WHERE id = ?1`).bind(r.id, attivo, ruolo, company))
+      company = CASE WHEN ?4 = 1 THEN ?5 ELSE company END WHERE id = ?1`)
+      .bind(r.id, attivo, ruolo, haDitta ? 1 : 0, company))
   }
   return fuori
 }
@@ -332,8 +389,8 @@ async function scriviDati(req: Request, env: Env, chi: Chi): Promise<Response> {
      le schede utente, altrimenti potrebbe cambiarsi il ruolo da solo. Le ditte
      (e ogni ruolo sconosciuto) solo le pulizie gia' esistenti delle proprie
      case, e solo i loro campi. Le righe non permesse si saltano senza bloccare le altre. */
-  const righe = ruolo === 'admin' ? valide
-    : ruolo === 'host' ? valide.filter((r) => r.tipo !== 'users')
+  const righe = ruolo === 'admin' ? valide.filter(conStatoValido)
+    : ruolo === 'host' ? valide.filter((r) => r.tipo !== 'users' && conStatoValido(r))
     : await righeDellaDitta(env, valide, chi.company)
   if (righe.length === 0) return json({ scritti: 0, adesso: Date.now() })
 
