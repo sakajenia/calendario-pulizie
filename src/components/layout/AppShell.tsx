@@ -84,6 +84,9 @@ export function AppShell() {
   const percorso = useLocation().pathname
   const { dark, toggle } = useTheme()
   const [mobileOpen, setMobileOpen] = React.useState(false)
+  const menuBtnRef = React.useRef<HTMLButtonElement>(null)
+  const chiudiMenuRef = React.useRef<HTMLButtonElement>(null)
+  const drawerRef = React.useRef<HTMLDivElement>(null)
 
   const unread = notifications.filter((n) => !n.read).length
 
@@ -122,15 +125,56 @@ export function AppShell() {
   const primary = PRIMARY.filter(allowed)
   const admin = ADMIN.filter(allowed)
 
-  const sidebar = (
+  /* Menu a scomparsa su telefono: e' una finestra modale, quindi il focus ci
+     entra all'apertura, resta dentro con Tab, Escape lo chiude e alla chiusura
+     si torna al pulsante che lo ha aperto (il pulsante in testata e' coperto). */
+  React.useEffect(() => {
+    if (!mobileOpen) return
+    const focusables = () =>
+      [...(drawerRef.current?.querySelectorAll<HTMLElement>('a[href],button:not([disabled])') ?? [])]
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); setMobileOpen(false); return }
+      if (e.key !== 'Tab') return
+      const items = focusables()
+      if (!items.length) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      const attivo = document.activeElement
+      if (e.shiftKey && (attivo === first || !drawerRef.current?.contains(attivo))) {
+        e.preventDefault(); last.focus()
+      } else if (!e.shiftKey && (attivo === last || !drawerRef.current?.contains(attivo))) {
+        e.preventDefault(); first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    chiudiMenuRef.current?.focus()
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      menuBtnRef.current?.focus()
+    }
+  }, [mobileOpen])
+
+  const sidebar = (inDrawer: boolean) => (
     <div className="flex h-full flex-col bg-sidebar">
       {/* Nel menu ci sta il simbolo, piccolo: il lockup con la scritta
           occupava troppo spazio in cima all'elenco. */}
       <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-sidebar-border px-4">
         <LogoIcon />
-        <span className="truncate font-display text-sm font-bold tracking-tight text-sidebar-foreground">
+        <span className="min-w-0 flex-1 truncate font-display text-sm font-bold tracking-tight text-sidebar-foreground">
           ProProManager
         </span>
+        {inDrawer && (
+          <Button
+            ref={chiudiMenuRef}
+            variant="ghost"
+            size="icon"
+            className="size-10 shrink-0 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            onClick={() => setMobileOpen(false)}
+            aria-label="Chiudi il menu"
+          >
+            <X />
+          </Button>
+        )}
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto p-3 no-scrollbar">
@@ -162,19 +206,28 @@ export function AppShell() {
       >
         Salta al contenuto
       </a>
-      <aside className="hidden w-60 shrink-0 lg:block">{sidebar}</aside>
+      <aside className="hidden w-60 shrink-0 lg:block">{sidebar(false)}</aside>
 
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
+        <div ref={drawerRef} role="dialog" aria-modal="true" aria-label="Menu" className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-foreground/50" onClick={() => setMobileOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 w-64 animate-slide-up">{sidebar}</aside>
+          <aside className="absolute inset-y-0 left-0 w-64 animate-slide-up">{sidebar(true)}</aside>
         </div>
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border bg-card px-4">
-          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileOpen((v) => !v)} aria-label="Menu">
-            {mobileOpen ? <X /> : <Menu />}
+          <Button
+            ref={menuBtnRef}
+            variant="ghost"
+            size="icon"
+            className="size-10 shrink-0 lg:hidden"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Menu"
+            aria-haspopup="dialog"
+            aria-expanded={mobileOpen}
+          >
+            <Menu />
           </Button>
           <Logo className="h-8 lg:hidden" />
 
@@ -189,15 +242,17 @@ export function AppShell() {
               <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">⌘K</kbd>
             </button>
 
-            <Button variant="ghost" size="icon" onClick={toggle} aria-label="Cambia tema">
+            <Button variant="ghost" size="icon" className="size-10" onClick={toggle} aria-label="Cambia tema">
               {dark ? <Sun /> : <Moon />}
             </Button>
 
-            <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('/notifiche')} aria-label="Notifiche">
+            <Button variant="ghost" size="icon" className="relative size-10" onClick={() => navigate('/notifiche')} aria-label="Notifiche">
               <Bell />
+              {/* Il segnalino sta sull'angolo, sopra il bordo alto della campana:
+                  cresce verso sinistra con due cifre senza mai coprire l'icona. */}
               {unread > 0 && (
-                <span className="absolute right-1.5 top-1.5 grid min-w-[16px] place-items-center rounded-full bg-primary px-1 text-[10px] font-bold leading-4 text-primary-foreground">
-                  {unread}
+                <span className="absolute -right-1.5 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-primary px-1 text-[11px] font-bold leading-none text-primary-foreground">
+                  {unread > 99 ? '99+' : unread}
                 </span>
               )}
             </Button>
@@ -218,17 +273,23 @@ export function AppShell() {
                 </button>
               }
             >
-              <p className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                Cambia profilo
-              </p>
-              {users.filter((u) => u.active).map((u) => (
-                <DropdownItem key={u.id} onClick={() => { switchUser(u.id); navigate('/calendario') }}>
-                  <span className={cn('size-1.5 rounded-full', u.id === user?.id ? 'bg-primary' : 'bg-border')} />
-                  <span className="flex-1 truncate">{u.name}</span>
-                  <span className="shrink-0 text-[10px] text-muted-foreground">{ROLE_META[u.role].label}</span>
-                </DropdownItem>
-              ))}
-              <DropdownSeparator />
+              {/* Cambiare profilo vuol dire diventare un altro utente: lo puo'
+                  fare solo l'amministratore (lo store lo rifiuta a chiunque altro). */}
+              {isAdmin && (
+                <>
+                  <p className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    Cambia profilo
+                  </p>
+                  {users.filter((u) => u.active).map((u) => (
+                    <DropdownItem key={u.id} onClick={() => { switchUser(u.id); navigate('/calendario') }}>
+                      <span className={cn('size-1.5 rounded-full', u.id === user?.id ? 'bg-primary' : 'bg-border')} />
+                      <span className="flex-1 truncate">{u.name}</span>
+                      <span className="shrink-0 text-[10px] text-muted-foreground">{ROLE_META[u.role].label}</span>
+                    </DropdownItem>
+                  ))}
+                  <DropdownSeparator />
+                </>
+              )}
               <DropdownItem danger onClick={() => { logout(); navigate('/login') }}>
                 <LogOut /> Logout
               </DropdownItem>

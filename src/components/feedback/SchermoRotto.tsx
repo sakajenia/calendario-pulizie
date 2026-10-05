@@ -11,6 +11,7 @@
  * se l'archivio condiviso non e' collegato, quei dati non sono altrove.
  */
 import React from 'react'
+import { CHIAVE_STATO, dimenticaSincronizzazione } from '@/data/store'
 
 interface Stato {
   errore: Error | null
@@ -37,10 +38,13 @@ export class SchermoRotto extends React.Component<{ children: React.ReactNode },
     )
     if (!conferma) return
     try {
-      localStorage.removeItem('propromanager-state')
+      localStorage.removeItem(CHIAVE_STATO)
     } catch {
       /* finestra privata: non c'era niente da cancellare */
     }
+    /* Senza questo le impronte dell'ultimo scambio restano e, al riavvio coi
+       dati ricreati dal seme, coprirebbero il lavoro degli altri dispositivi. */
+    dimenticaSincronizzazione()
     window.location.href = '/'
   }
 
