@@ -79,7 +79,8 @@ export function CommandPalette() {
       { id: 'a-logout', label: 'Esci', group: 'Azioni', icon: ArrowRight, run: () => { logout(); navigate('/login') } },
     ]
 
-    const profiles: Command[] = users
+    /* Cambiare profilo = diventare un altro utente: solo l'amministratore. */
+    const profiles: Command[] = !isAdmin ? [] : users
       .filter((u) => u.active && u.id !== user?.id)
       .map((u) => ({
         id: `p-${u.id}`,

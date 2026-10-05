@@ -4,7 +4,23 @@ import { Button } from '@/components/ui'
 import { useCurrentUser } from '@/data/store'
 import { cn } from '@/lib/utils'
 
+/** Il "ho capito" e' di chi lo ha detto: la chiave e' per utente, non per dispositivo. */
 const KEY = 'ppm-guide-dismissed'
+
+/** Spazio per la guida estesa: sotto questa soglia il calendario ha la precedenza. */
+const SPAZIO_AMPIO = '(min-width: 1280px) and (min-height: 900px)'
+
+function useSpazioAmpio() {
+  const [ampio, setAmpio] = React.useState(() => window.matchMedia(SPAZIO_AMPIO).matches)
+  React.useEffect(() => {
+    const mq = window.matchMedia(SPAZIO_AMPIO)
+    const aggiorna = () => setAmpio(mq.matches)
+    aggiorna()
+    mq.addEventListener('change', aggiorna)
+    return () => mq.removeEventListener('change', aggiorna)
+  }, [])
+  return ampio
+}
 
 const STEPS = [
   {
@@ -31,73 +47,95 @@ const STEPS = [
  * una volta sola, si chiude e non torna: chi sa gia' come funziona non deve
  * ripassarci ogni giorno.
  *
- * Su schermo stretto il calendario e' la cosa che serve davvero: la guida si
- * riduce a una riga sola e i tre passi restano dietro un "Mostra". Da lg in su
- * c'e' spazio e i passi sono sempre visibili.
+ * Il calendario e' la cosa che serve davvero: se lo schermo e' stretto (sotto
+ * xl) o basso (meno di 900px) la guida si riduce a una riga sola e i tre passi
+ * restano dietro un "Mostra". Solo con spazio di sobra i passi sono sempre
+ * visibili. Alle ditte di pulizia non serve: non creano richieste.
  */
 export function FirstRunGuide() {
   const user = useCurrentUser()
-  const [open, setOpen] = React.useState(() => {
-    try {
-      return localStorage.getItem(KEY) !== '1'
-    } catch {
-      return false
-    }
-  })
+  const ampio = useSpazioAmpio()
+  const chiave = user ? `${KEY}:${user.id}` : null
+  /* Si rilegge quando cambia l'utente (cambio profilo): il "chiuso" di uno
+     non deve nascondere la guida a un altro. */
+  const [chiusaOra, setChiusaOra] = React.useState<string | null>(null)
   const [expanded, setExpanded] = React.useState(false)
 
-  const dismiss = () => {
-    setOpen(false)
+  const gia = React.useMemo(() => {
+    if (!chiave) return true
     try {
-      localStorage.setItem(KEY, '1')
+      return localStorage.getItem(chiave) === '1'
+    } catch {
+      return true
+    }
+  }, [chiave])
+
+  const dismiss = () => {
+    if (!chiave) return
+    setChiusaOra(chiave)
+    try {
+      localStorage.setItem(chiave, '1')
     } catch {
       /* finestra privata: la guida ricomparira' al prossimo accesso */
     }
   }
 
-  if (!open || !user) return null
+  if (!user || user.role === 'operator' || gia || chiusaOra === chiave) return null
+
+  const mostraPassi = ampio || expanded
 
   return (
     <section
       aria-labelledby="guida-titolo"
-      className="relative mx-4 mt-4 overflow-hidden rounded-xl border border-brand/20 bg-brand/[0.04] p-3 lg:p-5"
+      className={cn(
+        'relative mx-4 mt-4 overflow-hidden rounded-xl border border-brand/20 bg-brand/[0.04]',
+        ampio ? 'p-5' : 'p-3',
+      )}
     >
       <div className="flex items-start gap-2">
-        <Lightbulb className="mt-0.5 size-4 shrink-0 text-brand lg:hidden" aria-hidden="true" />
+        {!ampio && <Lightbulb className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden="true" />}
 
         <div className="min-w-0 flex-1">
-          <p className="eyebrow hidden lg:block">Come funziona</p>
+          {ampio && <p className="eyebrow">Come funziona</p>}
           <h2
             id="guida-titolo"
-            className="truncate font-display text-sm font-bold tracking-tight lg:mt-1 lg:whitespace-normal lg:text-lg"
+            className={cn(
+              'break-words font-display font-bold tracking-tight',
+              ampio ? 'mt-1 text-lg' : 'text-sm',
+            )}
           >
             Tre cose e hai capito tutto il resto
           </h2>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          aria-expanded={expanded}
-          aria-controls="guida-dettagli"
-          className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-ring lg:hidden"
-        >
-          {expanded ? 'Nascondi' : 'Mostra'}
-          <ChevronDown className={cn('size-3.5 transition-transform', expanded && 'rotate-180')} />
-        </button>
+        {!ampio && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            aria-controls="guida-dettagli"
+            className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-ring"
+          >
+            {expanded ? 'Nascondi' : 'Mostra'}
+            <ChevronDown className={cn('size-3.5 transition-transform', expanded && 'rotate-180')} />
+          </button>
+        )}
 
         <button
           type="button"
           onClick={dismiss}
           aria-label="Nascondi la guida"
-          className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-ring lg:p-1.5"
+          className={cn(
+            'shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-ring',
+            ampio && 'p-1.5',
+          )}
         >
           <X className="size-4" />
         </button>
       </div>
 
-      <div id="guida-dettagli" className={cn(expanded ? 'block' : 'hidden', 'lg:block')}>
-        <div className="mt-4 grid gap-4 lg:grid-cols-3">
+      <div id="guida-dettagli" className={mostraPassi ? 'block' : 'hidden'}>
+        <div className={cn('mt-4 grid gap-4', ampio && 'grid-cols-3')}>
           {STEPS.map((s, i) => {
             const Icon = s.icon
             return (

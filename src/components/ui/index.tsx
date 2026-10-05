@@ -188,7 +188,7 @@ export function Checkbox({
 }: {
   checked: boolean; indeterminate?: boolean; onChange: (v: boolean) => void
   className?: string; label?: string; disabled?: boolean
-  /** Area di tocco allargata (36px) per le schede su telefono: la casella da 16px da sola non basta al dito. */
+  /** Area di tocco ancora piu' ampia (40px, anche con il mouse) per le schede su telefono. */
   padded?: boolean
 }) {
   const box = (
@@ -200,7 +200,10 @@ export function Checkbox({
       disabled={disabled}
       onClick={(e) => { e.stopPropagation(); onChange(!checked) }}
       className={cn(
-        'grid size-4 shrink-0 place-items-center rounded border transition-colors focus-ring disabled:opacity-40',
+        /* Su schermi touch l'area sensibile cresce a 40px con un pseudo-elemento
+           invisibile: la casella resta da 16px e non sposta nulla nelle tabelle. */
+        'relative grid size-4 shrink-0 place-items-center rounded border transition-colors focus-ring disabled:opacity-40',
+        "[@media(pointer:coarse)]:before:absolute [@media(pointer:coarse)]:before:-inset-[13px] [@media(pointer:coarse)]:before:content-['']",
         checked || indeterminate ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background hover:border-primary/50',
         className,
       )}
@@ -211,7 +214,7 @@ export function Checkbox({
   if (!padded) return box
   return (
     <span
-      className="grid size-9 shrink-0 cursor-pointer place-items-center"
+      className="grid size-10 shrink-0 cursor-pointer place-items-center"
       onClick={(e) => { e.stopPropagation(); if (!disabled) onChange(!checked) }}
       onKeyDown={(e) => e.stopPropagation()}
     >
@@ -234,7 +237,9 @@ export function Switch({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-ring disabled:opacity-40',
+        /* Il pseudo-elemento porta l'area sensibile ad almeno 40px di altezza
+           senza cambiare la grandezza dell'interruttore. */
+        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors before:absolute before:-inset-x-1 before:-inset-y-[10px] before:content-[''] focus-ring disabled:opacity-40",
         checked ? 'bg-primary' : 'bg-input',
       )}
     >
@@ -329,11 +334,13 @@ export function Dialog({
       >
         {(title || description) && (
           <div className="flex items-start justify-between gap-4 border-b border-border p-5">
-            <div className="space-y-1">
-              {title && <h2 id={titleId} className="font-display text-lg font-bold tracking-tight text-brand">{title}</h2>}
+            {/* Il titolo si accorcia e va a capo, il pulsante Chiudi no: su 360px
+                restava schiacciato a 23px di larghezza. */}
+            <div className="min-w-0 flex-1 space-y-1">
+              {title && <h2 id={titleId} className="break-words font-display text-lg font-bold tracking-tight text-brand">{title}</h2>}
               {description && <p className="text-sm text-muted-foreground">{description}</p>}
             </div>
-            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Chiudi">
+            <Button variant="ghost" size="icon" className="size-10 shrink-0" onClick={onClose} aria-label="Chiudi">
               <X />
             </Button>
           </div>
