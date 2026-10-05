@@ -202,7 +202,9 @@ function UserForm({
     setErrors(next)
     if (next.name || next.email) return
 
+    // Si parte dal record esistente: companyId, username, password e altri campi non modificabili qui devono sopravvivere
     upsertUser({
+      ...initial,
       id: initial?.id ?? uid(),
       name,
       email,
@@ -565,7 +567,10 @@ export default function Utenti() {
         }
         actions={
           <>
-            <Button variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
+            <Button
+              variant="outline" onClick={exportCsv} disabled={filtered.length === 0}
+              aria-label="Esporta CSV" title="Esporta CSV"
+            >
               <Download />
               <span className="hidden sm:inline">Esporta CSV</span>
             </Button>
@@ -695,7 +700,8 @@ export default function Utenti() {
                 <MobileRecord
                   key={r.user.id}
                   title={r.user.name}
-                  subtitle={r.user.email}
+                  // Il contenitore tronca: l'email va resa a capo per non perdere i caratteri a 360px
+                  subtitle={<span className="block whitespace-normal break-all">{r.user.email}</span>}
                   selected={selected.has(r.user.id)}
                   onClick={() => openEdit(r.user)}
                   badge={
@@ -719,7 +725,7 @@ export default function Utenti() {
                     />
                   }
                   fields={[
-                    { label: 'Ruolo', value: ROLE_META[r.user.role].label },
+                    { label: 'Ruolo', value: <span className="block whitespace-normal break-words">{ROLE_META[r.user.role].label}</span> },
                     { label: 'Telefono', value: r.user.phone ?? '—' },
                     { label: 'Richieste', value: fmtNum(r.requestCount) },
                     { label: 'Creato il', value: fmtDate(r.user.createdAt) },

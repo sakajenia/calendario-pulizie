@@ -39,6 +39,9 @@ const BASIS_ITEMS: { value: Basis; label: string }[] = [
   { value: 'tutte', label: 'Tutte le non cancellate' },
 ]
 
+/** `ospitiStimati` arriva dall'import del calendario; il tipo qui e' allargato per non dipendere dall'ordine dei merge. */
+const hasEstimatedGuests = (r: CleaningRequest) => Boolean((r as CleaningRequest & { ospitiStimati?: boolean }).ospitiStimati)
+
 const isCancelled = (r: CleaningRequest) =>
   r.status === 'cancellata'
 
@@ -47,6 +50,8 @@ interface Line {
   cleanings: number
   /** Somma delle tariffe delle pulizie, senza costi fissi. */
   amount: number
+  /** Pulizie con numero di ospiti stimato (import calendario): pagate a tariffa base. */
+  estimated: number
 }
 
 interface CompanyTotal {
@@ -67,6 +72,19 @@ function CompanyBadge({ companyId }: { companyId: CleaningCompanyId }) {
       <span className={cn('size-1.5 rounded-full', meta.dot)} />
       {meta.label}
     </Badge>
+  )
+}
+
+/** Nota discreta per le righe con ospiti stimati. */
+function EstimatedHint({ n }: { n: number }) {
+  if (n <= 0) return null
+  return (
+    <span
+      className="block text-xs font-normal text-muted-foreground"
+      title="Numero di ospiti non confermato: tariffa base dell'appartamento"
+    >
+      {n === 1 ? '1 pulizia con ospiti stimati' : `${fmtNum(n)} pulizie con ospiti stimati`} · tariffa base
+    </span>
   )
 }
 
@@ -146,9 +164,15 @@ export default function Compensi() {
       if (!apt) continue
       const lines = byCompany.get(apt.companyId)
       if (!lines) continue
-      const line = lines.get(apt.id) ?? { apartment: apt, cleanings: 0, amount: 0 }
+      const line = lines.get(apt.id) ?? { apartment: apt, cleanings: 0, amount: 0, estimated: 0 }
       line.cleanings += 1
-      line.amount += priceForGuests(apt, r.checkInPeople)
+      /* Con gli ospiti stimati il numero e' un segnaposto: si applica la tariffa base dell'appartamento. */
+      if (hasEstimatedGuests(r)) {
+        line.estimated += 1
+        line.amount += apt.prices.base
+      } else {
+        line.amount += priceForGuests(apt, r.checkInPeople)
+      }
       lines.set(apt.id, line)
     }
 
@@ -174,6 +198,7 @@ export default function Compensi() {
         Indirizzo: l.apartment.address,
         Pulizie: l.cleanings,
         'Totale pulizie': l.amount,
+        Note: l.estimated > 0 ? `${l.estimated} con ospiti stimati (tariffa base)` : '',
       })),
       ...totals
         .filter((t) => t.cleanings > 0)
@@ -186,6 +211,7 @@ export default function Compensi() {
             : '',
           Pulizie: t.cleanings,
           'Totale pulizie': t.total,
+          Note: '',
         })),
     ]
     downloadFile(`compensi-${fmtDate(startOfMonth(cursor))}.csv`, toCsv(data))
@@ -206,7 +232,10 @@ export default function Compensi() {
           </span>
         }
         actions={
-          <Button variant="outline" onClick={exportCsv} disabled={rows.length === 0}>
+          <Button
+            variant="outline" onClick={exportCsv} disabled={rows.length === 0}
+            aria-label="Esporta CSV" title="Esporta CSV"
+          >
             <Download />
             <span className="hidden sm:inline">Esporta CSV</span>
           </Button>
@@ -265,7 +294,7 @@ export default function Compensi() {
           <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-5 py-3">
             <h2 className="font-display text-sm font-bold">Dettaglio per appartamento</h2>
             <p className="text-xs text-muted-foreground">
-              Tariffa per numero di ospiti in arrivo; il costo fisso della ditta è sommato a parte.
+              Tariffa per numero di ospiti in arrivo (tariffa base se gli ospiti sono stimati); il costo fisso della ditta è sommato a parte.
             </p>
           </div>
 
@@ -285,7 +314,12 @@ export default function Compensi() {
                   <MobileRecord
                     key={`${l.company}-${l.apartment.id}`}
                     title={l.apartment.name}
-                    subtitle={`${l.apartment.district} · ${l.apartment.city}`}
+                    subtitle={
+                      <>
+                        {`${l.apartment.district} · ${l.apartment.city}`}
+                        <EstimatedHint n={l.estimated} />
+                      </>
+                    }
                     fields={[
                       { label: 'Ditta', value: <CompanyBadge companyId={l.company} /> },
                       { label: 'Pulizie', value: fmtNum(l.cleanings) },
@@ -309,7 +343,10 @@ export default function Compensi() {
                   <tbody>
                     {rows.map((l) => (
                       <tr key={`${l.company}-${l.apartment.id}`} className="border-b border-border/60 last:border-0">
-                        <Td className="font-medium">{l.apartment.name}</Td>
+                        <Td className="font-medium">
+                          {l.apartment.name}
+                          <EstimatedHint n={l.estimated} />
+                        </Td>
                         <Td className="text-muted-foreground">{l.apartment.address}</Td>
                         <Td><CompanyBadge companyId={l.company} /></Td>
                         <Td className="text-right tabular-nums">{fmtNum(l.cleanings)}</Td>

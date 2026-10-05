@@ -849,6 +849,8 @@ export default function Magazzini() {
                   size="sm"
                   onClick={exportCsv}
                   disabled={tableRows.length === 0}
+                  aria-label="Esporta CSV"
+                  title="Esporta CSV"
                 >
                   <Download />
                   <span className="hidden sm:inline">Esporta CSV</span>

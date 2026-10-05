@@ -116,7 +116,8 @@ export default function CatalogoTask() {
   const [people, setPeople] = React.useState<InspectorId[]>([])
   const [state, setState] = React.useState<StateFilter>('all')
   const [sort, setSort] = React.useState<SortKey>('when-desc')
-  const [period, setPeriod] = React.useState<Period>('oggi')
+  // Scelta esplicita del periodo: finche' e' nulla si apre sulla prima scheda che contiene qualcosa
+  const [chosenPeriod, setPeriod] = React.useState<Period | null>(null)
 
   const apartmentById = React.useMemo(
     () => new Map(apartments.map((a) => [a.id, a])), [apartments],
@@ -143,6 +144,19 @@ export default function CatalogoTask() {
       }),
     [inspections, apartmentById],
   )
+
+  const countByPeriod = React.useMemo(() => {
+    const acc = { oggi: 0, domani: 0, mese: 0, tutte: rows.length }
+    for (const r of rows) {
+      if (inPeriod(r.at, "oggi", TODAY)) acc.oggi += 1
+      if (inPeriod(r.at, "domani", TODAY)) acc.domani += 1
+      if (inPeriod(r.at, "mese", TODAY)) acc.mese += 1
+    }
+    return acc
+  }, [rows])
+
+  const period: Period =
+    chosenPeriod ?? (['oggi', 'domani', 'mese'] as const).find((p) => countByPeriod[p] > 0) ?? 'oggi'
 
   /* Prima il periodo: gli altri filtri e i conteggi lavorano su quello. */
   const inScope = React.useMemo(
@@ -180,16 +194,6 @@ export default function CatalogoTask() {
     for (const r of inScope) acc[r.inspectorId] += 1
     return acc
   }, [inScope])
-
-  const countByPeriod = React.useMemo(() => {
-    const acc = { oggi: 0, domani: 0, mese: 0, tutte: rows.length }
-    for (const r of rows) {
-      if (inPeriod(r.at, "oggi", TODAY)) acc.oggi += 1
-      if (inPeriod(r.at, "domani", TODAY)) acc.domani += 1
-      if (inPeriod(r.at, "mese", TODAY)) acc.mese += 1
-    }
-    return acc
-  }, [rows])
 
   const doneCount = filtered.filter((r) => r.done).length
   const filtersOn = text.trim().length > 0 || people.length > 0 || state !== 'all'
@@ -233,7 +237,10 @@ export default function CatalogoTask() {
           </span>
         }
         actions={
-          <Button variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
+          <Button
+            variant="outline" onClick={exportCsv} disabled={filtered.length === 0}
+            aria-label="Esporta CSV" title="Esporta CSV"
+          >
             <Download />
             <span className="hidden sm:inline">Esporta CSV</span>
           </Button>

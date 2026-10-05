@@ -92,8 +92,15 @@ function ExpenseForm({
   const [draft, setDraft] = React.useState(blank)
   const [error, setError] = React.useState<string>()
 
+  /* Ad ogni sincronizzazione cambiano gli array: il form si azzerava mentre si scriveva.
+     Si legge l'ultimo valore da un ref e si riparte solo ad apertura o cambio di spesa. */
+  const latest = React.useRef({ initial, blank })
+  latest.current = { initial, blank }
+  const initialId = initial?.id ?? null
+
   React.useEffect(() => {
     if (!open) return
+    const { initial, blank } = latest.current
     setError(undefined)
     setDraft(
       initial
@@ -109,7 +116,7 @@ function ExpenseForm({
           }
         : blank(),
     )
-  }, [open, initial, blank])
+  }, [open, initialId])
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -365,13 +372,16 @@ export default function SpeseAmministrative() {
         }
         actions={
           <>
-            <Button variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
+            <Button
+              variant="outline" onClick={exportCsv} disabled={filtered.length === 0}
+              aria-label="Esporta CSV" title="Esporta CSV"
+            >
               <Download />
               <span className="hidden sm:inline">CSV</span>
             </Button>
             <Button onClick={openNew}>
               <Plus />
-              <span className="hidden sm:inline">Nuova spesa</span>
+              Nuova spesa
             </Button>
           </>
         }

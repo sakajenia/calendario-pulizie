@@ -42,6 +42,7 @@ function CompanyBadge({ companyId }: { companyId: CleaningCompanyId }) {
 function CodeValue({ entry }: { entry: AccessEntry }) {
   const [copied, setCopied] = React.useState(false)
   const timer = React.useRef<number>()
+  const toast = useToast()
 
   React.useEffect(() => () => window.clearTimeout(timer.current), [])
 
@@ -51,8 +52,10 @@ function CodeValue({ entry }: { entry: AccessEntry }) {
       setCopied(true)
       window.clearTimeout(timer.current)
       timer.current = window.setTimeout(() => setCopied(false), 1600)
+      toast({ title: 'Codice copiato' })
     } catch {
       /* Senza permesso negli appunti il codice resta comunque leggibile. */
+      toast({ title: 'Copia non riuscita: leggi il codice a schermo' })
     }
   }
 
@@ -61,12 +64,12 @@ function CodeValue({ entry }: { entry: AccessEntry }) {
       type="button"
       onClick={copy}
       aria-label={`Copia ${entry.label}: ${entry.value}`}
-      className="group inline-flex max-w-full items-center gap-1.5 rounded-md px-1.5 py-0.5 font-mono text-sm font-semibold transition-colors hover:bg-muted focus-ring"
+      className="group inline-flex min-h-10 max-w-full items-center gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-1 font-mono text-sm font-semibold transition-colors hover:bg-muted focus-ring"
     >
       <span className="truncate">{entry.value}</span>
       {copied
-        ? <Check className="size-3.5 shrink-0 text-status-done" aria-hidden />
-        : <Copy className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />}
+        ? <Check className="size-4 shrink-0 text-status-done" aria-hidden />
+        : <Copy className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" aria-hidden />}
     </button>
   )
 }

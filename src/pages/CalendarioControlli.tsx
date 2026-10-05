@@ -292,8 +292,15 @@ function InspectionForm({
 
   /* Il modulo si ricompone a ogni apertura: riaprirlo su un altro controllo
      non deve mostrare i valori del precedente. */
+  /* Ad ogni sincronizzazione cambiano gli array: il modulo si azzerava mentre si scriveva.
+     Si legge l'ultimo valore da un ref e si riparte solo ad apertura o cambio di voce. */
+  const latest = React.useRef({ initial, blank, apartments })
+  latest.current = { initial, blank, apartments }
+  const initialId = initial?.id ?? null
+
   React.useEffect(() => {
     if (!open) return
+    const { initial, blank, apartments } = latest.current
     setError(undefined)
     setDraft(
       initial
@@ -308,7 +315,7 @@ function InspectionForm({
           }
         : blank(),
     )
-  }, [open, initial, blank, apartments])
+  }, [open, initialId])
 
   const kindMeta = INSPECTION_KIND_META[draft.kind]
 
@@ -667,7 +674,7 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
       {/* La colonna unica del telefono va bloccata a `minmax(0,1fr)`: senza,
           la griglia si allarga fino al contenuto piu' largo e l'app scorre di
           lato invece di stare nello schermo. */}
-      <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-4 pb-24 grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,55fr)_minmax(0,45fr)] lg:content-stretch lg:overflow-hidden lg:pb-4">
+      <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-4 pb-[calc(7rem+env(safe-area-inset-bottom))] grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,55fr)_minmax(0,45fr)] lg:content-stretch lg:overflow-hidden lg:pb-4">
         {/* ---------------------------------------------------- calendario */}
         <Card className="flex min-w-0 flex-col lg:min-h-0 lg:overflow-hidden">
           <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
@@ -690,7 +697,7 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
             {/* Su schermo stretto i tre comandi non ci stanno in riga: vanno
                 a capo invece di spingere la scheda fuori dallo schermo. */}
             <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={goToday}>
+              <Button variant="outline" size="sm" onClick={goToday} aria-label="In data odierna" title="In data odierna">
                 <CalendarCheck /> <span className="hidden sm:inline">In data odierna</span>
                 <span className="sm:hidden">Oggi</span>
               </Button>
@@ -710,7 +717,7 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
             <div className="flex flex-col p-2 lg:min-h-0 lg:flex-1">
               <div className="grid grid-cols-7 pb-1">
                 {WEEKDAYS.map((w) => (
-                  <div key={w} className="py-1 text-center text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  <div key={w} className="py-1 text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                     {w}
                   </div>
                 ))}
@@ -1015,7 +1022,7 @@ export default function CalendarioControlli({ modeSwitch }: { modeSwitch: React.
       </div>
 
       {/* ----------------------------------------------- FAB, solo sotto lg */}
-      <div className="fixed bottom-6 right-6 z-30 flex flex-col items-end gap-3 lg:hidden">
+      <div className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 z-30 flex flex-col items-end gap-3 lg:hidden">
         <Button
           size="icon"
           onClick={openNew}
