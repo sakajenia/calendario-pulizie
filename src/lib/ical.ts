@@ -27,9 +27,19 @@ const righe = (testo: string) => testo.replace(/\r?\n[ \t]/g, '').split(/\r?\n/)
 function data(valore: string): Date | null {
   const m = valore.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?/)
   if (!m) return null
-  const [, a, me, g] = m
-  /* Le date di Airbnb sono giorni interi: si tiene solo il giorno. */
-  return new Date(Number(a), Number(me) - 1, Number(g))
+  const [, a, me, g, h, mi, se, utc] = m
+  /* Un orario con la Z finale e' in UTC: il giorno giusto e' quello dell'ora
+     locale (Roma), non quello scritto. Le 23:00Z del 30 settembre sono gia'
+     l'1 ottobre: prima la Z si perdeva e la pulizia finiva il giorno prima. */
+  if (utc && h !== undefined) {
+    const locale = new Date(Date.UTC(Number(a), Number(me) - 1, Number(g), Number(h), Number(mi), Number(se)))
+    if (Number.isNaN(locale.getTime())) return null
+    return new Date(locale.getFullYear(), locale.getMonth(), locale.getDate())
+  }
+  /* Le date di Airbnb sono giorni interi, e gli orari senza Z sono gia' in
+     ora locale: si tiene solo il giorno. */
+  const giornoIntero = new Date(Number(a), Number(me) - 1, Number(g))
+  return Number.isNaN(giornoIntero.getTime()) ? null : giornoIntero
 }
 
 /**
@@ -78,6 +88,15 @@ export const idDaCalendario = (apartmentId: string, partenza: Date) => `req-ical
 /** Posti letto della casa: in un calendario iCal il numero di ospiti non c'e'. */
 const posti = (a: Apartment) => Math.max(1, a.beds.reduce((n, b) => n + (/singol/i.test(b.type) ? 1 : 2), 0))
 
+/**
+ * Ospiti da mettere su una pulizia nata dal calendario. Prima si metteva la
+ * capienza piena della casa, e i compensi pagavano la tariffa massima (otto
+ * persone alla villa) anche per una coppia. Ora un numero neutro, due, mai
+ * oltre i posti della casa; la pulizia porta il segno `ospitiStimati`.
+ */
+export const OSPITI_STIMATI = 2
+const ospitiStimati = (a: Apartment) => Math.min(OSPITI_STIMATI, posti(a))
+
 export interface Esito {
   nuove: CleaningRequest[]
   aggiornate: CleaningRequest[]
@@ -109,7 +128,7 @@ export function pulizieDaCalendario(
       esito.nuove.push({
         id, apartmentId: casa.id, hostId: casa.ownerId, status: 'in_attesa',
         createdAt: now.toISOString(), checkOutAt, checkInAt,
-        checkInPeople: posti(casa),
+        checkInPeople: ospitiStimati(casa), ospitiStimati: true,
         beds: casa.beds.map((b) => ({ bedId: b.id, type: b.type, extras: [] })),
         perPersonExtras: [], apartmentExtras: [],
         notes: '', internalNotes: 'Creata dal calendario delle prenotazioni.',

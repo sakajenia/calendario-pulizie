@@ -288,9 +288,23 @@ function pickAssignee(status: RequestStatus, ap: Apartment): string | undefined 
  * i giorni in cui si interviene, dettati uno per uno. Le case che non compaiono
  * qui non hanno pulizie, e non ce ne sono nei mesi prima o dopo.
  *
- * I giorni sono ancorati al mese corrente e non a settembre 2026: aprendo
- * l'app in un altro mese il calendario resta pieno invece di mostrarsi vuoto.
+ * I giorni sono quelli di settembre 2026, il mese dettato dal titolare, e
+ * restano li'. Prima erano ancorati al mese corrente: a ottobre gli stessi
+ * identificativi (che non portano il mese) prendevano date di ottobre, si
+ * scontravano con le righe di settembre gia' salvate e sui telefoni nuovi
+ * creavano pulizie di ottobre che nessuno aveva chiesto.
  */
+export const MESE_DEL_PIANO = { anno: 2026, mese: 8 } as const
+
+/** Se la data cade nel mese del piano (settembre 2026), in ora locale. */
+export const nelMeseDelPiano = (v: string | Date) => {
+  const d = new Date(v)
+  return d.getFullYear() === MESE_DEL_PIANO.anno && d.getMonth() === MESE_DEL_PIANO.mese
+}
+
+const nelPiano = (giorno: number, ora: number) =>
+  new Date(MESE_DEL_PIANO.anno, MESE_DEL_PIANO.mese, giorno, ora, 0, 0, 0)
+
 const CLEANING_PLAN: Record<string, number[]> = {
   'ap-marsi': [6, 10, 13, 16, 18, 22, 24, 28],
   'ap-consoli': [2, 11, 14, 21, 29],
@@ -306,8 +320,8 @@ function buildRequests(): CleaningRequest[] {
     if (!ap) continue
 
     for (const giorno of giorni) {
-      const checkOut = new Date(TODAY.getFullYear(), TODAY.getMonth(), giorno, 10, 0, 0, 0)
-      const checkIn = new Date(TODAY.getFullYear(), TODAY.getMonth(), giorno, 15, 0, 0, 0)
+      const checkOut = nelPiano(giorno, 10)
+      const checkIn = nelPiano(giorno, 15)
       const created = new Date(checkOut)
       created.setDate(created.getDate() - int(4, 12))
       created.setHours(int(9, 18), int(0, 59), 0, 0)
@@ -396,7 +410,7 @@ const inspectionTasks = (names: string[], doneCount: number, at: Date, createdAt
  * dispositivo che apre l'app.
  */
 interface VoceSeed {
-  /** Giorno del mese corrente. */
+  /** Giorno di settembre 2026 (vedi MESE_DEL_PIANO). */
   day: number
   hour: number
   kind: InspectionKind
@@ -531,7 +545,8 @@ const VOCI_PLAN: VoceSeed[] = [
 ]
 
 const plannedInspections: Inspection[] = VOCI_PLAN.map((row, i) => {
-  const at = new Date(TODAY.getFullYear(), TODAY.getMonth(), row.day, row.hour, 0, 0, 0)
+  /* Come le pulizie: settembre 2026, non il mese in cui si apre l'app. */
+  const at = nelPiano(row.day, row.hour)
   /* Un controllo senza elenco proprio prende le verifiche di routine; le task
      e la gestione interna, se non hanno verifiche, restano senza: sono voci
      che dicono cosa fare gia' nel titolo. */
