@@ -3,9 +3,9 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowRight, Bell, Boxes, Building2, CalendarDays, ClipboardList, Command, LayoutDashboard,
-  Moon, PackageOpen, Search, Settings, Sun, UserRound, Users, Wallet,
+  Moon, PackageOpen, Search, Settings, Sun, Undo2, UserRound, Users, Wallet,
 } from 'lucide-react'
-import { useCurrentUser, useStore } from '@/data/store'
+import { useAccesso, useCurrentUser, useStore } from '@/data/store'
 import { canCreateRequest, isManager } from '@/lib/permissions'
 import { ROLE_META } from '@/types'
 import { useTheme } from '@/hooks/useTheme'
@@ -44,6 +44,8 @@ export function CommandPalette() {
   const listRef = React.useRef<HTMLDivElement>(null)
 
   const isAdmin = user?.role === 'admin'
+  /* Il cambio di profilo segue chi ha fatto l'accesso (vedi switchUser). */
+  const accesso = useAccesso()
   const manager = isManager(user)
   const canCreate = canCreateRequest(user)
 
@@ -79,9 +81,22 @@ export function CommandPalette() {
       { id: 'a-logout', label: 'Esci', group: 'Azioni', icon: ArrowRight, run: () => { logout(); navigate('/login') } },
     ]
 
-    /* Cambiare profilo = diventare un altro utente: solo l'amministratore. */
-    const profiles: Command[] = !isAdmin ? [] : users
-      .filter((u) => u.active && u.id !== user?.id)
+    /* Cambiare profilo = diventare un altro utente: solo l'amministratore,
+       anche mentre ha addosso il profilo di una ditta. Da li' la prima voce
+       e' il ritorno a se stesso. */
+    const amministratore = accesso?.role === 'admin' ? accesso : null
+    const ritorno: Command[] = amministratore && amministratore.id !== user?.id
+      ? [{
+          id: 'p-ritorno',
+          label: `Torna a ${amministratore.name}`,
+          hint: ROLE_META[amministratore.role].label,
+          group: 'Cambia profilo',
+          icon: Undo2,
+          run: () => { switchUser(amministratore.id); navigate('/calendario') },
+        }]
+      : []
+    const profiles: Command[] = !amministratore ? [] : users
+      .filter((u) => u.active && u.id !== user?.id && u.id !== amministratore.id)
       .map((u) => ({
         id: `p-${u.id}`,
         label: u.name,
@@ -91,9 +106,14 @@ export function CommandPalette() {
         run: () => { switchUser(u.id); navigate('/calendario') },
       }))
 
-    return [...nav, ...actions, ...profiles]
-      .filter((c) => (!c.adminOnly || isAdmin) && (!c.managerOnly || manager))
-  }, [navigate, users, user?.id, switchUser, logout, dark, apply, isAdmin, manager, canCreate])
+    /* I filtri valgono per le pagine e le azioni: il cambio di profilo ha gia'
+       il suo controllo, e da ditta l'amministratore deve poter tornare. */
+    return [
+      ...[...nav, ...actions].filter((c) => (!c.adminOnly || isAdmin) && (!c.managerOnly || manager)),
+      ...ritorno,
+      ...profiles,
+    ]
+  }, [navigate, users, user?.id, accesso, switchUser, logout, dark, apply, isAdmin, manager, canCreate])
 
   const results = React.useMemo(() => {
     const q = norm(query.trim())

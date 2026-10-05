@@ -165,7 +165,9 @@ export function RequestDetail({
               </Button>
             </>
           )}
-          {mayComplete && !isDone && !mayEdit && (
+          {/* Mai insieme ad Accetta/Rifiuta: una pulizia ancora in attesa si
+              accetta, non si chiude (vedi canCompleteRequest). */}
+          {mayComplete && !isDone && !mayEdit && !mayRespond && (
             <Button onClick={() => complete(request)}>
               <Check /> Segna come completata
             </Button>
@@ -217,7 +219,7 @@ export function RequestDetail({
               </p>
             )}
 
-            {mayComplete && (
+            {mayComplete && !mayRespond && (
               <div className="flex flex-wrap gap-2 pb-3">
                 {!isDone ? (
                   <Button size="sm" onClick={() => complete(request)}>

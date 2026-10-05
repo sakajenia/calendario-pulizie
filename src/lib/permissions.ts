@@ -1,4 +1,6 @@
-import { ROLE_META, type AccountKind, type Apartment, type CleaningRequest, type User } from '@/types'
+import {
+  ROLE_META, type AccountKind, type Apartment, type CleaningRequest, type RequestStatus, type User,
+} from '@/types'
 
 /** Tipologia di account: "manager" fa tutto, "pulizie" completa e annota. */
 export const accountKind = (user: User | null | undefined): AccountKind | null =>
@@ -24,12 +26,29 @@ export const canChangeStatus = canManageRequest
 export const canCreateRequest = (user: User | null | undefined) => isManager(user)
 
 /**
- * L'addetto segna come completata una pulizia assegnata a lui, oppure una
- * qualsiasi pulizia di una casa della sua ditta: un turno accettato dal
- * manager senza assegnatario restava altrimenti impossibile da chiudere.
+ * Se la pulizia e' dell'addetto: assegnata a lui, oppure di una casa della sua
+ * ditta (un turno accettato dal manager senza assegnatario restava altrimenti
+ * impossibile da chiudere).
  *
  * Per riconoscere le case della ditta servono gli appartamenti: chi non li
  * passa (le chiamate di prima) ha il controllo di sempre, sull'assegnatario.
+ */
+function eSuaPulizia(user: User, request: CleaningRequest, apartments?: Apartment[]): boolean {
+  if (request.assigneeId === user.id) return true
+  if (!user.companyId || !apartments) return false
+  return apartments.some((a) => a.id === request.apartmentId && a.companyId === user.companyId)
+}
+
+/** Gli stati in cui l'addetto puo' chiudere la pulizia: presa in carico e non ancora finita. */
+const DA_COMPLETARE: readonly RequestStatus[] = ['accettata', 'in_corso']
+/** Gli stati in cui l'addetto lascia le note: anche a lavoro finito, mai su una pulizia annullata. */
+const DA_ANNOTARE: readonly RequestStatus[] = ['accettata', 'in_corso', 'completata']
+
+/**
+ * L'addetto segna come completata una sua pulizia (vedi `eSuaPulizia`), ma
+ * solo se e' stata presa in carico. Prima bastava che fosse della ditta: una
+ * pulizia cancellata, o ancora in attesa, si poteva chiudere e finiva fra i
+ * compensi. Il manager invece la porta dove vuole (cambio di stato libero).
  */
 export function canCompleteRequest(
   user: User | null | undefined, request: CleaningRequest | null | undefined, apartments?: Apartment[],
@@ -37,13 +56,21 @@ export function canCompleteRequest(
   if (!user || !request) return false
   if (canManageRequest(user, request)) return true
   if (!isOperator(user)) return false
-  if (request.assigneeId === user.id) return true
-  if (!user.companyId || !apartments) return false
-  return apartments.some((a) => a.id === request.apartmentId && a.companyId === user.companyId)
+  return DA_COMPLETARE.includes(request.status) && eSuaPulizia(user, request, apartments)
 }
 
-/** Le note dell'addetto seguono le stesse regole del completamento. */
-export const canAnnotateRequest = canCompleteRequest
+/**
+ * Le note dell'addetto: sulle sue pulizie prese in carico o gia' completate.
+ * Su una pulizia in attesa (prima si accetta) o cancellata no.
+ */
+export function canAnnotateRequest(
+  user: User | null | undefined, request: CleaningRequest | null | undefined, apartments?: Apartment[],
+): boolean {
+  if (!user || !request) return false
+  if (canManageRequest(user, request)) return true
+  if (!isOperator(user)) return false
+  return DA_ANNOTARE.includes(request.status) && eSuaPulizia(user, request, apartments)
+}
 
 /**
  * Accettare o rifiutare la pulizia spetta alla ditta, finche' e' in attesa.
