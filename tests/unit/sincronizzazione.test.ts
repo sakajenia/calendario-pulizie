@@ -7,6 +7,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CleaningRequest, User } from '@/types'
+import * as seed from '@/data/seed'
 import { casa, pulizia, utente } from './fixtures'
 
 /* ------------------------------------------------ localStorage finto ---- */
@@ -26,6 +27,15 @@ class MemoriaFinta {
 const CAMPI_OPERATORE = [
   'status', 'assigneeId', 'operatorNotes', 'completedAt', 'completedById', 'updatedAt', 'updatedById',
 ] as const
+const CAMPI_SVUOTABILI: readonly string[] = ['operatorNotes', 'assigneeId', 'completedAt', 'completedById']
+const PASSAGGI_OPERATORE: Record<string, readonly string[]> = {
+  in_attesa: ['accettata', 'cancellata'],
+  accettata: ['in_corso', 'completata', 'in_attesa'],
+  in_corso: ['completata', 'accettata'],
+  completata: ['accettata', 'in_corso'],
+  cancellata: ['in_attesa'],
+}
+const CAMPI_RICHIESTI: readonly string[] = ['apartmentId', 'checkOutAt', 'checkInAt']
 
 interface Riga { tipo: string; id: string; dati: Record<string, unknown> | null; eliminato: boolean; aggiornato: number }
 interface Account { id: string; email: string; nome: string; ruolo: string; company: string | null }
@@ -38,6 +48,8 @@ class ArchivioFinto {
   orologio = 1_000
   spinte: { chi: string; record: { tipo: string; id: string; dati?: Record<string, unknown>; eliminato?: boolean }[] }[] = []
   letture: number[] = []
+  /** Come un Worker di prima: niente `rifiutate` nella risposta. */
+  senzaRifiutate = false
   account: Account[] = [
     { id: admin.id, email: admin.email, nome: admin.name, ruolo: 'admin', company: null },
     { id: ditta.id, email: ditta.email, nome: ditta.name, ruolo: 'operator', company: 'angela' },
@@ -86,7 +98,8 @@ class ArchivioFinto {
         .filter((r) => r.aggiornato > da)
         .filter((r) => chi.ruolo === 'admin' || chi.ruolo === 'host'
           || (r.tipo === 'requests' && case_.has(String(r.dati?.apartmentId)))
-          || (r.tipo === 'apartments' && case_.has(r.id)))
+          || (r.tipo === 'apartments' && case_.has(r.id))
+          || (r.tipo === 'users' && r.id === chi.id))
         .map((r) => ({ ...r, dati: r.dati ? JSON.parse(JSON.stringify(r.dati)) : null }))
       return json({ record, adesso: this.orologio })
     }
@@ -94,27 +107,57 @@ class ArchivioFinto {
       const { record } = JSON.parse(String(init?.body)) as ArchivioFinto['spinte'][number]
       this.spinte.push({ chi: chi.id, record })
       this.orologio += 10
+      /* Come `rifiutate` nel Worker: le righe saltate (o scritte diverse da
+         come sono arrivate) tornano con la copia del server. */
+      const rifiutate: Riga[] = []
+      const copia = (r: Riga) => ({ ...r, dati: r.dati ? JSON.parse(JSON.stringify(r.dati)) : null })
       for (const r of record) {
         const chiave = `${r.tipo}:${r.id}`
+        const salvata = this.righe.get(chiave)
         if (chi.ruolo === 'admin' || chi.ruolo === 'host') {
+          /* Come righeDelManager: una pulizia a pezzi si unisce alla copia
+             del server invece di prenderne il posto. */
+          const aPezzi = r.tipo === 'requests' && !r.eliminato && !!r.dati
+            && (typeof r.dati.apartmentId !== 'string' || typeof r.dati.checkOutAt !== 'string')
+          if (aPezzi) {
+            if (!salvata) continue
+            if (!salvata.dati) { rifiutate.push(copia(salvata)); continue }
+            const unita = { ...salvata.dati }
+            for (const [campo, valore] of Object.entries(r.dati!)) {
+              if (campo === 'id') continue
+              if (valore === null) { if (!CAMPI_RICHIESTI.includes(campo) && campo !== 'status') delete unita[campo] }
+              else unita[campo] = valore
+            }
+            const scritta = { ...salvata, dati: unita, aggiornato: this.orologio }
+            this.righe.set(chiave, scritta)
+            rifiutate.push(copia(scritta))
+            continue
+          }
           this.righe.set(chiave, { tipo: r.tipo, id: r.id, dati: r.dati ?? null, eliminato: !!r.eliminato, aggiornato: this.orologio })
           continue
         }
         /* Come righeDellaDitta nel Worker: solo pulizie gia' nell'archivio,
            solo i campi della ditta, copiati sulla versione del server (che
            tiene il suo ordine dei campi). Campo assente = invariato, null =
-           tolto. */
-        const salvata = this.righe.get(chiave)
+           tolto (solo quelli svuotabili). Un cambio di stato non permesso
+           fa tornare indietro la riga. */
         if (r.tipo !== 'requests' || r.eliminato || !salvata?.dati) continue
+        const nuovo = r.dati?.status
+        const prima = salvata.dati.status as string
+        if (nuovo !== undefined && nuovo !== null && nuovo !== prima) {
+          const permesso = (PASSAGGI_OPERATORE[prima] ?? []).includes(nuovo as string)
+            && !(prima === 'cancellata' && salvata.dati.annullataDaCalendario)
+          if (!permesso) { rifiutate.push(copia(salvata)); continue }
+        }
         const unita = { ...salvata.dati }
         for (const campo of CAMPI_OPERATORE) {
           if (!r.dati || !Object.prototype.hasOwnProperty.call(r.dati, campo)) continue
-          if (r.dati[campo] === null) delete unita[campo]
+          if (r.dati[campo] === null) { if (CAMPI_SVUOTABILI.includes(campo)) delete unita[campo] }
           else unita[campo] = r.dati[campo]
         }
         this.righe.set(chiave, { ...salvata, dati: unita, aggiornato: this.orologio })
       }
-      return json({ scritti: record.length, adesso: this.orologio })
+      return json({ scritti: record.length, adesso: this.orologio, ...(this.senzaRifiutate ? {} : { rifiutate }) })
     }
     return json({ errore: 'Non trovato' }, 404)
   }
@@ -312,5 +355,154 @@ describe('cambio di profilo dell\'amministratore', () => {
     archivio.spinte = []
     await useStore.getState().sincronizza()
     expect(archivio.invii('req-1')[0].dati).toMatchObject({ apartmentId: 'ap-prova', notes: 'dal manager' })
+  })
+})
+
+describe('righe rimandate indietro dall\'archivio (rifiutate)', () => {
+  /* L'"Annulla" del rifiuto, quando nel frattempo la prenotazione e' sparita
+     e il calendario ha annullato la pulizia: la ditta non la puo' riaprire.
+     Prima il telefono segnava come mandata la sua versione (in attesa) e
+     restava diverso dall'archivio per sempre. */
+  it('un passaggio rifiutato: il telefono prende la copia del server e non la rimanda', async () => {
+    const { useStore } = await caricaStore(ditta)
+    await useStore.getState().sincronizza()
+    const prima = useStore.getState().requests[0]
+    useStore.getState().respondToRequest('req-1', 'rifiuta')
+    await useStore.getState().sincronizza()
+    expect(archivio.pulizia('req-1')?.status).toBe('cancellata')
+
+    archivio.metti('requests', { ...archivio.pulizia('req-1')!, id: 'req-1', annullataDaCalendario: true })
+    await useStore.getState().sincronizza()
+    useStore.getState().upsertRequest(prima)
+    expect(useStore.getState().requests[0].status).toBe('in_attesa')
+
+    archivio.spinte = []
+    for (let i = 0; i < 3; i++) await useStore.getState().sincronizza()
+    expect(archivio.invii('req-1')).toHaveLength(1)
+    expect(archivio.pulizia('req-1')).toMatchObject({ status: 'cancellata', annullataDaCalendario: true })
+    expect(useStore.getState().requests[0]).toMatchObject({ status: 'cancellata', annullataDaCalendario: true })
+    /* Anche la base dei campi della ditta e' quella del server. */
+    const copie = JSON.parse(memoria.getItem('ppm-copie-ditta')!) as Record<string, { status?: string }>
+    expect(copie['req-1'].status).toBe('cancellata')
+  })
+
+  it('l\'"Annulla" del rifiuto e della chiusura arrivano all\'archivio', async () => {
+    archivio.metti('requests', { ...pulizia({ id: 'req-1', status: 'in_corso', assigneeId: ditta.id }) })
+    const { useStore } = await caricaStore(ditta)
+    await useStore.getState().sincronizza()
+    expect(useStore.getState().requests[0].status).toBe('in_corso')
+
+    const inCorso = useStore.getState().requests[0]
+    useStore.getState().completeRequest('req-1')
+    await useStore.getState().sincronizza()
+    expect(archivio.pulizia('req-1')).toMatchObject({ status: 'completata', completedById: ditta.id })
+    useStore.getState().upsertRequest(inCorso)
+    for (let i = 0; i < 2; i++) await useStore.getState().sincronizza()
+    expect(archivio.pulizia('req-1')?.status).toBe('in_corso')
+    expect(archivio.pulizia('req-1')).not.toHaveProperty('completedAt')
+    expect(archivio.pulizia('req-1')).not.toHaveProperty('completedById')
+    expect(useStore.getState().requests[0].status).toBe('in_corso')
+  })
+
+  it('un Worker di prima (senza `rifiutate`): il telefono fa come prima', async () => {
+    archivio.senzaRifiutate = true
+    const { useStore } = await caricaStore(ditta)
+    await useStore.getState().sincronizza()
+    const prima = useStore.getState().requests[0]
+    useStore.getState().respondToRequest('req-1', 'rifiuta')
+    await useStore.getState().sincronizza()
+    archivio.metti('requests', { ...archivio.pulizia('req-1')!, id: 'req-1', annullataDaCalendario: true })
+    await useStore.getState().sincronizza()
+    useStore.getState().upsertRequest(prima)
+    archivio.spinte = []
+    for (let i = 0; i < 3; i++) await useStore.getState().sincronizza()
+    expect(useStore.getState().archivio.stato).toBe('collegato')
+    expect(archivio.invii('req-1')).toHaveLength(1)
+  })
+})
+
+describe('account promosso sul server, telefono rimasto da ditta', () => {
+  /* Il telefono manda la pulizia a pezzi (crede di essere una ditta), il
+     gettone pero' e' ormai da manager: la riga si unisce a quella del
+     server invece di prenderne il posto. */
+  it('la pulizia a pezzi non cancella casa, orari e il resto', async () => {
+    const { useStore } = await caricaStore(ditta)
+    await useStore.getState().sincronizza()
+    archivio.account.find((a) => a.id === ditta.id)!.ruolo = 'admin'
+    useStore.getState().respondToRequest('req-1', 'accetta')
+    archivio.spinte = []
+    await useStore.getState().sincronizza()
+
+    const [inviata] = archivio.invii('req-1')
+    expect(inviata.dati).not.toHaveProperty('apartmentId')
+    expect(archivio.pulizia('req-1')).toMatchObject({
+      status: 'accettata', assigneeId: ditta.id, apartmentId: 'ap-prova',
+      checkOutAt: pulizia().checkOutAt, checkInAt: pulizia().checkInAt,
+    })
+    await useStore.getState().sincronizza()
+    expect(useStore.getState().requests[0]).toMatchObject({ status: 'accettata', apartmentId: 'ap-prova' })
+  })
+})
+
+describe('la ditta dell\'account cambia sul server', () => {
+  it('lo scambio riparte da zero, come su un telefono nuovo', async () => {
+    const { useStore } = await caricaStore(ditta)
+    await useStore.getState().sincronizza()
+    await useStore.getState().sincronizza()
+    expect(useStore.getState().sincronizzatoFino).toBeGreaterThan(0)
+
+    archivio.account.find((a) => a.id === ditta.id)!.company = 'altra'
+    archivio.metti('users', { ...ditta, companyId: 'altra' })
+    await useStore.getState().sincronizza()
+    expect(useStore.getState().users.find((u) => u.id === ditta.id)?.companyId).toBe('altra')
+    expect(useStore.getState().sincronizzatoFino).toBe(0)
+    expect(memoria.getItem('ppm-impronte')).toBeNull()
+
+    archivio.letture = []
+    await useStore.getState().sincronizza()
+    expect(archivio.letture[0]).toBe(0)
+  })
+})
+
+describe('correzione di settembre (versione 16)', () => {
+  const rif = seed.requests.find((r) => r.status === 'in_attesa' && !r.updatedAt && !r.updatedById && !r.completedAt)!
+  const unMeseDopo = (iso: string) => {
+    const d = new Date(iso)
+    d.setMonth(d.getMonth() + 1)
+    return d.toISOString()
+  }
+  const ottobre = { ...rif, checkOutAt: unMeseDopo(rif.checkOutAt), checkInAt: unMeseDopo(rif.checkInAt) }
+
+  /** Un telefono rimasto alla versione 15 con la pulizia del seme finita a ottobre. */
+  async function apriVersione15(impronte: Record<string, string> | null) {
+    memoria.setItem('propromanager-state', JSON.stringify({
+      version: 15,
+      state: {
+        currentUserId: admin.id, accessoId: admin.id,
+        users: seed.users, apartments: seed.apartments,
+        requests: [ottobre, ...seed.requests.filter((r) => r.id !== rif.id)],
+        inspections: [], interventions: [], adminExpenses: [],
+        removedIds: [], seedIds: seed.SEED_IDS, sincronizzatoFino: impronte ? 5_000 : 0,
+      },
+    }))
+    if (impronte) memoria.setItem('ppm-impronte', JSON.stringify(impronte))
+    vi.resetModules()
+    return import('@/data/store')
+  }
+
+  it('una riga mai scambiata con l\'archivio torna a settembre', async () => {
+    const { useStore } = await apriVersione15(null)
+    expect(seed.nelMeseDelPiano(ottobre.checkOutAt)).toBe(false)
+    expect(useStore.getState().requests.find((r) => r.id === rif.id)?.checkOutAt).toBe(rif.checkOutAt)
+  })
+
+  /* Gia' scambiata: e' la copia dell'archivio (magari spostata dal manager)
+     o una copia indietro che il prossimo giro aggiorna. Correggerla la
+     faceva ripartire sopra il lavoro degli altri. */
+  it('una riga gia\' scambiata resta com\'e\', anche all\'allineamento di avvio', async () => {
+    const { useStore } = await apriVersione15({ [`requests:${rif.id}`]: 'impronta-di-prima' })
+    expect(useStore.getState().requests.find((r) => r.id === rif.id)?.checkOutAt).toBe(ottobre.checkOutAt)
+    useStore.getState().ensureRecurringInspections()
+    expect(useStore.getState().requests.find((r) => r.id === rif.id)?.checkOutAt).toBe(ottobre.checkOutAt)
   })
 })

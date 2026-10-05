@@ -132,9 +132,13 @@ export async function accediArchivio(
 export const tiraDallArchivio = (da: number) =>
   chiama<{ record: Required<RigaArchivio>[]; adesso: number }>(`/dati?da=${da}`)
 
-/** Manda all'archivio le righe cambiate qui. */
+/**
+ * Manda all'archivio le righe cambiate qui. In `rifiutate` tornano le righe
+ * che l'archivio non ha preso (o ha preso diverse), con la copia che vale:
+ * vedi `sincronizza` in store.ts. Un Worker di prima non lo manda.
+ */
 export const spingiNellArchivio = (record: RigaArchivio[]) =>
-  chiama<{ scritti: number; adesso: number }>('/dati', {
+  chiama<{ scritti: number; adesso: number; rifiutate?: unknown }>('/dati', {
     method: 'POST',
     body: JSON.stringify({ record }),
   })
