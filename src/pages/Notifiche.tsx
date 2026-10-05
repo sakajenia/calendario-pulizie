@@ -330,6 +330,8 @@ export default function Notifiche() {
 
       <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border bg-card px-5 py-3">
         <Tabs
+          // Le schede erano alte 32px: sul touch ne servono almeno 40
+          className="[&>button]:min-h-10"
           value={tab}
           onChange={setTab}
           items={[

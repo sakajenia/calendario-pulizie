@@ -651,7 +651,10 @@ export default function FogliDiLavoro() {
         }
         actions={
           <>
-            <Button variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
+            <Button
+              variant="outline" onClick={exportCsv} disabled={filtered.length === 0}
+              aria-label="Esporta CSV" title="Esporta CSV"
+            >
               <Download />
               <span className="hidden sm:inline">Esporta CSV</span>
             </Button>

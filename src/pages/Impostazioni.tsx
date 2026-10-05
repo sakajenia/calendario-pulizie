@@ -14,6 +14,7 @@ import { downloadFile, fmtDate, fmtNum, fmtTime as fmtOra, plural } from '@/lib/
 import { REQUEST_STATUSES, ROLE_META, STATUS_META, type RequestStatus } from '@/types'
 import { useTheme } from '@/hooks/useTheme'
 import { cn } from '@/lib/utils'
+import { isManager } from '@/lib/permissions'
 
 const APP_NAME = 'ProProManager'
 const APP_VERSION = '1.0.0'
@@ -63,6 +64,8 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 export default function Impostazioni() {
   const user = useCurrentUser()
   const isAdmin = user?.role === 'admin'
+  // Dataset, export e import sono riservati a admin e host: la ditta di pulizie non li vede
+  const manager = isManager(user)
 
   const users = useStore((s) => s.users)
   const apartments = useStore((s) => s.apartments)
@@ -85,6 +88,8 @@ export default function Impostazioni() {
   const [profileMsg, flashProfile] = useFlash()
   const [dataMsg, flashData] = useFlash()
   const [confirmReset, setConfirmReset] = React.useState(false)
+  // File letto ma non ancora applicato: l'import parte solo dopo la conferma
+  const [pendingImport, setPendingImport] = React.useState<{ name: string; payload: unknown; exportedAt?: string } | null>(null)
 
   // Il profilo puo' cambiare da fuori (switch utente, ripristino dati): risincronizza il form.
   React.useEffect(() => {
@@ -143,6 +148,7 @@ export default function Impostazioni() {
   }
 
   const exportAll = async () => {
+    if (!manager) return
     const snapshot = {
       app: APP_NAME,
       version: APP_VERSION,
@@ -177,14 +183,26 @@ export default function Impostazioni() {
   const fileRef = React.useRef<HTMLInputElement>(null)
 
   const importFile = async (file: File | undefined) => {
-    if (!file) return
+    if (!file || !manager) return
     try {
-      const esito = importData(JSON.parse(await file.text()))
-      if (!esito.ok) return flashData(esito.error ?? 'Importazione non riuscita')
-      flashData(`Importati ${fmtNum(esito.conteggio ?? 0)} record`)
+      const payload = JSON.parse(await file.text()) as { exportedAt?: unknown }
+      // Prima di toccare i dati si chiede conferma: un file vecchio sovrascriverebbe lavoro piu' recente
+      setPendingImport({
+        name: file.name,
+        payload,
+        exportedAt: typeof payload?.exportedAt === 'string' ? payload.exportedAt : undefined,
+      })
     } catch {
       flashData('File non leggibile: serve il JSON prodotto da "Esporta i dati".')
     }
+  }
+
+  const confirmImport = () => {
+    if (!pendingImport || !manager) return
+    const esito = importData(pendingImport.payload)
+    setPendingImport(null)
+    if (!esito.ok) return flashData(esito.error ?? 'Importazione non riuscita')
+    flashData(`Importati ${fmtNum(esito.conteggio ?? 0)} record`)
   }
 
   const confirmResetData = () => {
@@ -209,7 +227,7 @@ export default function Impostazioni() {
 
   return (
     <div>
-      <PageHeader title="Impostazioni" subtitle="Profilo, aspetto e gestione del dataset locale." />
+      <PageHeader title="Impostazioni" subtitle={manager ? 'Profilo, aspetto e gestione dei dati.' : 'Profilo e aspetto dell\'applicazione.'} />
 
       <div className="mx-auto max-w-3xl px-6 sm:px-8">
         <div className="divide-y divide-border">
@@ -366,7 +384,10 @@ export default function Impostazioni() {
                     aperta e' l'ultima o una copia rimasta in cache. */}
                 <InfoRow label="Build" value={__BUILD_ID__} />
                 <InfoRow label="Sostituisce" value={LEGACY_APP} />
-                <InfoRow label="Archiviazione" value="Locale al browser" />
+                <InfoRow
+                  label="Archiviazione"
+                  value={archivio.stato === 'collegato' ? 'Archivio condiviso' : 'Solo su questo dispositivo'}
+                />
               </div>
               <p className="text-xs text-muted-foreground">
                 {APP_NAME} riprende il flusso operativo di {LEGACY_APP} · calendario, richieste di
@@ -437,6 +458,7 @@ export default function Impostazioni() {
           </section>
 
           {/* --------------------------------------------- Dati dimostrativi */}
+          {manager && (
           <section className="py-8 first:pt-7">
             <div className="mb-4">
               <h2 className="flex items-center gap-2 font-display text-base font-bold tracking-tight">
@@ -447,9 +469,9 @@ export default function Impostazioni() {
                 Con l'archivio condiviso collegato, quello che scrivi arriva agli altri in pochi
                 secondi: ogni dispositivo manda quello che ha cambiato e prende quello che è
                 cambiato altrove. Senza archivio i dati restano su questo dispositivo, e per
-                portarli altrove ci sono <strong>Esporta</strong> e <strong>Importa</strong>: quello
-                che arriva si unisce a quello che c'è, senza cancellarlo. L'export contiene i dati
-                visibili al tuo ruolo.
+                portarli altrove ci sono <strong>Esporta</strong> e <strong>Importa</strong>: i
+                record del file sostituiscono quelli con lo stesso identificativo, gli altri
+                restano. L'export contiene i dati visibili al tuo ruolo.
               </p>
             </div>
             <div className="space-y-5">
@@ -525,9 +547,42 @@ export default function Impostazioni() {
               </div>
             </div>
           </section>
+          )}
 
         </div>
       </div>
+
+      <Dialog
+        open={pendingImport !== null}
+        onClose={() => setPendingImport(null)}
+        title="Importare i dati dal file?"
+        description={pendingImport?.name}
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setPendingImport(null)}>Annulla</Button>
+            <Button onClick={confirmImport}>
+              <Upload /> Importa e sostituisci
+            </Button>
+          </>
+        }
+      >
+        <div className="flex gap-3">
+          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
+          <div className="space-y-2 text-sm">
+            <p>
+              I dati del file sostituiscono quelli con lo stesso identificativo su questo dispositivo
+              {archivio.stato === 'collegato' && ' e, con l\'archivio condiviso collegato, su tutti i dispositivi del team'}.
+              Se il file è vecchio, può cancellare modifiche più recenti fatte da te o dagli altri.
+            </p>
+            {pendingImport?.exportedAt && (
+              <p className="text-muted-foreground">
+                Il file è stato esportato il {fmtDate(pendingImport.exportedAt)}.
+              </p>
+            )}
+          </div>
+        </div>
+      </Dialog>
 
       <Dialog
         open={confirmReset}

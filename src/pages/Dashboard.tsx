@@ -599,21 +599,28 @@ export default function Dashboard() {
     <div className="flex min-h-full flex-col">
       <PageHeader
         className="no-print"
-        title="Report mensile"
+        title="Dashboard"
         subtitle={
           <span>
-            <span className="capitalize">{monthLabel}</span> ·{' '}
+            Report mensile · <span className="capitalize">{monthLabel}</span> ·{' '}
             {plural(rows.length, 'appartamento', 'appartamenti')} · {totals.cleanings} pulizie ·{' '}
             {totals.interventions} interventi
           </span>
         }
         actions={
           <>
-            <Button variant="outline" onClick={exportCsv} disabled={rows.length === 0}>
+            <Button
+              variant="outline" onClick={exportCsv} disabled={rows.length === 0}
+              aria-label="Esporta CSV" title="Esporta CSV"
+            >
               <FileText />
               <span className="hidden sm:inline">CSV</span>
             </Button>
-            <Button onClick={exportPdf} disabled={rows.length === 0}>
+            <Button
+              onClick={exportPdf} disabled={rows.length === 0}
+              aria-label={only === 'all' ? 'Esporta tutte' : 'Esporta PDF'}
+              title={only === 'all' ? 'Esporta tutte (PDF)' : 'Esporta PDF'}
+            >
               <Printer />
               <span className="hidden sm:inline">
                 {only === 'all' ? 'Esporta tutte' : 'Esporta PDF'}
