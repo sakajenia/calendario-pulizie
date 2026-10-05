@@ -594,7 +594,7 @@ export default function Richieste() {
           type="button"
           onClick={() => setFilters({ status: 'all' })}
           className={cn(
-            'inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-ring lg:min-h-8 lg:px-2.5',
+            'inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-ring lg:[@media(pointer:fine)]:min-h-8 lg:px-2.5',
             filters.status === 'all'
               ? 'border-primary/40 bg-primary/10 text-brand'
               : 'border-border text-muted-foreground hover:text-foreground',
@@ -610,7 +610,7 @@ export default function Richieste() {
             type="button"
             onClick={() => setFilters({ status: filters.status === s ? 'all' : s })}
             className={cn(
-              'inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-ring lg:min-h-8 lg:px-2.5',
+              'inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-ring lg:[@media(pointer:fine)]:min-h-8 lg:px-2.5',
               filters.status === s
                 ? 'border-primary/40 bg-primary/10 text-brand'
                 : 'border-border text-muted-foreground hover:text-foreground',

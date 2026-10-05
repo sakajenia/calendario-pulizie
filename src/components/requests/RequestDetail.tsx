@@ -182,7 +182,7 @@ export function RequestDetail({
           <Row label="Stato richiesta">
             {mayChangeStatus ? (
               <Select
-                className="h-8 w-auto text-xs"
+                className="h-8 w-auto text-xs [@media(pointer:coarse)]:min-h-10"
                 aria-label="Stato richiesta"
                 value={request.status}
                 options={REQUEST_STATUSES.map((s) => ({ value: s, label: STATUS_META[s].label }))}
