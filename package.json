@@ -13,7 +13,9 @@
     "check:contrast": "node scripts/check-contrast.mjs",
     "deploy": "npm run build && wrangler deploy",
     "typecheck:worker": "tsc -p worker/tsconfig.json",
-    "archivio:accendi": "node scripts/accendi-archivio.mjs"
+    "archivio:accendi": "node scripts/accendi-archivio.mjs",
+    "test": "vitest run",
+    "test:e2e": "node scripts/e2e.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -32,11 +34,13 @@
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "playwright-core": "^1.63.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.7.2",
     "vite": "^6.0.7",
+    "vitest": "^5.0.3",
     "wrangler": "^4.132.0"
   }
 }
