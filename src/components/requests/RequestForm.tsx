@@ -1,7 +1,8 @@
 import * as React from 'react'
-import { Check } from 'lucide-react'
+import { Check, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Button, Checkbox, Dialog, Field, Input, Select, Switch, Textarea } from '@/components/ui'
+import { Button, Checkbox, Dialog, Field, Input, Select, Textarea } from '@/components/ui'
+import { useToast } from '@/components/feedback/Toast'
 import { useCurrentUser, useStore, scopeApartments } from '@/data/store'
 import { richiedeCheckIn } from '@/lib/checkin'
 import { REQUEST_STATUSES, STATUS_META, type CleaningRequest, type ExtraLine, type RequestBed, type RequestStatus } from '@/types'
@@ -71,6 +72,7 @@ export function RequestForm({
   const workSheets = useStore((s) => s.workSheets)
   const users = useStore((s) => s.users)
   const upsertRequest = useStore((s) => s.upsertRequest)
+  const toast = useToast()
 
   const apartments = React.useMemo(() => scopeApartments(allApartments, user), [allApartments, user])
   const [draft, setDraft] = React.useState<CleaningRequest>(
@@ -79,26 +81,11 @@ export function RequestForm({
   const [error, setError] = React.useState<string>()
   const [checkInAcceso, setCheckInAcceso] = React.useState(false)
   const [conPulizia, setConPulizia] = React.useState(!initial?.senzaPulizia)
-
-  React.useEffect(() => {
-    if (!open) return
-    setError(undefined)
-    const iniziale = initial ?? blank(apartments[0]?.id ?? '', user?.id ?? '', defaultDate)
-    setCheckInAcceso(richiedeCheckIn(iniziale, allApartments))
-    setConPulizia(!iniziale.senzaPulizia)
-    setDraft(initial ?? blank(apartments[0]?.id ?? '', user?.id ?? '', defaultDate))
-  }, [open, initial, defaultDate, apartments, user?.id])
-
-  const apartment = apartments.find((a) => a.id === draft.apartmentId)
-
-  /* Su una richiesta nuova, cambiando casa l'interruttore riparte da come e'
-     impostata quella casa. */
-  const checkInDiSerie = Boolean(apartment?.checkIn?.attivo)
-  React.useEffect(() => {
-    if (open && !initial) setCheckInAcceso(checkInDiSerie)
-  }, [open, initial, draft.apartmentId, checkInDiSerie])
-  const set = <K extends keyof CleaningRequest>(k: K, v: CleaningRequest[K]) =>
-    setDraft((d) => ({ ...d, [k]: v }))
+  /* Stato, assegnatario e note servono di rado: sul telefono allungavano il
+     modulo. Chiusi su una richiesta nuova, aperti quando si modifica. */
+  const [altreOpzioni, setAltreOpzioni] = React.useState(Boolean(initial))
+  const errorRef = React.useRef<HTMLParagraphElement>(null)
+  const isNew = !initial
 
   /** Gli extra dei letti seguono la tipologia del letto selezionato. */
   const bedExtrasFor = React.useCallback(
@@ -108,6 +95,48 @@ export function RequestForm({
         .map((e) => ({ name: e.name, qty: e.name.toLowerCase().includes('doccia') ? 4 : e.name === 'Federe' ? 2 : e.name.startsWith('Lenzuola') ? 2 : 1 })),
     [extraCatalog],
   )
+
+  /* Su una richiesta nuova i letti della casa partono tutti selezionati: di
+     solito si rifanno tutti, e si toglie quello che non serve. */
+  const tuttiILetti = (apartmentId: string): RequestBed[] =>
+    (apartments.find((a) => a.id === apartmentId)?.beds ?? [])
+      .map((b) => ({ bedId: b.id, type: b.type, extras: bedExtrasFor(b.type) }))
+
+  /* Il modulo riparte solo all'apertura o passando a un'altra richiesta. Gli
+     appartamenti e la richiesta stessa cambiano a ogni giro di
+     sincronizzazione: se l'effetto dipendesse da loro, il modulo si
+     svuoterebbe mentre lo si compila. I valori si leggono al momento. */
+  React.useEffect(() => {
+    if (!open) return
+    setError(undefined)
+    setAltreOpzioni(Boolean(initial))
+    let iniziale = initial
+    if (!iniziale) {
+      const nuova = blank(apartments[0]?.id ?? '', user?.id ?? '', defaultDate)
+      iniziale = { ...nuova, beds: tuttiILetti(nuova.apartmentId) }
+    }
+    setCheckInAcceso(richiedeCheckIn(iniziale, allApartments))
+    setConPulizia(!iniziale.senzaPulizia)
+    setDraft(iniziale)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initial?.id])
+
+  /* L'errore sta accanto al pulsante, ma su un telefono stretto puo' finire
+     sotto la piega: lo si porta in vista. */
+  React.useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [error])
+
+  const apartment = apartments.find((a) => a.id === draft.apartmentId)
+
+  /* Su una richiesta nuova, cambiando casa l'interruttore riparte da come e'
+     impostata quella casa. */
+  const checkInDiSerie = Boolean(apartment?.checkIn?.attivo)
+  React.useEffect(() => {
+    if (open && isNew) setCheckInAcceso(checkInDiSerie)
+  }, [open, isNew, draft.apartmentId, checkInDiSerie])
+  const set = <K extends keyof CleaningRequest>(k: K, v: CleaningRequest[K]) =>
+    setDraft((d) => ({ ...d, [k]: v }))
 
   const toggleBed = (bedId: string) => {
     const bed = apartment?.beds.find((b) => b.id === bedId)
@@ -131,8 +160,6 @@ export function RequestForm({
     if (draft.checkInPeople <= 0) return setError('Inserire un numero di ospiti in ingresso superiore a 0')
     if (!conPulizia && !checkInAcceso) return setError('Scegli cosa c’è da fare: pulizia, check-in o tutti e due')
     if (conPulizia && !draft.beds.length) return setError('Selezionare almeno un letto da rifare')
-    if (draft.recurrence?.enabled && draft.recurrence.everyDays < 1)
-      return setError('La frequenza della pulizia ricorrente deve essere di almeno 1 giorno')
     if (conPulizia && new Date(draft.checkInAt) < new Date(draft.checkOutAt))
       return setError('La data di check-in non può essere precedente alla data di check-out')
 
@@ -143,14 +170,16 @@ export function RequestForm({
       ...draft,
       checkIn: checkInAcceso === diSerie ? undefined : checkInAcceso,
       senzaPulizia: conPulizia ? undefined : true,
-      /* Solo check-in: in calendario sta nel giorno dell'arrivo. */
-      ...(conPulizia ? {} : { checkOutAt: draft.checkInAt, workSheetId: undefined }),
+      /* Solo check-in: in calendario sta nel giorno dell'arrivo, e non ci sono
+         letti da rifare. */
+      ...(conPulizia ? {} : { checkOutAt: draft.checkInAt, workSheetId: undefined, beds: [] }),
       hostId: apartment?.ownerId ?? draft.hostId,
       perPersonExtras: draft.perPersonExtras.length ? draft.perPersonExtras : recalcPerPerson(draft.checkInPeople),
       apartmentExtras: draft.apartmentExtras.length
         ? draft.apartmentExtras
         : extraCatalog.filter((e) => e.scope === 'apartment').slice(0, 2).map((e) => ({ name: e.name, qty: 2 })),
     })
+    if (isNew) toast({ title: conPulizia ? 'Pulizia creata' : 'Check-in creato' })
     onClose()
   }
 
@@ -162,29 +191,36 @@ export function RequestForm({
       description="Check-out, check-in, ospiti in arrivo e letti da preparare."
       size="lg"
       footer={
-        <>
+        /* L'errore sta accanto al pulsante che lo provoca: in fondo al corpo
+           del modulo, sul telefono, restava fuori schermo e il salvataggio
+           sembrava non fare nulla. */
+        <div className="flex w-full flex-wrap items-center justify-end gap-2">
+          {error && (
+            <p
+              ref={errorRef}
+              role="alert"
+              className="basis-full rounded-md bg-destructive/10 px-3 py-2 text-sm text-status-cancelled sm:mr-auto sm:min-w-0 sm:flex-1 sm:basis-auto"
+            >
+              {error}
+            </p>
+          )}
           <Button variant="outline" onClick={onClose}>Annulla</Button>
           <Button onClick={submit}>{initial ? 'Salva modifiche' : 'Crea richiesta'}</Button>
-        </>
+        </div>
       }
     >
       <div className="space-y-5">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Appartamento">
-            <Select
-              value={draft.apartmentId}
-              options={apartments.map((a) => ({ value: a.id, label: `${a.name} · ${a.district}` }))}
-              onChange={(e) => setDraft((d) => ({ ...d, apartmentId: e.target.value, beds: [] }))}
-            />
-          </Field>
-          <Field label="Stato richiesta">
-            <Select
-              value={draft.status}
-              options={REQUEST_STATUSES.map((s) => ({ value: s, label: STATUS_META[s].label }))}
-              onChange={(e) => set('status', e.target.value as RequestStatus)}
-            />
-          </Field>
-        </div>
+        <Field label="Appartamento">
+          <Select
+            value={draft.apartmentId}
+            options={apartments.map((a) => ({ value: a.id, label: `${a.name} · ${a.district}` }))}
+            onChange={(e) => {
+              const id = e.target.value
+              /* Nuova richiesta: si riparte da tutti i letti della casa scelta. */
+              setDraft((d) => ({ ...d, apartmentId: id, beds: isNew ? tuttiILetti(id) : [] }))
+            }}
+          />
+        </Field>
 
         <div className="grid gap-4 sm:grid-cols-3">
           {conPulizia && (
@@ -203,7 +239,10 @@ export function RequestForm({
               onChange={(e) => { const v = parseLocalInput(e.target.value); if (v) set('checkInAt', v) }}
             />
           </Field>
-          <Field label="Ospiti in arrivo">
+          <Field
+            label="Ospiti in arrivo"
+            hint={draft.ospitiStimati ? 'Stimati dal calendario delle prenotazioni: da confermare.' : undefined}
+          >
             <Input
               type="number"
               min={1}
@@ -212,122 +251,118 @@ export function RequestForm({
               value={draft.checkInPeople || ''}
               onChange={(e) => {
                 const n = Math.max(0, Math.floor(Number(e.target.value)))
-                setDraft((d) => ({ ...d, checkInPeople: n, perPersonExtras: recalcPerPerson(n) }))
+                /* Scritto a mano, il numero non e' piu' una stima dell'import. */
+                setDraft((d) => ({ ...d, checkInPeople: n, perPersonExtras: recalcPerPerson(n), ospitiStimati: undefined }))
               }}
             />
           </Field>
         </div>
 
-        <div>
-          <p className="mb-2 text-xs font-medium text-muted-foreground">Scelta letti da rifare</p>
-          <div className="space-y-1.5 rounded-lg border border-border p-3">
-            {apartment?.beds.length ? (
-              apartment.beds.map((b, i) => (
-                <label key={b.id} className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted">
-                  <Checkbox
-                    checked={draft.beds.some((x) => x.bedId === b.id)}
-                    onChange={() => toggleBed(b.id)}
-                    label={b.type}
-                  />
-                  <span className="text-sm">{i + 1}. {b.type}</span>
-                </label>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">Nessun letto configurato per questo appartamento.</p>
-            )}
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          {/* Scheda di lavoro: cosa c'e' da fare. Pulizia, check-in o tutti e
-              due; il solo check-in serve quando la casa e' gia' pulita e la
-              ditta deve solo accogliere gli ospiti. */}
-          <fieldset className="space-y-2 sm:col-span-2">
-            <legend className="mb-1.5 text-sm font-medium">Scheda di lavoro</legend>
-            <div className="divide-y divide-border rounded-lg border border-border">
-              <div className="space-y-2 p-1">
-                <Opzione attiva={conPulizia} onChange={setConPulizia} nome="Pulizia">
-                  <span className="text-sm font-medium">Pulizia</span>
-                </Opzione>
-                {conPulizia && (
-                  <div className="px-2 pb-2"><Select
-                    aria-label="Tipo di pulizia"
-                    value={draft.workSheetId ?? ''}
-                    options={[{ value: '', label: 'Pulizia (senza scheda)' }, ...workSheets.filter((w) => w.id !== 'ws-rapida').map((w) => ({ value: w.id, label: w.name }))]}
-                    onChange={(e) => set('workSheetId', e.target.value || undefined)}
-                  /></div>
-                )}
-              </div>
-              <div className="p-1">
+        {/* Scheda di lavoro: cosa c'e' da fare. Pulizia, check-in o tutti e
+            due; il solo check-in serve quando la casa e' gia' pulita e la
+            ditta deve solo accogliere gli ospiti. */}
+        <fieldset className="space-y-2">
+          <legend className="mb-1.5 text-sm font-medium">Scheda di lavoro</legend>
+          <div className="divide-y divide-border rounded-lg border border-border">
+            <div className="space-y-2 p-1">
+              <Opzione attiva={conPulizia} onChange={setConPulizia} nome="Pulizia">
+                <span className="text-sm font-medium">Pulizia</span>
+              </Opzione>
+              {conPulizia && (
+                <div className="px-2 pb-2"><Select
+                  aria-label="Tipo di pulizia"
+                  value={draft.workSheetId ?? ''}
+                  options={[{ value: '', label: 'Pulizia (senza scheda)' }, ...workSheets.filter((w) => w.id !== 'ws-rapida').map((w) => ({ value: w.id, label: w.name }))]}
+                  onChange={(e) => set('workSheetId', e.target.value || undefined)}
+                /></div>
+              )}
+            </div>
+            <div className="p-1">
               <Opzione attiva={checkInAcceso} onChange={setCheckInAcceso} nome="Check-in">
-                <span className="flex items-center gap-2 text-sm font-medium">
+                <span className="flex shrink-0 items-center gap-2 text-sm font-medium">
                   <span className="inline-block size-2 rounded-full bg-checkin" />
                   Check-in
                 </span>
-                <span className="ml-auto text-xs text-muted-foreground">
-                  {apartment?.checkIn?.attivo ? 'di serie per questa casa' : 'lo fa la ditta'}
+                <span className="ml-auto text-right text-xs text-muted-foreground">
+                  {apartment?.checkIn?.attivo ? 'Di serie per questa casa' : 'Il check-in lo fa la ditta di pulizie'}
                 </span>
               </Opzione>
-              </div>
             </div>
-          </fieldset>
-          <Field label="Assegnata a">
-            <Select
-              value={draft.assigneeId ?? ''}
-              options={[
-                { value: '', label: 'Non assegnata' },
-                ...users.filter((u) => u.role === 'operator' && u.active).map((u) => ({ value: u.id, label: u.name })),
-              ]}
-              onChange={(e) => set('assigneeId', e.target.value || undefined)}
-            />
-          </Field>
-        </div>
+          </div>
+        </fieldset>
 
-        <Field label="Note">
-          <Textarea
-            rows={4}
-            placeholder="Istruzioni per l'operatore: keybox, refill, impianti…"
-            value={draft.notes ?? ''}
-            onChange={(e) => set('notes', e.target.value)}
-          />
-        </Field>
-
-        <div className="flex items-center justify-between rounded-lg border border-border p-3">
+        {/* Con il solo check-in non c'e' nulla da rifare. */}
+        {conPulizia && (
           <div>
-            <p className="text-sm font-medium">Rendi pulizia ricorrente</p>
-            <p className="text-xs text-muted-foreground">Ripete la richiesta a intervalli regolari.</p>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Scelta letti da rifare</p>
+            <div className="space-y-1.5 rounded-lg border border-border p-3">
+              {apartment?.beds.length ? (
+                apartment.beds.map((b, i) => (
+                  <label key={b.id} className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted">
+                    <Checkbox
+                      checked={draft.beds.some((x) => x.bedId === b.id)}
+                      onChange={() => toggleBed(b.id)}
+                      label={b.type}
+                    />
+                    <span className="text-sm">{i + 1}. {b.type}</span>
+                  </label>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">Nessun letto configurato per questo appartamento.</p>
+              )}
+            </div>
           </div>
-          <Switch
-            checked={draft.recurrence?.enabled ?? false}
-            onChange={(v) => set('recurrence', { enabled: v, everyDays: draft.recurrence?.everyDays ?? 7, until: draft.recurrence?.until })}
-            label="Rendi pulizia ricorrente"
-          />
+        )}
+
+        {/* Stato, assegnatario e note si toccano di rado. La pulizia
+            ricorrente non c'e' piu': nessuno ripeteva davvero la richiesta.
+            Un valore gia' salvato resta nei dati, ma non si imposta da qui. */}
+        <div className="rounded-lg border border-border">
+          <button
+            type="button"
+            aria-expanded={altreOpzioni}
+            aria-controls="altre-opzioni"
+            onClick={() => setAltreOpzioni((v) => !v)}
+            className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 text-left text-sm font-medium transition-colors hover:bg-muted/60 focus-ring"
+          >
+            <span>
+              Altre opzioni
+              <span className="ml-2 text-xs font-normal text-muted-foreground">Stato, assegnazione e note</span>
+            </span>
+            <ChevronDown className={cn('size-4 shrink-0 transition-transform', altreOpzioni && 'rotate-180')} />
+          </button>
+          {altreOpzioni && (
+            <div id="altre-opzioni" className="space-y-4 border-t border-border p-3">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Stato richiesta">
+                  <Select
+                    value={draft.status}
+                    options={REQUEST_STATUSES.map((s) => ({ value: s, label: STATUS_META[s].label }))}
+                    onChange={(e) => set('status', e.target.value as RequestStatus)}
+                  />
+                </Field>
+                <Field label="Assegnata a">
+                  <Select
+                    value={draft.assigneeId ?? ''}
+                    options={[
+                      { value: '', label: 'Non assegnata' },
+                      ...users.filter((u) => u.role === 'operator' && u.active).map((u) => ({ value: u.id, label: u.name })),
+                    ]}
+                    onChange={(e) => set('assigneeId', e.target.value || undefined)}
+                  />
+                </Field>
+              </div>
+              <Field label="Note">
+                <Textarea
+                  rows={4}
+                  placeholder="Istruzioni per l'operatore: keybox, refill, impianti…"
+                  value={draft.notes ?? ''}
+                  onChange={(e) => set('notes', e.target.value)}
+                />
+              </Field>
+            </div>
+          )}
         </div>
-
-        {draft.recurrence?.enabled && (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Frequenza pulizia (giorni)">
-              <Input
-                type="number"
-                min={1}
-                inputMode="numeric"
-                value={draft.recurrence.everyDays || ''}
-                onChange={(e) => set('recurrence', { ...draft.recurrence!, everyDays: Math.max(0, Math.floor(Number(e.target.value))) })}
-              />
-            </Field>
-            <Field label="Data fine ricorrenza">
-              <Input
-                type="date"
-                value={draft.recurrence.until?.slice(0, 10) ?? ''}
-                onChange={(e) => set('recurrence', { ...draft.recurrence!, until: parseLocalInput(e.target.value) ?? undefined })}
-              />
-            </Field>
-          </div>
-        )}
-
-        {error && (
-          <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-status-cancelled">{error}</p>
-        )}
       </div>
     </Dialog>
   )
