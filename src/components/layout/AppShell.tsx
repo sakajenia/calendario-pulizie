@@ -49,7 +49,8 @@ function NavItem({ entry, onNavigate }: { entry: NavEntry; onNavigate?: () => vo
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
-          'group flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-[background-color,color] duration-200 ease-out-expo',
+          /* Telefono in orizzontale: voci piu' basse, cosi' il menu entra intero. */
+          'group flex min-h-11 [@media(max-height:500px)]:min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-[background-color,color] duration-200 ease-out-expo',
           isActive
             ? 'bg-sidebar-accent text-sidebar-accent-foreground'
             : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
@@ -163,7 +164,7 @@ export function AppShell() {
     <div className="flex h-full flex-col bg-sidebar">
       {/* Nel menu ci sta il simbolo, piccolo: il lockup con la scritta
           occupava troppo spazio in cima all'elenco. */}
-      <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-sidebar-border px-4">
+      <div className="flex h-14 [@media(max-height:500px)]:h-12 shrink-0 items-center gap-2.5 border-b border-sidebar-border px-4">
         <LogoIcon />
         <span className="min-w-0 flex-1 truncate font-display text-sm font-bold tracking-tight text-sidebar-foreground">
           ProProManager
@@ -182,12 +183,14 @@ export function AppShell() {
         )}
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3 no-scrollbar">
+      {/* Telefono in orizzontale: le voci non stanno in colonna in 390 px,
+          si dispongono su due colonne (il cassetto si allarga apposta). */}
+      <nav className="flex-1 space-y-1 overflow-y-auto p-3 no-scrollbar [@media(max-height:500px)]:grid [@media(max-height:500px)]:grid-cols-2 [@media(max-height:500px)]:content-start [@media(max-height:500px)]:gap-x-2 [@media(max-height:500px)]:gap-y-0 [@media(max-height:500px)]:space-y-0 [@media(max-height:500px)]:py-1">
         {primary.map((e) => <NavItem key={e.to} entry={e} onNavigate={() => setMobileOpen(false)} />)}
 
         {admin.length > 0 && (
           <>
-            <p className="px-3 pb-1 pt-5 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">
+            <p className="px-3 pb-1 pt-5 [@media(max-height:500px)]:col-span-2 [@media(max-height:500px)]:pt-1 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">
               Amministrazione
             </p>
             {admin.map((e) => <NavItem key={e.to} entry={e} onNavigate={() => setMobileOpen(false)} />)}
@@ -195,7 +198,7 @@ export function AppShell() {
         )}
       </nav>
 
-      <div className="shrink-0 border-t border-sidebar-border p-3">
+      <div className="shrink-0 border-t border-sidebar-border p-3 [@media(max-height:500px)]:p-1">
         <NavItem entry={{ to: '/impostazioni', label: 'Impostazioni', icon: Settings }} onNavigate={() => setMobileOpen(false)} />
       </div>
     </div>
@@ -216,7 +219,7 @@ export function AppShell() {
       {mobileOpen && (
         <div ref={drawerRef} role="dialog" aria-modal="true" aria-label="Menu" className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-foreground/50" onClick={() => setMobileOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 w-64 animate-slide-up">{sidebar(true)}</aside>
+          <aside className="absolute inset-y-0 left-0 w-64 [@media(max-height:500px)]:w-[30rem] [@media(max-height:500px)]:max-w-[90vw] animate-slide-up">{sidebar(true)}</aside>
         </div>
       )}
 

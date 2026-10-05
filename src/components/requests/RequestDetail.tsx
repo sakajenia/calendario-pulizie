@@ -222,7 +222,7 @@ export function RequestDetail({
             {mayComplete && !mayRespond && (
               <div className="flex flex-wrap gap-2 pb-3">
                 {!isDone ? (
-                  <Button size="sm" onClick={() => complete(request)}>
+                  <Button size="sm" className="h-11 sm:h-9" onClick={() => complete(request)}>
                     <Check /> Segna come completata
                   </Button>
                 ) : mayChangeStatus ? (

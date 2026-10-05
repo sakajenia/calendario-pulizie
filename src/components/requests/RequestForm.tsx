@@ -260,7 +260,22 @@ export function RequestForm({
               <Input
                 type="datetime-local"
                 value={toLocalInput(draft.checkOutAt)}
-                onChange={(e) => { const v = parseLocalInput(e.target.value); if (v) set('checkOutAt', v) }}
+                onChange={(e) => {
+                  const v = parseLocalInput(e.target.value)
+                  if (!v) return
+                  /* Il check-in segue il check-out: spostando l'uscita a un giorno
+                     dopo l'arrivo, l'arrivo passa allo stesso giorno, alla sua ora.
+                     Prima toccava cambiare due date e poi si prendeva un errore. */
+                  setDraft((d) => {
+                    const uscita = new Date(v)
+                    const arrivo = new Date(d.checkInAt)
+                    if (Number.isNaN(arrivo.getTime()) || arrivo >= uscita) return { ...d, checkOutAt: v }
+                    const nuovo = new Date(uscita)
+                    nuovo.setHours(arrivo.getHours(), arrivo.getMinutes(), 0, 0)
+                    if (nuovo < uscita) nuovo.setTime(uscita.getTime())
+                    return { ...d, checkOutAt: v, checkInAt: nuovo.toISOString() }
+                  })
+                }}
               />
             </Field>
           )}
