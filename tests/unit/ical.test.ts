@@ -103,8 +103,10 @@ describe('pulizieDaCalendario', () => {
     expect(prima.prenotazione).toBe('A')
     expect(prima.orariCalendario).toEqual({ checkOutAt: prima.checkOutAt, checkInAt: prima.checkInAt })
     expect(prima.hostId).toBe('u-admin')
-    /* Matrimoniale (2) + singolo (1). */
-    expect(prima.checkInPeople).toBe(3)
+    /* Il calendario non dice quanti ospiti arrivano: se ne stimano 2 (non
+       piu' dei posti della casa), segnati come stima. */
+    expect(prima.checkInPeople).toBe(2)
+    expect(prima.ospitiStimati).toBe(true)
     expect(prima.beds.map((b) => b.bedId)).toEqual(['b1', 'b2'])
 
     /* Nessuna prenotazione dopo: il check-in e' lo stesso giorno alle 15. */

@@ -109,9 +109,10 @@ export async function preparaArchivio(t) {
 /** Una pulizia futura in attesa su una casa di Angela, scelta dallo stato del telefono. */
 export async function pulizieInAttesaAngela(page, escludi = []) {
   const s = await stato(page)
-  const adesso = Date.now()
+  /* Le pulizie di partenza sono fisse a settembre 2026: non si chiede che
+     siano nel futuro, basta che siano ancora in attesa. */
   return (s?.requests ?? [])
     .filter((r) => CASE_ANGELA.includes(r.apartmentId) && r.status === 'in_attesa'
-      && new Date(r.checkOutAt).getTime() > adesso && !escludi.includes(r.id))
+      && !escludi.includes(r.id))
     .sort((a, b) => a.checkOutAt.localeCompare(b.checkOutAt))
 }
