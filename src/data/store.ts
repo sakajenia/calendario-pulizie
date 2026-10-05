@@ -12,6 +12,7 @@ import {
   type RigaArchivio, type TipoSincronizzato,
 } from './archivio'
 import { buildNotifications } from '@/lib/notifications'
+import { canAnnotateRequest, canCompleteRequest } from '@/lib/permissions'
 import { richiedeCheckIn, vociCheckInDaTogliere } from '@/lib/checkin'
 import { leggiCalendario, pulizieDaCalendario } from '@/lib/ical'
 import type { AppNotification } from '@/types'
@@ -32,7 +33,16 @@ export const emptyFilters: RequestFilters = {
 }
 
 interface State {
+  /** Il profilo con cui si sta guardando l'app (puo' cambiare con `switchUser`). */
   currentUserId: string | null
+  /**
+   * Chi ha fatto davvero l'accesso su questo telefono: il padrone del gettone.
+   * Coincide con `currentUserId` salvo quando l'amministratore guarda l'app
+   * con il profilo di un altro (vedi `switchUser`): li' resta lui, ed e' lui
+   * che puo' tornare indietro. Decide anche come viaggiano le pulizie verso
+   * l'archivio (vedi `soloCampiDitta`), perche' l'archivio ragiona sul gettone.
+   */
+  accessoId: string | null
   users: User[]
   apartments: Apartment[]
   requests: CleaningRequest[]
@@ -210,7 +220,7 @@ const upsertBy = <T extends { id: string }>(list: T[], item: T): T[] => {
 /** Quello che finisce davvero in memoria (vedi `partialize`). */
 type Salvato = Partial<Pick<
   State,
-  'currentUserId' | 'users' | 'apartments' | 'requests' | 'taskCatalog' | 'workSheets'
+  'currentUserId' | 'accessoId' | 'users' | 'apartments' | 'requests' | 'taskCatalog' | 'workSheets'
   | 'extraCatalog' | 'warehouses' | 'readNotifications' | 'inspections' | 'interventions'
   | 'adminExpenses' | 'removedIds' | 'seedIds' | 'sincronizzatoFino'
 >>
@@ -360,11 +370,13 @@ const segnaRimossi = (correnti: string[], ids: string[]) => [...new Set([...corr
  * di cui la fonte siamo noi - gli account (nomi utente e password) e la
  * composizione dei letti, che descrive la casa e non e' una preferenza.
  */
-function migrateState(persisted: unknown): ReturnType<typeof baseData> & { currentUserId: string | null; filters: RequestFilters } {
+function migrateState(persisted: unknown): ReturnType<typeof baseData> & {
+  currentUserId: string | null; accessoId: string | null; filters: RequestFilters
+} {
   const base = baseData()
   const salvato = persisted as Salvato | undefined
   const vuoto = !salvato || !Array.isArray(salvato.apartments) || salvato.apartments.length === 0
-  if (vuoto) return { ...base, filters: emptyFilters, currentUserId: null }
+  if (vuoto) return { ...base, filters: emptyFilters, currentUserId: null, accessoId: null }
 
 
   const rimossi = new Set(salvato.removedIds ?? [])
@@ -392,8 +404,10 @@ function migrateState(persisted: unknown): ReturnType<typeof baseData> & { curre
      collegato non esiste piu', si torna alla schermata di accesso invece di
      restare dentro con un utente fantasma. */
   const collegato = salvato.currentUserId ?? null
+  const dentro = utenti.some((u) => u.id === collegato)
   return {
-    currentUserId: utenti.some((u) => u.id === collegato) ? collegato : null,
+    currentUserId: dentro ? collegato : null,
+    accessoId: dentro ? (salvato.accessoId ?? null) : null,
     users: utenti,
     apartments,
     requests: pulizieAlMeseDelPiano(riallinea(salvato.requests, base.requests, rimossi, storici), base.requests),
@@ -480,10 +494,165 @@ export function dimenticaSincronizzazione() {
      dei dati di prima, quando la sua risposta arriva dopo l'azzeramento. */
   generazioneScambio += 1
   impronteInviate.clear()
+  copieDitta.clear()
   try {
     localStorage.removeItem(CHIAVE_IMPRONTE)
+    localStorage.removeItem(CHIAVE_COPIE_DITTA)
   } catch {
     /* finestra privata: non c'era niente di salvato */
+  }
+}
+
+/* ------------------------------------------- pulizie mandate dalla ditta ---- */
+
+/**
+ * I soli campi di una pulizia che una ditta puo' cambiare. Devono combaciare
+ * con `CAMPI_OPERATORE` del Worker.
+ */
+export const CAMPI_DITTA = [
+  'status', 'assigneeId', 'operatorNotes', 'completedAt', 'completedById', 'updatedAt', 'updatedById',
+] as const
+type CampoDitta = (typeof CAMPI_DITTA)[number]
+/** I campi della ditta di una pulizia, com'erano all'ultimo scambio con l'archivio. */
+export type CopiaDitta = Partial<Record<CampoDitta, unknown>>
+
+/**
+ * Per ogni pulizia, l'ultima versione scambiata con l'archivio (solo i campi
+ * della ditta). Serve solo sui telefoni delle ditte, e solo per le pulizie.
+ *
+ * Il telefono di una ditta mandava la pulizia intera, e il Worker ne copiava
+ * tutti i campi della ditta sulla sua versione: un telefono rimasto indietro
+ * (stato "in attesa" di due giri fa) rimetteva lo stato e l'assegnatario che
+ * il manager aveva appena cambiato. Ora parte solo quello che sul telefono e'
+ * cambiato rispetto a questa copia (vedi `modificheDitta`).
+ *
+ * Resta salvata sul dispositivo come le impronte, e con le impronte si butta
+ * (vedi `dimenticaSincronizzazione`): cambio di account, dati ripristinati.
+ */
+const CHIAVE_COPIE_DITTA = 'ppm-copie-ditta'
+const copieDitta = new Map<string, CopiaDitta>(
+  (() => {
+    try {
+      if (localStorage.getItem(CHIAVE_STATO) === null) {
+        localStorage.removeItem(CHIAVE_COPIE_DITTA)
+        return []
+      }
+      return Object.entries(JSON.parse(localStorage.getItem(CHIAVE_COPIE_DITTA) ?? '{}') as Record<string, CopiaDitta>)
+    } catch {
+      return []
+    }
+  })(),
+)
+const salvaCopieDitta = () => {
+  try {
+    localStorage.setItem(CHIAVE_COPIE_DITTA, JSON.stringify(Object.fromEntries(copieDitta)))
+  } catch {
+    /* finestra privata: vale solo per questa sessione */
+  }
+}
+
+/** I campi della ditta di una riga, senza quelli vuoti. */
+const campiDitta = (dati: unknown): CopiaDitta => {
+  const riga = (dati ?? {}) as Record<string, unknown>
+  const fuori: CopiaDitta = {}
+  for (const campo of CAMPI_DITTA) {
+    if (riga[campo] !== undefined && riga[campo] !== null) fuori[campo] = riga[campo]
+  }
+  return fuori
+}
+
+/**
+ * Quello che il telefono di una ditta manda per una pulizia: l'identificativo
+ * e i soli campi della ditta cambiati rispetto all'ultima copia scambiata.
+ * Null se non e' cambiato niente che la ditta possa mandare.
+ *
+ * Il patto con il Worker (`righeDellaDitta`), per le righe delle ditte:
+ * - un campo presente si copia sulla versione dell'archivio;
+ * - un campo che manca resta com'e' nell'archivio (non cambiato qui);
+ * - un campo a `null` si toglie (la nota cancellata, l'incarico restituito).
+ * JSON.stringify salta i campi `undefined`: per questo uno svuotato viaggia
+ * come `null` esplicito, e non come campo assente.
+ *
+ * Senza una copia (pulizia mai scambiata da qui) partono i campi pieni, e
+ * nessun `null`: non si sa cosa ci sia nell'archivio, quindi non si toglie
+ * niente.
+ */
+export function modificheDitta(
+  riga: { id: string } & Record<string, unknown>, copia: CopiaDitta | undefined,
+): Record<string, unknown> | null {
+  const qui = campiDitta(riga)
+  const fuori: Record<string, unknown> = { id: riga.id }
+  let cambiati = 0
+  for (const campo of CAMPI_DITTA) {
+    const ora = qui[campo]
+    if (!copia) {
+      if (ora !== undefined) { fuori[campo] = ora; cambiati += 1 }
+      continue
+    }
+    const prima = copia[campo]
+    if (ora === prima) continue
+    fuori[campo] = ora === undefined ? null : ora
+    cambiati += 1
+  }
+  return cambiati > 0 ? fuori : null
+}
+
+/* ----------------------------------------------- chi ha fatto l'accesso ---- */
+
+/**
+ * Il padrone del gettone, letto dal gettone stesso ("utente.scadenza.firma").
+ * Serve solo ai telefoni che avevano gia' fatto l'accesso prima che esistesse
+ * `accessoId`: senza, un amministratore che stava guardando l'app come una
+ * ditta verrebbe preso per la ditta.
+ */
+function idDalGettone(): string | null {
+  try {
+    const gettone = localStorage.getItem('ppm-gettone')
+    const pezzi = gettone?.split('.') ?? []
+    if (pezzi.length < 3 || !/^\d+$/.test(pezzi[pezzi.length - 2])) return null
+    return pezzi.slice(0, -2).join('.') || null
+  } catch {
+    return null
+  }
+}
+
+/** Chi ha fatto davvero l'accesso (vedi `accessoId`); null se non c'e' nessuno. */
+export function accessoReale(s: Pick<State, 'accessoId' | 'currentUserId'>): string | null {
+  if (s.currentUserId === null) return null
+  return s.accessoId ?? idDalGettone() ?? s.currentUserId
+}
+
+/**
+ * Le pulizie viaggiano solo con i campi cambiati quando l'accesso e' di una
+ * ditta: e' il gettone a decidere cosa accetta il Worker, non il profilo che
+ * si sta guardando. Un amministratore nei panni di una ditta manda righe
+ * intere, come sempre: il Worker le prende come sue.
+ */
+function soloCampiDitta(s: State): boolean {
+  const io = s.users.find((u) => u.id === accessoReale(s))
+  return io !== undefined && io.role !== 'admin' && io.role !== 'host'
+}
+
+/**
+ * L'ultimo account che si e' scambiato i dati con l'archivio da questo
+ * telefono. Le impronte e il segnalibro (`sincronizzatoFino`) parlano di
+ * quello che vedeva lui: un account diverso, che dall'archivio riceve altre
+ * righe (una ditta solo le sue case), non deve ereditarli.
+ */
+const CHIAVE_ULTIMO_ACCOUNT = 'ppm-ultimo-account'
+const leggiUltimoAccount = (): string | null => {
+  try {
+    return localStorage.getItem(CHIAVE_ULTIMO_ACCOUNT)
+  } catch {
+    return null
+  }
+}
+const ricordaUltimoAccount = (id: string | null) => {
+  if (!id) return
+  try {
+    localStorage.setItem(CHIAVE_ULTIMO_ACCOUNT, id)
+  } catch {
+    /* finestra privata: vale solo per questa sessione */
   }
 }
 
@@ -655,6 +824,62 @@ function applicaRighe(s: State, record: Required<RigaArchivio>[]): Partial<State
   return fuori
 }
 
+/**
+ * Annota le righe appena scambiate con l'archivio: l'impronta e, sui telefoni
+ * delle ditte, la copia dei campi della ditta.
+ *
+ * L'impronta e' quella della riga che e' rimasta davvero qui, non quella
+ * arrivata. `applicaRighe` tiene l'oggetto di prima quando il contenuto e' lo
+ * stesso a meno dell'ordine dei campi; ma l'impronta dipende dall'ordine, e il
+ * Worker sulle righe delle ditte copia i campi in un ordine suo. Annotando
+ * l'impronta della riga arrivata, `righeCambiate` vedeva per sempre una
+ * differenza e la riga ripartiva a ogni giro, ogni sette secondi.
+ */
+function annotaScambiate(s: State, righe: Required<RigaArchivio>[], ditta: boolean) {
+  const qui = indiceRighe(s)
+  for (const r of righe) {
+    const chiave = `${r.tipo}:${r.id}`
+    const tenuta = r.eliminato || !r.dati || typeof r.dati !== 'object' ? undefined : qui.get(chiave)
+    impronteInviate.set(chiave, tenuta ? improntaRiga({ dati: tenuta }) : improntaScambiata(r))
+    if (!ditta || r.tipo !== 'requests') continue
+    if (r.eliminato) copieDitta.delete(r.id)
+    else copieDitta.set(r.id, campiDitta(r.dati))
+  }
+}
+
+/**
+ * Le righe come partono da un telefono di ditta: solo le pulizie, e di
+ * ognuna solo i campi cambiati (vedi `modificheDitta`). Il resto il Worker lo
+ * scarterebbe comunque.
+ */
+function righePerLaDitta(righe: RigaArchivio[]): RigaArchivio[] {
+  const fuori: RigaArchivio[] = []
+  for (const r of righe) {
+    if (r.tipo !== 'requests' || r.eliminato || !r.dati || typeof r.dati !== 'object') continue
+    const dati = modificheDitta(r.dati as { id: string } & Record<string, unknown>, copieDitta.get(r.id))
+    if (dati) fuori.push({ tipo: r.tipo, id: r.id, dati })
+  }
+  return fuori
+}
+
+/**
+ * Le copie che mancano, prese dalle pulizie che non sono cambiate dall'ultimo
+ * scambio (l'impronta combacia): sono proprio l'ultima versione scambiata.
+ * Serve ai telefoni che avevano gia' scambiato i dati prima che le copie
+ * esistessero: senza, la prima modifica manderebbe tutti i campi della ditta,
+ * stato vecchio compreso.
+ */
+function completaCopieDitta(s: State): boolean {
+  let aggiunte = 0
+  for (const r of s.requests) {
+    if (copieDitta.has(r.id)) continue
+    if (impronteInviate.get(`requests:${r.id}`) !== improntaRiga({ dati: r })) continue
+    copieDitta.set(r.id, campiDitta(r))
+    aggiunte += 1
+  }
+  return aggiunte > 0
+}
+
 /** Traduce l'esito di una chiamata in quello che si legge in Impostazioni. */
 const statoArchivio = (esito: { errore: string; assente?: boolean }): State['archivio'] =>
   esito.assente
@@ -739,6 +964,7 @@ export const useStore = create<State>()(
   persist(
     (set, get) => ({
       currentUserId: null,
+      accessoId: null,
       ...baseData(),
       filters: emptyFilters,
 
@@ -780,7 +1006,23 @@ export const useStore = create<State>()(
             }))
           }
           await ricordaAccesso([identifier, esito.dati.email, esito.dati.username], password)
-          set({ currentUserId: esito.dati.id, archivio: { stato: 'collegato' }, avvisoAccesso: undefined })
+          /* Un altro account sullo stesso telefono: lo scambio riparte da
+             zero, come su un telefono nuovo. Le impronte e il segnalibro
+             sono di chi c'era prima, che vedeva altre righe: la ditta nuova
+             non riceverebbe le righe gia' "viste" e le crederebbe gia'
+             mandate. Lo stesso account che rientra (sessione scaduta) tiene
+             tutto: e' cosi' che il lavoro rimasto sul telefono parte. */
+          const ultimo = leggiUltimoAccount()
+          const cambioAccount = ultimo !== null && ultimo !== esito.dati.id
+          if (cambioAccount) dimenticaSincronizzazione()
+          ricordaUltimoAccount(esito.dati.id)
+          set({
+            currentUserId: esito.dati.id,
+            accessoId: esito.dati.id,
+            archivio: { stato: 'collegato' },
+            avvisoAccesso: undefined,
+            ...(cambioAccount ? { sincronizzatoFino: 0 } : {}),
+          })
           return { ok: true }
         }
         /* Password sbagliata: e' una risposta dell'archivio, non un guasto. */
@@ -795,7 +1037,7 @@ export const useStore = create<State>()(
         if (salvata !== await improntaAccesso(chiave, password)) {
           return { ok: false, error: 'Password errata fornita per questo utente' }
         }
-        set({ currentUserId: user.id, avvisoAccesso: undefined })
+        set({ currentUserId: user.id, accessoId: user.id, avvisoAccesso: undefined })
         return { ok: true }
       },
 
@@ -810,7 +1052,7 @@ export const useStore = create<State>()(
            almeno sei caratteri, ora passano da `loginArchivio`. */
         if (!user.password) return { ok: false, error: 'Serve la connessione per il primo accesso su questo telefono' }
         if (password !== user.password) return { ok: false, error: 'Password errata fornita per questo utente' }
-        set({ currentUserId: user.id, avvisoAccesso: undefined })
+        set({ currentUserId: user.id, accessoId: user.id, avvisoAccesso: undefined })
         return { ok: true }
       },
       /* Le impronte dello scambio restano: quello che e' stato scambiato con
@@ -819,24 +1061,28 @@ export const useStore = create<State>()(
          rimetteva in elenco le righe eliminate qui. */
       logout: () => {
         dimenticaGettone()
-        set({ currentUserId: null, filters: emptyFilters, archivio: { stato: 'verifica' } })
+        set({ currentUserId: null, accessoId: null, filters: emptyFilters, archivio: { stato: 'verifica' } })
       },
       sessioneScaduta: () => {
         dimenticaGettone()
         set({
           currentUserId: null,
+          accessoId: null,
           avvisoAccesso: 'Sessione scaduta: rientra con la tua password. Il lavoro fatto su questo telefono non si perde.',
           archivio: { stato: 'verifica' },
         })
       },
       /* Passare a un altro account senza password e' una cosa da
          amministratore (per vedere l'app come la vede una ditta). Per tutti
-         gli altri non fa niente: prima chiunque diventava chiunque. */
+         gli altri non fa niente: prima chiunque diventava chiunque.
+         Il controllo e' su chi ha fatto l'accesso, non sul profilo attuale:
+         prima, diventato una ditta, l'amministratore non poteva piu' tornare
+         se stesso (la ditta non e' amministratore) e doveva uscire. */
       switchUser: (id) =>
         set((s) => {
-          const io = s.users.find((u) => u.id === s.currentUserId)
+          const io = s.users.find((u) => u.id === accessoReale(s))
           if (io?.role !== 'admin' || !s.users.some((u) => u.id === id)) return {}
-          return { currentUserId: id, filters: emptyFilters }
+          return { currentUserId: id, accessoId: io.id, filters: emptyFilters }
         }),
 
       setFilters: (f) => set((s) => ({ filters: { ...s.filters, ...f } })),
@@ -864,12 +1110,20 @@ export const useStore = create<State>()(
           requests: s.requests.filter((r) => !ids.includes(r.id)),
           removedIds: segnaRimossi(s.removedIds, ids),
         })),
+      /* Stesso controllo dei pulsanti (vedi canCompleteRequest): una pulizia
+         cancellata o ancora in attesa non si chiude dal telefono della ditta,
+         altrimenti finirebbe fra i compensi. */
       completeRequest: (id) =>
-        set((s) => ({
-          requests: s.requests.map((r) =>
-            r.id === id ? { ...r, status: 'completata', ...statusStamp('completata', s.currentUserId) } : r,
-          ),
-        })),
+        set((s) => {
+          const io = s.users.find((u) => u.id === s.currentUserId)
+          const r = s.requests.find((x) => x.id === id)
+          if (!r || r.status === 'completata' || !canCompleteRequest(io, r, s.apartments)) return {}
+          return {
+            requests: s.requests.map((x) =>
+              x.id === id ? { ...x, status: 'completata', ...statusStamp('completata', s.currentUserId) } : x,
+            ),
+          }
+        }),
       respondToRequest: (id, risposta) =>
         set((s) => ({
           requests: s.requests.map((r) =>
@@ -888,13 +1142,18 @@ export const useStore = create<State>()(
         })),
 
       setOperatorNotes: (id, notes) =>
-        set((s) => ({
-          requests: s.requests.map((r) =>
-            r.id === id
-              ? { ...r, operatorNotes: notes.trim() ? notes : undefined, updatedAt: nowIso(), updatedById: s.currentUserId ?? undefined }
-              : r,
-          ),
-        })),
+        set((s) => {
+          const io = s.users.find((u) => u.id === s.currentUserId)
+          const r = s.requests.find((x) => x.id === id)
+          if (!r || !canAnnotateRequest(io, r, s.apartments)) return {}
+          return {
+            requests: s.requests.map((x) =>
+              x.id === id
+                ? { ...x, operatorNotes: notes.trim() ? notes : undefined, updatedAt: nowIso(), updatedById: s.currentUserId ?? undefined }
+                : x,
+            ),
+          }
+        }),
 
       upsertApartment: (a) => set((s) => ({ apartments: upsertBy(s.apartments, a) })),
       /* Togliendo la casa se ne vanno anche le sue pulizie, i controlli e le
@@ -1144,6 +1403,10 @@ export const useStore = create<State>()(
              Dopo un'uscita o una sessione scaduta non si passa di qui: le
              impronte restano, e il giro normale manda il lavoro fatto nel
              frattempo senza farlo coprire. */
+          /* Chi ha fatto l'accesso e' quello che si e' scambiato i dati con
+             l'archivio da qui (vedi `loginArchivio`). */
+          ricordaUltimoAccount(accessoReale(get()))
+          const ditta = soloCampiDitta(get())
           if (impronteInviate.size === 0) {
             const primaDelTutto = new Map(
               [...indiceRighe(get())].map(([chiave, riga]) => [chiave, improntaRiga({ dati: riga })]),
@@ -1157,12 +1420,14 @@ export const useStore = create<State>()(
             }
             const presi = daPrendere(get(), tutto.dati.record, (chiave) => primaDelTutto.get(chiave))
             if (presi.length > 0) applicaSeCambia(presi)
-            for (const r of presi) impronteInviate.set(`${r.tipo}:${r.id}`, improntaScambiata(r))
+            annotaScambiate(get(), presi, ditta)
             set({ sincronizzatoFino: tutto.dati.adesso })
             salvaImpronte()
+            if (ditta) salvaCopieDitta()
           }
 
           const prima = get()
+          if (ditta && completaCopieDitta(prima)) salvaCopieDitta()
 
           /* Poi, a ogni giro: prima si manda, poi si prende, cosi' quello che
              ho appena scritto non viene coperto da una versione piu' vecchia
@@ -1170,15 +1435,25 @@ export const useStore = create<State>()(
              che e' cambiato davvero su questo dispositivo. */
           const daMandare = righeCambiate(prima)
           if (daMandare.length > 0) {
-            const inviato = await spingiNellArchivio(daMandare)
-            if (superato()) return
-            if (!inviato.ok) {
-              if (inviato.scaduto) return scaduto()
-              set({ archivio: statoArchivio(inviato) })
-              return
+            /* Dal telefono di una ditta partono solo i campi cambiati delle
+               pulizie (vedi `modificheDitta`); le impronte restano quelle
+               delle righe intere, che sono quelle che si confrontano. */
+            const perArchivio = ditta ? righePerLaDitta(daMandare) : daMandare
+            if (perArchivio.length > 0) {
+              const inviato = await spingiNellArchivio(perArchivio)
+              if (superato()) return
+              if (!inviato.ok) {
+                if (inviato.scaduto) return scaduto()
+                set({ archivio: statoArchivio(inviato) })
+                return
+              }
             }
-            for (const r of daMandare) impronteInviate.set(`${r.tipo}:${r.id}`, improntaScambiata(r))
+            for (const r of daMandare) {
+              impronteInviate.set(`${r.tipo}:${r.id}`, improntaScambiata(r))
+              if (ditta && r.tipo === 'requests' && !r.eliminato) copieDitta.set(r.id, campiDitta(r.dati))
+            }
             salvaImpronte()
+            if (ditta) salvaCopieDitta()
           }
 
           const arrivato = await tiraDallArchivio(prima.sincronizzatoFino)
@@ -1196,9 +1471,10 @@ export const useStore = create<State>()(
           const record = daPrendere(get(), arrivato.dati.record, (chiave) => impronteInviate.get(chiave))
           if (record.length > 0) {
             applicaSeCambia(record)
-            for (const r of record) impronteInviate.set(`${r.tipo}:${r.id}`, improntaScambiata(r))
+            annotaScambiate(get(), record, ditta)
           }
           salvaImpronte()
+          if (ditta) salvaCopieDitta()
           set({
             sincronizzatoFino: Math.max(adesso, prima.sincronizzatoFino),
             archivio: { stato: 'collegato', ultimo: new Date().toISOString() },
@@ -1278,6 +1554,7 @@ export const useStore = create<State>()(
       migrate: (persisted) => migrateState(persisted),
       partialize: (s) => ({
         currentUserId: s.currentUserId,
+        accessoId: s.accessoId,
         users: s.users,
         apartments: s.apartments,
         requests: s.requests,
@@ -1306,6 +1583,16 @@ export const useCurrentUser = (): User | null => {
 }
 
 export const useIsAdmin = () => useCurrentUser()?.role === 'admin'
+
+/**
+ * Chi ha fatto davvero l'accesso (vedi `accessoId`): l'amministratore anche
+ * mentre guarda l'app con il profilo di una ditta.
+ */
+export const useAccesso = (): User | null => {
+  const id = useStore(accessoReale)
+  const users = useStore((s) => s.users)
+  return users.find((u) => u.id === id) ?? null
+}
 
 /**
  * L'admin vede tutto; un host solo i propri appartamenti; un account pulizie

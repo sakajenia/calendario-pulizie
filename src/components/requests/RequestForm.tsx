@@ -85,6 +85,9 @@ export function RequestForm({
      modulo. Chiusi su una richiesta nuova, aperti quando si modifica. */
   const [altreOpzioni, setAltreOpzioni] = React.useState(Boolean(initial))
   const errorRef = React.useRef<HTMLParagraphElement>(null)
+  /* La richiesta com'era quando il modulo si e' aperto: al salvataggio dice
+     se nel frattempo qualcuno l'ha cambiata (vedi `submit`). */
+  const caricata = React.useRef<CleaningRequest | null>(initial ?? null)
   const isNew = !initial
 
   /** Gli extra dei letti seguono la tipologia del letto selezionato. */
@@ -118,6 +121,7 @@ export function RequestForm({
     setCheckInAcceso(richiedeCheckIn(iniziale, allApartments))
     setConPulizia(!iniziale.senzaPulizia)
     setDraft(iniziale)
+    caricata.current = initial ?? null
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initial?.id])
 
@@ -163,11 +167,33 @@ export function RequestForm({
     if (conPulizia && new Date(draft.checkInAt) < new Date(draft.checkOutAt))
       return setError('La data di check-in non può essere precedente alla data di check-out')
 
+    /* Mentre il modulo era aperto la richiesta puo' essere cambiata altrove:
+       la ditta l'ha accettata, completata o annotata da un telefono, e lo
+       scambio l'ha portata qui. Prima il salvataggio rimetteva lo stato e
+       l'assegnatario di quando il modulo si era aperto, e l'accettazione
+       spariva. Ora stato e assegnatario restano quelli aggiornati, salvo
+       che li abbia cambiati chi compila; le note e la chiusura della ditta
+       non si toccano da qui e restano sempre quelle salvate. */
+    const prima = caricata.current
+    const salvata = prima ? useStore.getState().requests.find((r) => r.id === draft.id) : undefined
+    const cambiataNelFrattempo = Boolean(prima && salvata && salvata.updatedAt !== prima.updatedAt)
+    let aggiornati: Partial<CleaningRequest> = {}
+    if (prima && salvata && cambiataNelFrattempo) {
+      const statoScelto = draft.status !== prima.status
+      aggiornati = {
+        status: statoScelto ? draft.status : salvata.status,
+        assigneeId: draft.assigneeId !== prima.assigneeId ? draft.assigneeId : salvata.assigneeId,
+        operatorNotes: salvata.operatorNotes,
+        ...(statoScelto ? {} : { completedAt: salvata.completedAt, completedById: salvata.completedById }),
+      }
+    }
+
     /* Si salva la scelta solo se diversa da quella di serie della casa: cosi'
        accendere l'opzione sulla casa vale anche per questa pulizia. */
     const diSerie = Boolean(apartment?.checkIn?.attivo)
     upsertRequest({
       ...draft,
+      ...aggiornati,
       checkIn: checkInAcceso === diSerie ? undefined : checkInAcceso,
       senzaPulizia: conPulizia ? undefined : true,
       /* Solo check-in: in calendario sta nel giorno dell'arrivo, e non ci sono
@@ -180,6 +206,12 @@ export function RequestForm({
         : extraCatalog.filter((e) => e.scope === 'apartment').slice(0, 2).map((e) => ({ name: e.name, qty: 2 })),
     })
     if (isNew) toast({ title: conPulizia ? 'Pulizia creata' : 'Check-in creato' })
+    else if (cambiataNelFrattempo) {
+      toast({
+        title: 'La richiesta era stata aggiornata nel frattempo',
+        description: 'Le tue modifiche sono salvate; stato, assegnazione e note della ditta restano quelli più recenti, salvo quelli che hai cambiato tu.',
+      })
+    }
     onClose()
   }
 

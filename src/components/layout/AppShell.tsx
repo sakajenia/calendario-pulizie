@@ -3,12 +3,12 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import {
   Bell, Building2, CalendarDays, ClipboardList, KeyRound, LayoutDashboard,
-  CloudOff, LogOut, Moon, Receipt, Search, Settings, Sun, Users, Wallet, Menu, X,
+  CloudOff, LogOut, Moon, Receipt, Search, Settings, Sun, Undo2, Users, Wallet, Menu, X,
 } from 'lucide-react'
 import { Logo, LogoIcon } from '@/components/brand/Logo'
 import { CommandPalette } from '@/components/CommandPalette'
 import { Button, Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui'
-import { useArchivioCondiviso, useCurrentUser, useNotifications, useStore } from '@/data/store'
+import { useAccesso, useArchivioCondiviso, useCurrentUser, useNotifications, useStore } from '@/data/store'
 import { isManager } from '@/lib/permissions'
 import { ROLE_META } from '@/types'
 import { useTheme } from '@/hooks/useTheme'
@@ -80,6 +80,11 @@ export function AppShell() {
   const ensureRecurring = useStore((s) => s.ensureRecurringInspections)
   const users = useStore((s) => s.users)
   const switchUser = useStore((s) => s.switchUser)
+  /* Chi ha fatto l'accesso: resta l'amministratore anche mentre guarda
+     l'app con il profilo di una ditta, cosi' puo' tornare se stesso. */
+  const accesso = useAccesso()
+  const cambiaProfilo = accesso?.role === 'admin'
+  const neiPanniDiAltri = cambiaProfilo && accesso.id !== user?.id
   const navigate = useNavigate()
   const percorso = useLocation().pathname
   const { dark, toggle } = useTheme()
@@ -274,9 +279,20 @@ export function AppShell() {
               }
             >
               {/* Cambiare profilo vuol dire diventare un altro utente: lo puo'
-                  fare solo l'amministratore (lo store lo rifiuta a chiunque altro). */}
-              {isAdmin && (
+                  fare solo l'amministratore (lo store lo rifiuta a chiunque altro).
+                  Conta chi ha fatto l'accesso, non il profilo che si sta
+                  guardando: prima, passato a una ditta, il menu spariva e per
+                  tornare indietro bisognava uscire. */}
+              {cambiaProfilo && (
                 <>
+                  {neiPanniDiAltri && (
+                    <>
+                      <DropdownItem onClick={() => { switchUser(accesso.id); navigate('/calendario') }}>
+                        <Undo2 /> Torna a {accesso.name}
+                      </DropdownItem>
+                      <DropdownSeparator />
+                    </>
+                  )}
                   <p className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                     Cambia profilo
                   </p>
