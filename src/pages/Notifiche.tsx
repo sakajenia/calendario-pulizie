@@ -110,7 +110,7 @@ function NotificationRow({
         <span className="min-w-0 flex-1 space-y-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className={cn('text-sm', unread ? 'font-semibold' : 'font-medium')}>{notification.title}</span>
-            <span className="rounded-full border border-border px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <span className="rounded-full border border-border px-1.5 py-px text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {meta.label}
             </span>
             {request && <StatusChip status={request.status} size="sm" />}

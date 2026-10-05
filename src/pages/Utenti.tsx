@@ -131,7 +131,7 @@ function SortHeader({
         onClick={() => onSort(sortKey)}
         aria-label={`Ordina per ${label}`}
         className={cn(
-          'inline-flex items-center gap-1 rounded uppercase tracking-wide transition-colors focus-ring hover:text-foreground',
+          'inline-flex items-center gap-1 rounded uppercase tracking-wide transition-colors focus-ring hover:text-foreground [@media(pointer:coarse)]:min-h-10',
           active && 'text-foreground',
         )}
       >
@@ -829,7 +829,7 @@ export default function Utenti() {
                           <div className="flex items-center gap-1.5">
                             <span className="truncate font-medium">{r.user.name}</span>
                             {isSelf && (
-                              <Badge className="bg-muted px-1.5 py-0 text-[10px] uppercase tracking-wide text-muted-foreground ring-1 ring-inset ring-border">
+                              <Badge className="bg-muted px-1.5 py-0 text-xs uppercase tracking-wide text-muted-foreground ring-1 ring-inset ring-border">
                                 Tu
                               </Badge>
                             )}

@@ -8,7 +8,7 @@ export function StatusChip({ status, className, size = 'md' }: {
 }) {
   const m = STATUS_META[status]
   return (
-    <Badge className={cn(m.chip, size === 'sm' && 'px-2 py-0.5 text-[11px]', className)}>
+    <Badge className={cn(m.chip, size === 'sm' && 'px-2 py-0.5 text-xs', className)}>
       <span className={cn('size-1.5 rounded-full', m.dot)} />
       {m.label}
     </Badge>
@@ -32,7 +32,7 @@ export function CheckInBadge({ request, className }: { request: CleaningRequest;
   const conCheckIn = useConCheckIn()
   if (!conCheckIn(request)) return null
   return (
-    <Badge className={cn('bg-checkin/12 text-checkin ring-1 ring-inset ring-checkin/25 px-2 py-0.5 text-[11px]', className)}>
+    <Badge className={cn('bg-checkin/12 text-checkin ring-1 ring-inset ring-checkin/25 px-2 py-0.5 text-xs', className)}>
       <span className="size-1.5 rounded-full bg-checkin" />
       {request.senzaPulizia ? 'Solo check-in' : 'Check-in'}
     </Badge>

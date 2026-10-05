@@ -123,7 +123,7 @@ function SortHeader({
         onClick={() => onSort(sortKey)}
         aria-label={`Ordina per ${label}`}
         className={cn(
-          'inline-flex items-center gap-1 rounded uppercase tracking-wide transition-colors focus-ring hover:text-foreground',
+          'inline-flex items-center gap-1 rounded uppercase tracking-wide transition-colors focus-ring hover:text-foreground [@media(pointer:coarse)]:min-h-10',
           active && 'text-foreground',
         )}
       >

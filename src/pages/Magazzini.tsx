@@ -116,7 +116,7 @@ function SortHeader({
         onClick={() => onSort(sortKey)}
         aria-label={`Ordina per ${label}`}
         className={cn(
-          'inline-flex items-center gap-1 rounded uppercase tracking-wide transition-colors focus-ring hover:text-foreground',
+          'inline-flex items-center gap-1 rounded uppercase tracking-wide transition-colors focus-ring hover:text-foreground [@media(pointer:coarse)]:min-h-10',
           active && 'text-foreground',
         )}
       >
@@ -900,7 +900,7 @@ export default function Magazzini() {
                               type="button"
                               onClick={() => setWhFilter(r.warehouse ? r.warehouse.id : 'all')}
                               title={`Mostra solo gli articoli di ${r.warehouse.name}`}
-                              className="block max-w-full truncate rounded text-left font-medium transition-colors focus-ring hover:text-brand"
+                              className="block max-w-full truncate rounded text-left font-medium [@media(pointer:coarse)]:py-2.5 transition-colors focus-ring hover:text-brand"
                             >
                               {r.warehouse.name}
                             </button>

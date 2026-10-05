@@ -213,7 +213,7 @@ export function CommandPalette() {
                     onMouseEnter={() => setActive(i)}
                     onClick={() => choose(c)}
                     className={cn(
-                      'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors',
+                      'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors [@media(pointer:coarse)]:min-h-10',
                       i === active ? 'bg-muted text-foreground' : 'text-muted-foreground',
                     )}
                   >

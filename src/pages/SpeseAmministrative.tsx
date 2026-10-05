@@ -540,7 +540,7 @@ export default function SpeseAmministrative() {
                       <button
                         type="button"
                         onClick={() => openEdit(e)}
-                        className="rounded-sm text-left font-medium hover:underline focus-ring"
+                        className="rounded-sm text-left font-medium hover:underline focus-ring [@media(pointer:coarse)]:py-2.5"
                       >
                         {e.title}
                       </button>

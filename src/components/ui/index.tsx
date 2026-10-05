@@ -77,7 +77,7 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
     <input
       ref={ref}
       className={cn(
-        'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm transition-colors',
+        'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm transition-colors [@media(pointer:coarse)]:min-h-10',
         'placeholder:text-muted-foreground focus-ring disabled:cursor-not-allowed disabled:opacity-50',
         className,
       )}
@@ -157,7 +157,7 @@ export const Select = React.forwardRef<
     <select
       ref={ref}
       className={cn(
-        'flex h-10 w-full appearance-none rounded-md border border-input bg-background px-3 pr-9 text-sm',
+        'flex h-10 w-full appearance-none rounded-md border border-input bg-background px-3 pr-9 text-sm [@media(pointer:coarse)]:min-h-10',
         'focus-ring disabled:cursor-not-allowed disabled:opacity-50',
         className,
       )}

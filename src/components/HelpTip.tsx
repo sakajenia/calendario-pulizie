@@ -79,9 +79,9 @@ export function HelpTip({ term, text, className }: { term?: string; text?: strin
         onBlur={() => setOpen(false)}
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
         className={cn(
-          /* Il pseudo-elemento allarga l'area sensibile a 34px: l'icona da 14px
+          /* Il pseudo-elemento allarga l'area sensibile a 40px: l'icona da 14px
              da sola e' quasi impossibile da centrare col dito. */
-          "relative inline-flex shrink-0 items-center justify-center rounded-full text-muted-foreground/70 transition-colors before:absolute before:-inset-[10px] before:content-[''] hover:text-brand focus-ring",
+          "relative inline-flex shrink-0 items-center justify-center rounded-full text-muted-foreground/70 transition-colors before:absolute before:-inset-[13px] before:content-[''] hover:text-brand focus-ring",
           className,
         )}
       >

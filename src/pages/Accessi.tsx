@@ -91,7 +91,7 @@ function SheetLink({
         href={url}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex h-9 w-full select-none items-center gap-2 rounded-md border border-input bg-background px-3 text-xs font-medium transition-all hover:bg-muted focus-ring [&_svg]:shrink-0 [&_svg:not([class*=size-])]:size-4"
+        className="inline-flex h-9 [@media(pointer:coarse)]:min-h-10 w-full select-none items-center gap-2 rounded-md border border-input bg-background px-3 text-xs font-medium transition-all hover:bg-muted focus-ring [&_svg]:shrink-0 [&_svg:not([class*=size-])]:size-4"
       >
         <Icon />
         <span className="truncate">{label}</span>
@@ -103,7 +103,7 @@ function SheetLink({
     <Button
       variant="outline"
       size="sm"
-      className="h-9 w-full justify-start border-dashed text-muted-foreground"
+      className="h-9 [@media(pointer:coarse)]:min-h-10 w-full justify-start border-dashed text-muted-foreground"
       onClick={onAdd}
       disabled={!onAdd}
       title={onAdd ? `Collega ${label.toLowerCase()}` : 'Link non ancora impostato'}

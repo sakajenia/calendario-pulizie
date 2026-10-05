@@ -190,7 +190,7 @@ export function AppShell() {
 
         {admin.length > 0 && (
           <>
-            <p className="px-3 pb-1 pt-5 [@media(max-height:500px)]:col-span-2 [@media(max-height:500px)]:pt-1 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">
+            <p className="px-3 pb-1 pt-5 [@media(max-height:500px)]:col-span-2 [@media(max-height:500px)]:pt-1 text-xs font-semibold uppercase tracking-widest text-sidebar-foreground/40">
               Amministrazione
             </p>
             {admin.map((e) => <NavItem key={e.to} entry={e} onNavigate={() => setMobileOpen(false)} />)}
@@ -296,14 +296,14 @@ export function AppShell() {
                       <DropdownSeparator />
                     </>
                   )}
-                  <p className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  <p className="px-2.5 py-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                     Cambia profilo
                   </p>
                   {users.filter((u) => u.active).map((u) => (
                     <DropdownItem key={u.id} onClick={() => { switchUser(u.id); navigate('/calendario') }}>
                       <span className={cn('size-1.5 rounded-full', u.id === user?.id ? 'bg-primary' : 'bg-border')} />
                       <span className="flex-1 truncate">{u.name}</span>
-                      <span className="shrink-0 text-[10px] text-muted-foreground">{ROLE_META[u.role].label}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{ROLE_META[u.role].label}</span>
                     </DropdownItem>
                   ))}
                   <DropdownSeparator />

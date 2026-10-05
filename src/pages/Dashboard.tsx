@@ -212,7 +212,7 @@ function ApartmentReport({
                 <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{fmtDate(i.at)}</span>
                 <span className="min-w-0 flex-1 text-sm">{i.title}</span>
                 {i.coveredBy && (
-                  <Badge className="bg-status-accepted/12 px-2 py-0.5 text-[10px] text-status-accepted ring-1 ring-inset ring-status-accepted/25">
+                  <Badge className="bg-status-accepted/12 px-2 py-0.5 text-xs text-status-accepted ring-1 ring-inset ring-status-accepted/25">
                     {i.coveredBy}
                   </Badge>
                 )}
@@ -268,7 +268,7 @@ function ApartmentReport({
               >
                 <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{fmtDate(e.at)}</span>
                 <span className="min-w-0 flex-1 text-sm">{e.title}</span>
-                <Badge className="bg-muted px-2 py-0.5 text-[10px] text-muted-foreground ring-1 ring-inset ring-border">
+                <Badge className="bg-muted px-2 py-0.5 text-xs text-muted-foreground ring-1 ring-inset ring-border">
                   {e.place}
                 </Badge>
                 <span className="shrink-0 text-sm font-medium tabular-nums">{fmtEur(e.amount)}</span>
