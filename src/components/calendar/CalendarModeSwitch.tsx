@@ -33,7 +33,7 @@ export function CalendarModeSwitch({
             aria-pressed={on}
             onClick={() => onChange(m.value)}
             className={cn(
-              'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all focus-ring',
+              'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all focus-ring [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:px-4',
               /* Verde su dove siamo: fra due calendari quasi identici la
                  posizione corrente deve saltare all'occhio, non solo staccarsi
                  dal fondo. */

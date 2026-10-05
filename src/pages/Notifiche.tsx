@@ -149,7 +149,7 @@ function NotificationRow({
           <Button
             variant="ghost"
             size="icon"
-            className="mt-1.5 size-8"
+            className="mt-1.5 size-8 [@media(pointer:coarse)]:size-10"
             aria-label={`Azioni per la notifica "${notification.title}"`}
           >
             <MoreVertical />

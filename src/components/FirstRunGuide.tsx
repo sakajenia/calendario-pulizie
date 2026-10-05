@@ -88,7 +88,9 @@ export function FirstRunGuide() {
     <section
       aria-labelledby="guida-titolo"
       className={cn(
-        'relative mx-4 mt-4 overflow-hidden rounded-xl border border-brand/20 bg-brand/[0.04]',
+        /* `shrink-0`: con overflow nascosto il riquadro e' comprimibile e, nel
+           contenitore che scorre della pagina, si tagliava a meta' riga. */
+        'relative mx-4 mt-4 shrink-0 overflow-hidden rounded-xl border border-brand/20 bg-brand/[0.04]',
         ampio ? 'p-5' : 'p-3',
       )}
     >
@@ -114,7 +116,8 @@ export function FirstRunGuide() {
             onClick={() => setExpanded((v) => !v)}
             aria-expanded={expanded}
             aria-controls="guida-dettagli"
-            className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-ring"
+            /* Area di tocco di almeno 40px anche se la riga e' compatta. */
+            className="flex min-h-10 min-w-10 shrink-0 items-center justify-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-ring"
           >
             {expanded ? 'Nascondi' : 'Mostra'}
             <ChevronDown className={cn('size-3.5 transition-transform', expanded && 'rotate-180')} />
@@ -126,8 +129,7 @@ export function FirstRunGuide() {
           onClick={dismiss}
           aria-label="Nascondi la guida"
           className={cn(
-            'shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-ring',
-            ampio && 'p-1.5',
+            'grid min-h-10 min-w-10 shrink-0 place-items-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-ring',
           )}
         >
           <X className="size-4" />

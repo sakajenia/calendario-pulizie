@@ -252,6 +252,9 @@ export default function CatalogoTask() {
           value={period}
           onChange={setPeriod}
           aria-label="Periodo delle task"
+          /* Le voci vanno a capo invece di scorrere di lato: a 360px
+             "Tutte 249" restava tagliata e nulla suggeriva lo scorrimento. */
+          className="flex-wrap"
           items={PERIOD_ITEMS.map((p) => ({ ...p, count: countByPeriod[p.value] }))}
         />
 
@@ -298,12 +301,13 @@ export default function CatalogoTask() {
         </div>
 
         {/* tag delle persone, con quante task ciascuna */}
-        <div className="no-scrollbar flex items-center gap-1 overflow-x-auto">
+        {/* Vanno a capo: nello scorrimento laterale l'ultimo nome restava tagliato. */}
+        <div className="flex flex-wrap items-center gap-1">
           <button
             type="button"
             onClick={() => setPeople([])}
             className={cn(
-              'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors focus-ring',
+              'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors focus-ring [@media(pointer:coarse)]:min-h-10 [@media(pointer:coarse)]:px-3',
               people.length === 0 ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted',
             )}
           >
@@ -320,12 +324,11 @@ export default function CatalogoTask() {
                 onClick={() => togglePerson(p)}
                 aria-pressed={on}
                 className={cn(
-                  'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors focus-ring',
+                  'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors focus-ring [@media(pointer:coarse)]:min-h-10 [@media(pointer:coarse)]:px-3',
                   on ? 'bg-muted text-foreground ring-1 ring-inset ring-border' : 'text-muted-foreground hover:bg-muted',
-                  !on && n === 0 && 'opacity-45',
                 )}
               >
-                <span className={cn('inline-block size-2 rounded-full', INSPECTOR_META[p].dot)} />
+                <span className={cn('inline-block size-2 rounded-full', INSPECTOR_META[p].dot, !on && n === 0 && 'opacity-50')} />
                 {INSPECTOR_META[p].label}
                 <span className="tabular-nums">{n}</span>
               </button>

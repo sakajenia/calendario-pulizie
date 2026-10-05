@@ -141,7 +141,7 @@ function RowMenu({
       align="end"
       className="w-[200px]"
       trigger={
-        <Button variant="ghost" size="icon" className="size-8" aria-label={`Azioni ${name}`}>
+        <Button variant="ghost" size="icon" className="size-8 [@media(pointer:coarse)]:size-10" aria-label={`Azioni ${name}`}>
           <MoreVertical />
         </Button>
       }

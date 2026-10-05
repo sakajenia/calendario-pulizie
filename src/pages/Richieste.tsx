@@ -15,7 +15,8 @@ import { RequestForm } from '@/components/requests/RequestForm'
 import { useToast } from '@/components/feedback/Toast'
 import { scopeApartments, scopeRequests, useCurrentUser, useStore } from '@/data/store'
 import {
-  canChangeStatus, canCompleteRequest, canCreateRequest, canDeleteRequest, canEditRequest, isManager,
+  canChangeStatus, canCompleteRequest, canCreateRequest, canDeleteRequest, canEditRequest, canRespondToRequest,
+  isManager,
 } from '@/lib/permissions'
 import { asDate, downloadFile, fmtDate, fmtDateTime, fmtNum, norm, plural, toCsv } from '@/lib/format'
 import { REQUEST_STATUSES, STATUS_META, type CleaningRequest, type RequestStatus } from '@/types'
@@ -299,7 +300,20 @@ export default function Richieste() {
   const deleteRequests = useStore((s) => s.deleteRequests)
   const upsertRequest = useStore((s) => s.upsertRequest)
   const completeRequest = useStore((s) => s.completeRequest)
+  const respondToRequest = useStore((s) => s.respondToRequest)
   const toast = useToast()
+
+  /* La ditta accetta o rifiuta anche dalla tabella, come dalle schede: stesso
+     riscontro, con rientro. */
+  const rispondi = (req: CleaningRequest, address: string, risposta: 'accetta' | 'rifiuta') => {
+    const before = req
+    respondToRequest(req.id, risposta)
+    toast({
+      title: risposta === 'accetta' ? 'Pulizia accettata' : 'Pulizia rifiutata',
+      description: address,
+      action: { label: 'Annulla', onClick: () => upsertRequest(before) },
+    })
+  }
 
   /* Un account pulizie non ha poteri sull'insieme: niente selezione multipla,
      niente creazione, niente cambio di stato libero. */
@@ -409,6 +423,9 @@ export default function Richieste() {
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const current = Math.min(page, pageCount)
   const pageRows = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)
+  /* Se nella pagina c'e' qualcosa a cui la ditta deve rispondere, la colonna
+     delle azioni si allarga per ospitare Accetta e Rifiuta. */
+  const mayRespondAny = pageRows.some((r) => canRespondToRequest(user, r.req))
 
   const selectedIds = React.useMemo(
     () => (mayBulk ? filtered.filter((r) => selected.has(r.req.id)).map((r) => r.req.id) : []),
@@ -678,10 +695,11 @@ export default function Richieste() {
         </div>
       )}
 
-      {/* Le schede valgono fino a lg: la tabella chiede 1240px e a 768
-          nascondeva meta' delle colonne dietro lo scorrimento laterale. */}
+      {/* Le schede valgono fino a xl (1280px): a 1024px la tabella era larga
+          ~1500px in un contenitore di 780 e nascondeva check-out, ospiti e i
+          pulsanti Accetta/Rifiuta dietro lo scorrimento laterale. */}
       {pageRows.length > 0 && (
-        <div className="stagger space-y-3 p-4 lg:hidden">
+        <div className="stagger space-y-3 p-4 xl:hidden">
           {pageRows.map((r) => (
             <RequestCard
               key={r.req.id}
@@ -692,7 +710,7 @@ export default function Richieste() {
         </div>
       )}
 
-      <TableScroller className={cn(pageRows.length > 0 && 'hidden lg:flex')} innerClassName="overflow-x-auto">
+      <TableScroller className={cn(pageRows.length > 0 && 'hidden xl:flex')} innerClassName="overflow-x-auto">
         {pageRows.length === 0 ? (
           <EmptyState
             icon={ClipboardList}
@@ -713,7 +731,7 @@ export default function Richieste() {
             }
           />
         ) : (
-          <Table className="min-w-[1240px]">
+          <Table>
             <thead>
               <tr>
                 {mayBulk && (
@@ -726,20 +744,24 @@ export default function Richieste() {
                     />
                   </Th>
                 )}
-                <Th className="w-10"><span className="sr-only">Azioni</span></Th>
+                <Th className={cn('w-10', mayRespondAny && 'w-[132px]')}><span className="sr-only">Azioni</span></Th>
                 <Th>Indirizzo</Th>
-                <Th>Cap/Quartiere</Th>
-                <Th>Città</Th>
-                <SortHeader label="Creazione" sortKey="createdAt" current={sortKey} dir={sortDir} onSort={sortBy} />
+                {/* CAP/quartiere e citta' compaiono solo con lo spazio di un
+                    monitor largo: sotto 2xl l'indirizzo basta. */}
+                <Th className="hidden 2xl:table-cell">Cap/Quartiere</Th>
+                <Th className="hidden 2xl:table-cell">Città</Th>
                 <SortHeader label="Stato" sortKey="status" current={sortKey} dir={sortDir} onSort={sortBy} />
                 <SortHeader label="Check-out" sortKey="checkOutAt" current={sortKey} dir={sortDir} onSort={sortBy} />
                 <SortHeader label="Check-in" sortKey="checkInAt" current={sortKey} dir={sortDir} onSort={sortBy} />
+                <SortHeader label="Creazione" sortKey="createdAt" current={sortKey} dir={sortDir} onSort={sortBy} />
                 <SortHeader
                   label="Ospiti in arrivo" sortKey="checkInPeople" current={sortKey} dir={sortDir}
-                  onSort={sortBy} className="text-right"
+                  onSort={sortBy} className="whitespace-normal text-right"
                 />
-                <Th className="text-right">Letti da preparare</Th>
-                <Th className="w-[260px] min-w-[200px]">Note</Th>
+                <Th className="whitespace-normal text-right">Letti da preparare</Th>
+                {/* Le note stanno nella scheda di dettaglio: la colonna compare solo
+                    sui monitor larghi, dove la tabella ha spazio per tutto. */}
+                <Th className="hidden w-[200px] min-w-[140px] min-[1700px]:table-cell">Note</Th>
               </tr>
             </thead>
             <tbody>
@@ -750,6 +772,7 @@ export default function Richieste() {
                 const rowStatus = canChangeStatus(user, r.req)
                 /* Il manager ha gia' il cambio di stato: la scorciatoia serve all'addetto. */
                 const rowComplete = !rowStatus && canCompleteRequest(user, r.req, allApartments) && r.req.status !== 'completata'
+                const rowRespond = canRespondToRequest(user, r.req)
                 return (
                   <tr
                     key={r.req.id}
@@ -770,6 +793,31 @@ export default function Richieste() {
                     )}
 
                     <Td onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-1">
+                      {/* La ditta risponde dalla riga, senza aprire la scheda. */}
+                      {rowRespond && (
+                        <>
+                          <Button
+                            size="icon"
+                            className="size-8 [@media(pointer:coarse)]:size-10"
+                            onClick={() => rispondi(r.req, r.address, 'accetta')}
+                            aria-label={`Accetta la pulizia di ${r.address}`}
+                            title="Accetta"
+                          >
+                            <Check />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="size-8 [@media(pointer:coarse)]:size-10"
+                            onClick={() => rispondi(r.req, r.address, 'rifiuta')}
+                            aria-label={`Rifiuta la pulizia di ${r.address}`}
+                            title="Rifiuta"
+                          >
+                            <X />
+                          </Button>
+                        </>
+                      )}
                       <RowMenu
                         name={r.address}
                         mayEdit={rowEdit}
@@ -793,31 +841,34 @@ export default function Richieste() {
                         }}
                         onDelete={() => setPendingDelete([r.req.id])}
                       />
+                      </div>
                     </Td>
 
-                    <Td className="max-w-[260px]">
+                    <Td className="max-w-[240px]">
                       <div className="truncate font-medium">{r.address}</div>
                       {r.name !== r.address && (
                         <div className="truncate text-xs text-muted-foreground">{r.name}</div>
                       )}
                     </Td>
 
-                    <Td className="whitespace-nowrap text-muted-foreground">{r.district}</Td>
-                    <Td className="whitespace-nowrap text-muted-foreground">{r.city}</Td>
-
-                    <Td className="whitespace-nowrap tabular-nums text-xs text-muted-foreground">
-                      {fmtDateTime(r.req.createdAt)}
-                    </Td>
+                    <Td className="hidden whitespace-nowrap text-muted-foreground 2xl:table-cell">{r.district}</Td>
+                    <Td className="hidden whitespace-nowrap text-muted-foreground 2xl:table-cell">{r.city}</Td>
 
                     <Td>
+                      {/* Lo stato non va mai a capo ("In / Attesa"): il badge del
+                          check-in sta sotto, se serve. */}
                       <span className="inline-flex flex-wrap items-center gap-1">
-                        <StatusChip status={r.req.status} size="sm" />
+                        <StatusChip status={r.req.status} size="sm" className="whitespace-nowrap" />
                         <CheckInBadge request={r.req} />
                       </span>
                     </Td>
 
                     <Td className="whitespace-nowrap tabular-nums text-xs">{fmtDateTime(r.req.checkOutAt)}</Td>
                     <Td className="whitespace-nowrap tabular-nums text-xs">{fmtDateTime(r.req.checkInAt)}</Td>
+
+                    <Td className="whitespace-nowrap tabular-nums text-xs text-muted-foreground">
+                      {fmtDateTime(r.req.createdAt)}
+                    </Td>
 
                     <Td className="text-right tabular-nums font-medium">{fmtNum(r.req.checkInPeople)}</Td>
 
@@ -831,7 +882,7 @@ export default function Richieste() {
                       )}
                     </Td>
 
-                    <Td className="max-w-[280px]">
+                    <Td className="hidden max-w-[200px] min-[1700px]:table-cell">
                       {r.req.notes ? (
                         <p className="line-clamp-2 text-xs text-muted-foreground">{r.req.notes}</p>
                       ) : (

@@ -14,7 +14,7 @@ import { useCurrentUser, useStore } from '@/data/store'
 import { isManager } from '@/lib/permissions'
 import { asDate, downloadFile, fmtDate, fmtNum, fmtRelative, norm, plural, toCsv } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { ROLE_META, type User, type UserRole } from '@/types'
+import { CLEANING_COMPANIES, COMPANY_META, ROLE_META, type CleaningCompanyId, type User, type UserRole } from '@/types'
 
 const ROLES: UserRole[] = ['admin', 'host', 'operator']
 
@@ -81,7 +81,7 @@ function RowMenu({
       align="end"
       className="w-[200px]"
       trigger={
-        <Button variant="ghost" size="icon" className="size-8" aria-label={`Azioni ${user.name}`}>
+        <Button variant="ghost" size="icon" className="size-8 [@media(pointer:coarse)]:size-10" aria-label={`Azioni ${user.name}`}>
           <MoreVertical />
         </Button>
       }
@@ -152,10 +152,12 @@ interface Draft {
   phone: string
   role: UserRole
   refHostId: string
+  /** Ditta di pulizie dell'addetto; vuoto = nessuna. */
+  companyId: CleaningCompanyId | ''
   active: boolean
 }
 
-const emptyDraft: Draft = { name: '', email: '', phone: '', role: 'operator', refHostId: '', active: true }
+const emptyDraft: Draft = { name: '', email: '', phone: '', role: 'operator', refHostId: '', companyId: '', active: true }
 
 function UserForm({
   open, onClose, initial, hosts, users,
@@ -181,6 +183,7 @@ function UserForm({
             phone: initial.phone ?? '',
             role: initial.role,
             refHostId: initial.refHostId ?? '',
+            companyId: initial.companyId ?? '',
             active: initial.active,
           }
         : emptyDraft,
@@ -202,7 +205,14 @@ function UserForm({
     setErrors(next)
     if (next.name || next.email) return
 
-    // Si parte dal record esistente: companyId, username, password e altri campi non modificabili qui devono sopravvivere
+    /* Togliere la ditta (o cambiare ruolo) deve viaggiare come `null`
+       esplicito: il server azzera la ditta solo quando riceve null, un campo
+       assente vuol dire "invariato" e la ditta tornerebbe al giro dopo. */
+    const ditta = draft.role === 'operator' && draft.companyId
+      ? draft.companyId
+      : initial?.companyId ? null : undefined
+
+    // Si parte dal record esistente: username, password e altri campi non modificabili qui devono sopravvivere
     upsertUser({
       ...initial,
       id: initial?.id ?? uid(),
@@ -212,6 +222,7 @@ function UserForm({
       role: draft.role,
       active: draft.active,
       refHostId: draft.role === 'operator' && draft.refHostId ? draft.refHostId : undefined,
+      companyId: ditta as CleaningCompanyId | undefined,
       createdAt: initial?.createdAt ?? new Date().toISOString(),
     })
     onClose()
@@ -266,7 +277,12 @@ function UserForm({
               value={draft.role}
               onChange={(e) => {
                 const role = e.target.value as UserRole
-                setDraft((d) => ({ ...d, role, refHostId: role === 'operator' ? d.refHostId : '' }))
+                setDraft((d) => ({
+                  ...d,
+                  role,
+                  refHostId: role === 'operator' ? d.refHostId : '',
+                  companyId: role === 'operator' ? d.companyId : '',
+                }))
               }}
               options={ROLES.map((r) => ({ value: r, label: ROLE_META[r].label }))}
             />
@@ -285,6 +301,19 @@ function UserForm({
             </Field>
           )}
         </div>
+
+        {draft.role === 'operator' && (
+          <Field label="Ditta di pulizie" hint="L'addetto vede solo le case affidate alla sua ditta.">
+            <Select
+              value={draft.companyId}
+              onChange={(e) => setDraft((d) => ({ ...d, companyId: e.target.value as CleaningCompanyId | '' }))}
+              options={[
+                { value: '', label: 'Nessuna ditta' },
+                ...CLEANING_COMPANIES.map((c) => ({ value: c, label: COMPANY_META[c].label })),
+              ]}
+            />
+          </Field>
+        )}
 
         <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
           <div>
