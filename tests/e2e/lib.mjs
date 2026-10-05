@@ -106,6 +106,30 @@ export async function preparaArchivio(t) {
   await aspetta(pieno, 'il manager non ha riempito l\'archivio')
 }
 
+/* ------------------------------------------- controlli a asserzioni multiple ---- */
+
+/**
+ * Registra una singola asserzione come controllo della suite (PASS/FAIL) e
+ * prosegue: serve alle spec che calcolano prima un valore dalla pagina e poi
+ * lo giudicano. `extra` e' il dettaglio mostrato se il controllo fallisce.
+ */
+export async function ok(t, nome, cond, extra = '') {
+  await t.check(nome, () => assert(cond, `${nome}${extra !== '' ? ` - ${extra}` : ''}`))
+}
+
+/**
+ * Esegue una sezione di una spec: se un passaggio lancia (un elemento che
+ * non compare, una pagina che non si apre) il guasto e' un FAIL con nome e la
+ * spec continua con la sezione dopo.
+ */
+export async function sezione(t, nome, fn) {
+  try {
+    await fn()
+  } catch (e) {
+    await t.check(`${nome} (errore)`, () => { throw e })
+  }
+}
+
 /** Una pulizia futura in attesa su una casa di Angela, scelta dallo stato del telefono. */
 export async function pulizieInAttesaAngela(page, escludi = []) {
   const s = await stato(page)
