@@ -254,26 +254,32 @@ const improntaVoce = (i: Inspection) => {
 }
 
 /**
+ * Se la voce arriva dai dati di riferimento o dalle scadenze fisse: gli
+ * identificativi del seme attuale, quelli delle versioni passate e le voci
+ * ricorrenti (che a ogni mese nascono fuori dall'elenco salvato).
+ */
+const vocePreparata = (i: Inspection, storici: Set<string>) =>
+  i.recurring === true || i.id.startsWith('ric-') || SEME_ATTUALE.has(i.id) || veniveDalSeme(i.id, storici)
+
+/**
  * Toglie i doppioni fra quello che e' stato scritto a mano e quello che arriva
  * dai dati di riferimento. Succede quando una voce inserita nell'app finisce
  * poi anche nel riferimento: senza questo, in calendario comparirebbe due
  * volte. Vince la copia scritta a mano, che porta le verifiche gia' spuntate.
+ *
+ * Si toglie solo la copia del riferimento, e solo se accanto c'e' quella a
+ * mano. Due voci scritte a mano uguali restano tutte e due: sono due controlli
+ * veri (la stessa persona puo' passare due volte nella stessa casa in un
+ * giorno), e prima il secondo spariva senza traccia.
  */
 function senzaDoppioni(voci: Inspection[], storici: Set<string>): Inspection[] {
-  const viste = new Map<string, Inspection>()
+  const conCopiaAMano = new Set<string>()
   for (const v of voci) {
-    const chiave = improntaVoce(v)
-    const gia = viste.get(chiave)
-    if (!gia) {
-      viste.set(chiave, v)
-      continue
-    }
-    const giaAMano = !veniveDalSeme(gia.id, storici)
-    const questaAMano = !veniveDalSeme(v.id, storici)
-    /* A parita', resta la prima: e' l'ordine in cui erano gia' in elenco. */
-    if (questaAMano && !giaAMano) viste.set(chiave, v)
+    if (!vocePreparata(v, storici)) conCopiaAMano.add(improntaVoce(v))
   }
-  return viste.size === voci.length ? voci : [...viste.values()]
+  if (conCopiaAMano.size === 0) return voci
+  const tenute = voci.filter((v) => !vocePreparata(v, storici) || !conCopiaAMano.has(improntaVoce(v)))
+  return tenute.length === voci.length ? voci : tenute
 }
 
 /**
@@ -288,11 +294,62 @@ function riallinea<T extends { id: string }>(
 ): T[] {
   if (!Array.isArray(salvati)) return dalSeme
   const nelSeme = new Set(dalSeme.map((x) => x.id))
-  const tenuti = salvati.filter((x) => nelSeme.has(x.id) || !veniveDalSeme(x.id, storici))
+  /* Le scadenze fisse (`ric-...`) non se ne vanno mai da sole: uscire dalla
+     finestra dei mesi generati non vuol dire essere state eliminate. Prima a
+     ogni cambio di mese le piu' vecchie sparivano da qui senza traccia, e
+     l'archivio (che non lo sapeva) le rimandava indietro. */
+  const tenuti = salvati.filter((x) => nelSeme.has(x.id) || x.id.startsWith('ric-') || !veniveDalSeme(x.id, storici))
   const presenti = new Set(tenuti.map((x) => x.id))
   const nuovi = dalSeme.filter((x) => !presenti.has(x.id) && !rimossi.has(x.id))
   return nuovi.length || tenuti.length !== salvati.length ? [...nuovi, ...tenuti] : salvati
 }
+
+/** Gli identificativi del seme di questa versione. */
+const SEME_ATTUALE = new Set(seed.SEED_IDS)
+
+/**
+ * Rimette a settembre 2026 le righe del seme finite in un altro mese.
+ *
+ * Fino alla versione 15 il seme si costruiva sul mese corrente con
+ * identificativi senza mese: aprendo l'app a ottobre, le pulizie e le voci
+ * di squadra dettate per settembre diventavano pulizie di ottobre, e partivano
+ * verso l'archivio. Si correggono solo quelle che nessuno ha toccato - pulizia
+ * ancora in attesa, nessuna modifica registrata, verifiche come nel seme -
+ * e prendono la versione di riferimento, che poi parte al giro di scambio.
+ * Quelle modificate a mano restano come sono.
+ */
+function riportaAlMeseDelPiano<T extends { id: string }>(
+  salvati: T[], dalSeme: T[], quando: (x: T) => string, intatta: (x: T, giusta: T) => boolean,
+): T[] {
+  const riferimento = new Map(dalSeme.map((x) => [x.id, x]))
+  let cambiate = 0
+  const fuori = salvati.map((x) => {
+    const giusta = riferimento.get(x.id)
+    if (!giusta || !SEME_ATTUALE.has(x.id)) return x
+    if (seed.nelMeseDelPiano(quando(x)) || !seed.nelMeseDelPiano(quando(giusta))) return x
+    if (!intatta(x, giusta)) return x
+    cambiate += 1
+    return giusta
+  })
+  return cambiate ? fuori : salvati
+}
+
+const pulizieAlMeseDelPiano = (salvate: CleaningRequest[], dalSeme: CleaningRequest[]) =>
+  riportaAlMeseDelPiano(
+    salvate, dalSeme, (r) => r.checkOutAt,
+    (r) => r.status === 'in_attesa' && !r.updatedAt && !r.updatedById && !r.completedAt,
+  )
+
+const vociAlMeseDelPiano = (salvate: Inspection[], dalSeme: Inspection[]) =>
+  riportaAlMeseDelPiano(
+    salvate, dalSeme, (i) => i.scheduledAt,
+    /* Le verifiche devono essere quelle del riferimento, spuntate allo stesso
+       modo: alcune voci del seme nascono gia' chiuse, e restano correggibili;
+       una spunta (o una verifica) in piu' o in meno vuol dire lavoro vero. */
+    (i, giusta) => !i.updatedAt && !i.updatedById && Array.isArray(i.tasks)
+      && i.tasks.length === giusta.tasks.length
+      && i.tasks.every((t, k) => t.name === giusta.tasks[k].name && Boolean(t.done) === Boolean(giusta.tasks[k].done)),
+  )
 
 /** Segna come eliminato, senza ripetizioni. */
 const segnaRimossi = (correnti: string[], ids: string[]) => [...new Set([...correnti, ...ids])]
@@ -339,7 +396,7 @@ function migrateState(persisted: unknown): ReturnType<typeof baseData> & { curre
     currentUserId: utenti.some((u) => u.id === collegato) ? collegato : null,
     users: utenti,
     apartments,
-    requests: riallinea(salvato.requests, base.requests, rimossi, storici),
+    requests: pulizieAlMeseDelPiano(riallinea(salvato.requests, base.requests, rimossi, storici), base.requests),
     taskCatalog: riallinea(salvato.taskCatalog, base.taskCatalog, rimossi, storici),
     /* La Pulizia Rapida non serve piu': va tolta anche dai dispositivi che
        l'avevano gia' salvata. */
@@ -350,7 +407,10 @@ function migrateState(persisted: unknown): ReturnType<typeof baseData> & { curre
     readNotifications: salvato.readNotifications ?? [],
     removedIds: salvato.removedIds ?? [],
     seedIds: seed.SEED_IDS,
-    inspections: senzaDoppioni(riallinea(salvato.inspections, base.inspections, rimossi, storici), storici),
+    inspections: senzaDoppioni(
+      vociAlMeseDelPiano(riallinea(salvato.inspections, base.inspections, rimossi, storici), base.inspections),
+      storici,
+    ),
     interventions: riallinea(salvato.interventions, base.interventions, rimossi, storici),
     adminExpenses: riallinea(salvato.adminExpenses, base.adminExpenses, rimossi, storici),
     sincronizzatoFino: salvato.sincronizzatoFino ?? 0,
@@ -371,9 +431,22 @@ function migrateState(persisted: unknown): ReturnType<typeof baseData> & { curre
  * (pallino giallo) appena il manager riapriva l'app.
  */
 const CHIAVE_IMPRONTE = 'ppm-impronte'
+/** Cresce a ogni azzeramento dello scambio (vedi `dimenticaSincronizzazione`). */
+let generazioneScambio = 0
+/** Dove lo store salva i dati sul dispositivo (vedi `persist` in fondo). */
+export const CHIAVE_STATO = 'propromanager-state'
 const impronteInviate = new Map<string, string>(
   (() => {
     try {
+      /* Dati del dispositivo cancellati (dalla schermata di errore, a mano
+         dal browser) ma impronte rimaste: il telefono crederebbe che
+         l'archivio abbia gia' le righe del seme appena ricreate, e al primo
+         giro le manderebbe sopra il lavoro di tutti. Senza dati, si riparte
+         anche con le impronte: il primo giro prende tutto dall'archivio. */
+      if (localStorage.getItem(CHIAVE_STATO) === null) {
+        localStorage.removeItem(CHIAVE_IMPRONTE)
+        return []
+      }
       return Object.entries(JSON.parse(localStorage.getItem(CHIAVE_IMPRONTE) ?? '{}') as Record<string, string>)
     } catch {
       return []
@@ -385,6 +458,32 @@ const salvaImpronte = () => {
     localStorage.setItem(CHIAVE_IMPRONTE, JSON.stringify(Object.fromEntries(impronteInviate)))
   } catch {
     /* finestra privata: vale solo per questa sessione */
+  }
+}
+
+/**
+ * Dimentica tutto quello che e' stato scambiato con l'archivio: le impronte
+ * (anche quelle salvate sul dispositivo). Va chiamata ogni volta che i dati
+ * del dispositivo ripartono da zero - "Ripristina dati" in Impostazioni, il
+ * "Svuota i dati" della schermata di errore - insieme all'azzeramento di
+ * `sincronizzatoFino`. Senza, il giro successivo crede che l'archivio abbia
+ * gia' le righe appena ricreate dal seme, le manda come modifiche nuove e
+ * copre il lavoro di tutti gli altri dispositivi. Cosi' invece il primo giro
+ * prende tutto dall'archivio, come su un telefono nuovo.
+ *
+ * Chi cancella `propromanager-state` da fuori lo store (SchermoRotto) puo'
+ * chiamarla prima di ricaricare; in ogni caso all'avvio, se i dati mancano e
+ * le impronte no, le impronte si buttano lo stesso (vedi sopra).
+ */
+export function dimenticaSincronizzazione() {
+  /* Un giro gia' partito non deve riscrivere impronte e punto di arrivo
+     dei dati di prima, quando la sua risposta arriva dopo l'azzeramento. */
+  generazioneScambio += 1
+  impronteInviate.clear()
+  try {
+    localStorage.removeItem(CHIAVE_IMPRONTE)
+  } catch {
+    /* finestra privata: non c'era niente di salvato */
   }
 }
 
@@ -490,38 +589,70 @@ function daPrendere(
   })
 }
 
-/** Porta dentro le righe arrivate dall'archivio. */
+/**
+ * Stesso contenuto, a prescindere dall'ordine dei campi e dai campi vuoti:
+ * nell'archivio un campo `undefined` non arriva, qui spesso presente.
+ */
+function stessoContenuto(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  if (Array.isArray(a)) {
+    const lb = b as unknown[]
+    return a.length === lb.length && a.every((x, i) => stessoContenuto(x, lb[i]))
+  }
+  const oa = a as Record<string, unknown>, ob = b as Record<string, unknown>
+  const pieni = (o: Record<string, unknown>) => Object.keys(o).filter((k) => o[k] !== undefined)
+  const ka = pieni(oa), kb = pieni(ob)
+  return ka.length === kb.length && ka.every((k) => stessoContenuto(oa[k], ob[k]))
+}
+
+/**
+ * Porta dentro le righe arrivate dall'archivio.
+ *
+ * Ritorna solo le raccolte cambiate davvero, e dentro una raccolta la riga
+ * identica a quella che presente resta lo stesso oggetto. Prima ogni giro con
+ * anche una sola riga in arrivo (spesso la nostra, che torna indietro dopo
+ * l'invio) ricostruiva tutti gli elenchi: le pagine credevano che fosse
+ * cambiato tutto e i moduli aperti ripartivano da capo.
+ */
 function applicaRighe(s: State, record: Required<RigaArchivio>[]): Partial<State> {
   /* Qui le schede utente restano quelle del dispositivo, password comprese:
      l'archivio non le ha e non deve cancellarle. */
-  const raccolte = { ...raccolteSincronizzate(s), users: s.users }
+  const attuali: Record<TipoSincronizzato, { id: string }[]> = {
+    users: s.users, apartments: s.apartments, requests: s.requests,
+    inspections: s.inspections, interventions: s.interventions, adminExpenses: s.adminExpenses,
+  }
   const prossime = Object.fromEntries(
-    TIPI_SINCRONIZZATI.map((t) => [t, new Map(raccolte[t].map((x) => [x.id, x]))]),
+    TIPI_SINCRONIZZATI.map((t) => [t, new Map(attuali[t].map((x) => [x.id, x]))]),
   ) as Record<TipoSincronizzato, Map<string, { id: string }>>
+  const cambiate = new Set<TipoSincronizzato>()
   const eliminati: string[] = []
 
   for (const r of record) {
     if (!TIPI_SINCRONIZZATI.includes(r.tipo)) continue
     if (r.eliminato) {
-      prossime[r.tipo].delete(r.id)
+      if (prossime[r.tipo].delete(r.id)) cambiate.add(r.tipo)
       eliminati.push(r.id)
     } else if (r.dati && typeof r.dati === 'object') {
+      const presente = prossime[r.tipo].get(r.id)
       /* La password dell'account creato qui non sta nell'archivio: si tiene
          quella del dispositivo, altrimenti il primo aggiornamento la toglie. */
-      const password = r.tipo === 'users' ? (prossime.users.get(r.id) as User | undefined)?.password : undefined
-      prossime[r.tipo].set(r.id, (password ? { ...r.dati, password } : r.dati) as { id: string })
+      const password = r.tipo === 'users' ? (presente as User | undefined)?.password : undefined
+      const arrivata = (password ? { ...r.dati, password } : r.dati) as { id: string }
+      /* Uguale a quella che c'e': resta l'oggetto di prima. */
+      if (presente && stessoContenuto(presente, arrivata)) continue
+      prossime[r.tipo].set(r.id, arrivata)
+      cambiate.add(r.tipo)
     }
   }
 
-  return {
-    users: [...prossime.users.values()] as State['users'],
-    apartments: [...prossime.apartments.values()] as State['apartments'],
-    requests: [...prossime.requests.values()] as State['requests'],
-    inspections: [...prossime.inspections.values()] as State['inspections'],
-    interventions: [...prossime.interventions.values()] as State['interventions'],
-    adminExpenses: [...prossime.adminExpenses.values()] as State['adminExpenses'],
-    removedIds: eliminati.length ? [...new Set([...s.removedIds, ...eliminati])] : s.removedIds,
-  }
+  const fuori: Partial<State> = {}
+  for (const t of cambiate) (fuori as Record<string, unknown>)[t] = [...prossime[t].values()]
+  const giaRimossi = new Set(s.removedIds)
+  const nuoviRimossi = eliminati.filter((id) => !giaRimossi.has(id))
+  if (nuoviRimossi.length) fuori.removedIds = [...new Set([...s.removedIds, ...nuoviRimossi])]
+  return fuori
 }
 
 /** Traduce l'esito di una chiamata in quello che si legge in Impostazioni. */
@@ -582,6 +713,22 @@ async function ricordaAccesso(identificativi: (string | null | undefined)[], pas
   }
 }
 
+/**
+ * Chi tiene il turno quando la pulizia passa ad accettata o in corso.
+ *
+ * Se la accetta il manager al posto della ditta, prima restava senza
+ * assegnatario: la ditta non poteva piu' rispondere (non e' in attesa) ne'
+ * completarla (non e' sua). Ora va all'account pulizie attivo della ditta che
+ * segue la casa; un assegnatario gia' scelto resta com'e'.
+ */
+function assegnatarioPerStato(s: State, r: CleaningRequest, status: RequestStatus): string | undefined {
+  if (r.assigneeId) return r.assigneeId
+  if (status !== 'accettata' && status !== 'in_corso') return r.assigneeId
+  const ditta = s.apartments.find((a) => a.id === r.apartmentId)?.companyId
+  if (!ditta) return r.assigneeId
+  return s.users.find((u) => u.role === 'operator' && u.active && u.companyId === ditta)?.id
+}
+
 /** Trova l'account dall'email o dal nome utente. */
 const trovaUtente = (users: User[], identifier: string) => {
   const chiave = identifier.trim().toLowerCase()
@@ -606,6 +753,17 @@ export const useStore = create<State>()(
         const esito = await accediArchivio(identifier, password)
         if (esito.ok) {
           const locale = get().users.find((u) => u.id === esito.dati.id)
+          /* L'archivio ha detto si', ma qui l'account e' stato disattivato o
+             eliminato: non si entra, e il gettone appena preso si butta. Prima
+             l'account eliminato veniva ricreato da capo su questo telefono. */
+          if (locale && !locale.active) {
+            dimenticaGettone()
+            return { ok: false, error: 'Utente non attivo' }
+          }
+          if (!locale && get().removedIds.includes(esito.dati.id)) {
+            dimenticaGettone()
+            return { ok: false, error: 'Questo account è stato eliminato: chiedi all’amministratore di riattivarlo' }
+          }
           if (!locale) {
             /* Un account creato nell'archivio da un altro dispositivo: entra
                lo stesso, i suoi dati arrivano col primo giro di scambio. */
@@ -671,19 +829,34 @@ export const useStore = create<State>()(
           archivio: { stato: 'verifica' },
         })
       },
-      switchUser: (id) => set({ currentUserId: id, filters: emptyFilters }),
+      /* Passare a un altro account senza password e' una cosa da
+         amministratore (per vedere l'app come la vede una ditta). Per tutti
+         gli altri non fa niente: prima chiunque diventava chiunque. */
+      switchUser: (id) =>
+        set((s) => {
+          const io = s.users.find((u) => u.id === s.currentUserId)
+          if (io?.role !== 'admin' || !s.users.some((u) => u.id === id)) return {}
+          return { currentUserId: id, filters: emptyFilters }
+        }),
 
       setFilters: (f) => set((s) => ({ filters: { ...s.filters, ...f } })),
       resetFilters: () => set({ filters: emptyFilters }),
 
       upsertRequest: (r) =>
         set((s) => ({
-          requests: upsertBy(s.requests, { ...r, updatedAt: nowIso(), updatedById: s.currentUserId ?? undefined }),
+          requests: upsertBy(s.requests, {
+            ...r,
+            assigneeId: assegnatarioPerStato(s, r, r.status),
+            updatedAt: nowIso(),
+            updatedById: s.currentUserId ?? undefined,
+          }),
         })),
       setRequestStatus: (ids, status) =>
         set((s) => ({
           requests: s.requests.map((r) =>
-            ids.includes(r.id) ? { ...r, status, ...statusStamp(status, s.currentUserId) } : r,
+            ids.includes(r.id)
+              ? { ...r, status, assigneeId: assegnatarioPerStato(s, r, status), ...statusStamp(status, s.currentUserId) }
+              : r,
           ),
         })),
       deleteRequests: (ids) =>
@@ -777,11 +950,17 @@ export const useStore = create<State>()(
             ...base.inspections,
             ...ricorrenti.filter((r) => !base.inspections.some((b) => b.id === r.id)),
           ]
-          const inspections = senzaDoppioni(riallinea(s.inspections, riferimento, rimossi, storici), storici)
+          /* La correzione del mese vale anche qui: una copia di ottobre puo'
+             arrivare dopo, dall'archivio, mandata da un telefono rimasto alla
+             versione vecchia. Tocca solo le righe che nessuno ha modificato. */
+          const inspections = senzaDoppioni(
+            vociAlMeseDelPiano(riallinea(s.inspections, riferimento, rimossi, storici), base.inspections),
+            storici,
+          )
           const next = {
             users: riallinea(s.users, base.users, rimossi, storici),
             apartments: riallinea(s.apartments, base.apartments, rimossi, storici),
-            requests: riallinea(s.requests, base.requests, rimossi, storici),
+            requests: pulizieAlMeseDelPiano(riallinea(s.requests, base.requests, rimossi, storici), base.requests),
             inspections,
             interventions: riallinea(s.interventions, base.interventions, rimossi, storici),
             adminExpenses: riallinea(s.adminExpenses, base.adminExpenses, rimossi, storici),
@@ -809,9 +988,14 @@ export const useStore = create<State>()(
           }
           if (!esito.ok) { errori.push(`${casa.name}: ${esito.errore}`); continue }
           const piano = pulizieDaCalendario(casa, leggiCalendario(esito.dati.ics), get().requests)
-          const cambiate = [...piano.nuove, ...piano.aggiornate, ...piano.annullate]
+          /* Una pulizia del calendario eliminata dal manager non torna: il suo
+             identificativo e' fisso per casa e giorno, e senza questo
+             controllo il giro dopo la ricreava identica. */
+          const rimosse = new Set(get().removedIds)
+          const daCreare = piano.nuove.filter((r) => !rimosse.has(r.id))
+          const cambiate = [...daCreare, ...piano.aggiornate, ...piano.annullate]
           if (cambiate.length) set((s) => ({ requests: cambiate.reduce((l, r) => upsertBy(l, r), s.requests) }))
-          nuove += piano.nuove.length; aggiornate += piano.aggiornate.length; annullate += piano.annullate.length
+          nuove += daCreare.length; aggiornate += piano.aggiornate.length; annullate += piano.annullate.length
         }
         return { ok: errori.length === 0, nuove, aggiornate, annullate, errori }
       },
@@ -922,6 +1106,16 @@ export const useStore = create<State>()(
              arrivava a nessuno. Ora si torna all'accesso; i dati del telefono
              restano e partono appena si rientra. */
           const scaduto = () => get().sessioneScaduta()
+          /* I dati sono ripartiti da zero mentre si aspettava la rete: questo
+             giro parlava dei dati di prima e si ferma. */
+          const generazione = generazioneScambio
+          const superato = () => generazione !== generazioneScambio
+          /* Nessun `set` se non cambia niente: anche un aggiornamento a vuoto
+             risveglia tutte le pagine collegate allo store. */
+          const applicaSeCambia = (righe: Required<RigaArchivio>[]) => {
+            const cambi = applicaRighe(get(), righe)
+            if (Object.keys(cambi).length > 0) set(cambi)
+          }
           /* Senza gettone non si scambia niente, ma si guarda lo stesso se
              l'archivio c'e'. Se c'e' e qualcuno e' dentro, il gettone e' andato
              perso (rifiutato a meta' di un'altra chiamata): si torna
@@ -955,13 +1149,14 @@ export const useStore = create<State>()(
               [...indiceRighe(get())].map(([chiave, riga]) => [chiave, improntaRiga({ dati: riga })]),
             )
             const tutto = await tiraDallArchivio(0)
+            if (superato()) return
             if (!tutto.ok) {
               if (tutto.scaduto) return scaduto()
               set({ archivio: statoArchivio(tutto) })
               return
             }
             const presi = daPrendere(get(), tutto.dati.record, (chiave) => primaDelTutto.get(chiave))
-            if (presi.length > 0) set((s) => applicaRighe(s, presi))
+            if (presi.length > 0) applicaSeCambia(presi)
             for (const r of presi) impronteInviate.set(`${r.tipo}:${r.id}`, improntaScambiata(r))
             set({ sincronizzatoFino: tutto.dati.adesso })
             salvaImpronte()
@@ -976,6 +1171,7 @@ export const useStore = create<State>()(
           const daMandare = righeCambiate(prima)
           if (daMandare.length > 0) {
             const inviato = await spingiNellArchivio(daMandare)
+            if (superato()) return
             if (!inviato.ok) {
               if (inviato.scaduto) return scaduto()
               set({ archivio: statoArchivio(inviato) })
@@ -986,6 +1182,7 @@ export const useStore = create<State>()(
           }
 
           const arrivato = await tiraDallArchivio(prima.sincronizzatoFino)
+          if (superato()) return
           if (!arrivato.ok) {
             if (arrivato.scaduto) return scaduto()
             set({ archivio: statoArchivio(arrivato) })
@@ -998,7 +1195,7 @@ export const useStore = create<State>()(
           const { adesso } = arrivato.dati
           const record = daPrendere(get(), arrivato.dati.record, (chiave) => impronteInviate.get(chiave))
           if (record.length > 0) {
-            set((s) => applicaRighe(s, record))
+            applicaSeCambia(record)
             for (const r of record) impronteInviate.set(`${r.tipo}:${r.id}`, improntaScambiata(r))
           }
           salvaImpronte()
@@ -1011,7 +1208,14 @@ export const useStore = create<State>()(
         }
       },
 
-      resetData: () => set({ ...baseData(), filters: emptyFilters }),
+      /* Si riparte dal seme e anche dallo scambio: con le impronte vecchie il
+         telefono avrebbe mandato le righe del seme sopra l'archivio di tutti.
+         Cosi' il primo giro prende tutto dall'archivio, come su un telefono
+         nuovo. */
+      resetData: () => {
+        dimenticaSincronizzazione()
+        set({ ...baseData(), sincronizzatoFino: 0, filters: emptyFilters })
+      },
 
       importData: (payload) => {
         const dati = (payload as { data?: Record<string, unknown> } | undefined)?.data
@@ -1061,14 +1265,16 @@ export const useStore = create<State>()(
       },
     }),
     {
-      name: 'propromanager-state',
+      name: CHIAVE_STATO,
       /*
-       * La versione resta ferma: quello che arriva di nuovo lo porta `syncSeed`,
-       * che aggiunge senza cancellare (vedi sotto). Prima si buttava via tutto a
-       * ogni cambiamento, e con l'app ormai in uso quel gesto cancellerebbe le
-       * task e le pulizie inserite a mano.
+       * La versione cambia di rado: quello che arriva di nuovo lo porta
+       * `ensureRecurringInspections`, che aggiunge senza cancellare. Prima si
+       * buttava via tutto a ogni cambiamento, e con l'app ormai in uso quel
+       * gesto cancellerebbe le task e le pulizie inserite a mano.
+       * 16: le pulizie e le voci del seme finite fuori da settembre 2026 (e
+       * mai toccate) tornano a settembre (vedi `riportaAlMeseDelPiano`).
        */
-      version: 15,
+      version: 16,
       migrate: (persisted) => migrateState(persisted),
       partialize: (s) => ({
         currentUserId: s.currentUserId,

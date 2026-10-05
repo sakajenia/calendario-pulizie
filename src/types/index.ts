@@ -271,6 +271,12 @@ export interface CleaningRequest {
    * dalla ditta): se la prenotazione torna, la pulizia si riattiva.
    */
   annullataDaCalendario?: boolean
+  /**
+   * Ospiti in arrivo stimati, non dichiarati: il calendario delle prenotazioni
+   * non dice quante persone arrivano, quindi l'import mette un numero neutro
+   * (2, o meno se la casa ne ospita meno). Va confermato prima di pagare.
+   */
+  ospitiStimati?: boolean
   /** Ultima modifica registrata sulla richiesta. */
   updatedAt?: string
   updatedById?: string

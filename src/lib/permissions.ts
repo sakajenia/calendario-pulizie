@@ -1,4 +1,4 @@
-import { ROLE_META, type AccountKind, type CleaningRequest, type User } from '@/types'
+import { ROLE_META, type AccountKind, type Apartment, type CleaningRequest, type User } from '@/types'
 
 /** Tipologia di account: "manager" fa tutto, "pulizie" completa e annota. */
 export const accountKind = (user: User | null | undefined): AccountKind | null =>
@@ -23,11 +23,23 @@ export const canChangeStatus = canManageRequest
 /** Creazione di nuove richieste di pulizia. */
 export const canCreateRequest = (user: User | null | undefined) => isManager(user)
 
-/** L'addetto segna come completata solo le pulizie che gli sono assegnate. */
-export function canCompleteRequest(user: User | null | undefined, request: CleaningRequest | null | undefined): boolean {
+/**
+ * L'addetto segna come completata una pulizia assegnata a lui, oppure una
+ * qualsiasi pulizia di una casa della sua ditta: un turno accettato dal
+ * manager senza assegnatario restava altrimenti impossibile da chiudere.
+ *
+ * Per riconoscere le case della ditta servono gli appartamenti: chi non li
+ * passa (le chiamate di prima) ha il controllo di sempre, sull'assegnatario.
+ */
+export function canCompleteRequest(
+  user: User | null | undefined, request: CleaningRequest | null | undefined, apartments?: Apartment[],
+): boolean {
   if (!user || !request) return false
   if (canManageRequest(user, request)) return true
-  return isOperator(user) && request.assigneeId === user.id
+  if (!isOperator(user)) return false
+  if (request.assigneeId === user.id) return true
+  if (!user.companyId || !apartments) return false
+  return apartments.some((a) => a.id === request.apartmentId && a.companyId === user.companyId)
 }
 
 /** Le note dell'addetto seguono le stesse regole del completamento. */

@@ -63,7 +63,8 @@ export function buildNotifications({
   for (const r of requests) {
     if (r.status !== 'in_attesa') continue
     const deadline = deadlineOf(r)
-    if (deadline > t) continue
+    /* Una data scritta male non fa cadere la pagina: la richiesta si salta. */
+    if (!Number.isFinite(deadline) || deadline > t) continue
     const casa = houseName(apartments, r.apartmentId)
     const tardi = ms(r.checkOutAt) < t
     out.push({
@@ -86,7 +87,8 @@ export function buildNotifications({
   for (const r of requests) {
     if (r.status !== 'accettata') continue
     const at = ms(r.updatedAt ?? r.createdAt)
-    if (at < since || at > t) continue
+    /* `new Date(NaN).toISOString()` lancia un errore: date illeggibili fuori. */
+    if (!Number.isFinite(at) || at < since || at > t) continue
     out.push({
       id: `accettata:${r.id}`,
       kind: 'accettata',
@@ -126,7 +128,7 @@ export function buildNotifications({
     for (const task of i.tasks) {
       if (!task.createdAt) continue
       const quando = ms(task.createdAt)
-      if (quando < since || quando > t || quando <= nata) continue
+      if (!Number.isFinite(quando) || quando < since || quando > t || quando <= nata) continue
       out.push({
         id: `task-nuova:${i.id}:${task.id}`,
         kind: 'taskAggiunta',
