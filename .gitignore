@@ -4,3 +4,6 @@ dist
 *.local
 .vite
 .wrangler/
+
+# Copie di lavoro temporanee degli agenti
+.claude/worktrees/
