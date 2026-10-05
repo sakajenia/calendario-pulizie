@@ -153,7 +153,7 @@ function AccessCard({
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 shrink-0"
+            className="size-8 shrink-0 [@media(pointer:coarse)]:size-10"
             aria-label={`Modifica gli accessi di ${apartment.name}`}
             onClick={() => onEdit(apartment)}
           >
@@ -441,7 +441,7 @@ export default function Accessi() {
           <Input
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Filtra per casa, indirizzo o codice"
+            placeholder="Casa, indirizzo o codice"
             className="pl-9 pr-9"
             aria-label="Filtra per casa, indirizzo o codice"
           />

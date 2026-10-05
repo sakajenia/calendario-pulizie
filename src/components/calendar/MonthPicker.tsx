@@ -60,7 +60,7 @@ export function MonthPicker({ value, onChange }: { value: Date; onChange: (d: Da
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors hover:bg-muted focus-ring"
+        className="flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors hover:bg-muted focus-ring [@media(pointer:coarse)]:h-10"
       >
         <span className="font-display text-base font-bold capitalize tracking-tight">{fmtMonthYear(value)}</span>
         <ChevronDown className={cn('size-4 text-muted-foreground transition-transform', open && 'rotate-180')} />
@@ -89,7 +89,7 @@ export function MonthPicker({ value, onChange }: { value: Date; onChange: (d: Da
                     setOpen(false)
                   }}
                   className={cn(
-                    'rounded-md py-2 text-xs font-medium capitalize transition-colors focus-ring',
+                    'rounded-md py-2 text-xs font-medium capitalize transition-colors focus-ring [@media(pointer:coarse)]:h-10',
                     current ? 'bg-primary text-primary-foreground' : 'hover:bg-muted',
                   )}
                 >

@@ -159,7 +159,7 @@ function ApartmentReport({
         <Button
           variant="outline"
           size="sm"
-          className="no-print shrink-0"
+          className="no-print shrink-0 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:min-w-10"
           onClick={() => onExport(apartment)}
           aria-label={`Esporta il PDF di ${apartment.name}`}
           title={`Esporta il PDF di ${apartment.name}`}
@@ -228,7 +228,7 @@ function ApartmentReport({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="no-print size-6 shrink-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+                    className="no-print size-6 shrink-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 [@media(pointer:coarse)]:size-10 [@media(pointer:coarse)]:opacity-100"
                     aria-label={`Elimina l’intervento “${i.title}”`}
                     onClick={() => onDelete(i)}
                   >

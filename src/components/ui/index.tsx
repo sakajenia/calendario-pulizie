@@ -14,11 +14,14 @@ const BTN_VARIANTS = {
   link: 'text-brand underline-offset-4 hover:underline',
 } as const
 
+/* Con il dito (puntatore "coarse") i pulsanti compatti salgono ad almeno
+   40px (min-*, cosi' un'altezza maggiore data da chi li usa resta): col mouse
+   restano com'erano, cosi' le barre dense del desktop non cambiano. */
 const BTN_SIZES = {
-  sm: 'h-8 rounded-md px-3 text-xs',
+  sm: 'h-8 rounded-md px-3 text-xs [@media(pointer:coarse)]:min-h-10',
   md: 'h-10 rounded-md px-4 text-sm',
   lg: 'h-11 rounded-lg px-6 text-sm',
-  icon: 'h-9 w-9 rounded-md',
+  icon: 'h-9 w-9 rounded-md [@media(pointer:coarse)]:min-h-10 [@media(pointer:coarse)]:min-w-10',
   pill: 'h-11 rounded-full px-7 text-sm',
 } as const
 
@@ -320,7 +323,9 @@ export function Dialog({
   const width = { sm: 'max-w-md', md: 'max-w-xl', lg: 'max-w-3xl', xl: 'max-w-5xl' }[size]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:p-8">
+    /* Il margine largo (sm:p-8) vale solo con altezza comoda: in orizzontale
+       sul telefono (390px) mangiava 64px e il pannello usciva dallo schermo. */
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 [@media(min-height:600px)]:sm:p-8">
       <div className="fixed inset-0 bg-foreground/45 backdrop-blur-[2px] animate-fade-in" onClick={onClose} />
       <div
         ref={panelRef}
@@ -328,12 +333,14 @@ export function Dialog({
         aria-modal="true"
         {...(title ? { 'aria-labelledby': titleId } : { 'aria-label': 'Finestra di dialogo' })}
         className={cn(
-          'relative z-10 my-auto w-full rounded-xl border border-border bg-card shadow-2xl animate-scale-in',
+          /* Il pannello sta sempre nello schermo: corpo che scorre, testata e
+             piede fissi, cosi' il pulsante principale non finisce mai sotto la piega. */
+          'relative z-10 my-auto flex max-h-[calc(100dvh-2rem)] w-full flex-col rounded-xl border border-border bg-card shadow-2xl animate-scale-in [@media(min-height:600px)]:sm:max-h-[calc(100dvh-4rem)]',
           width,
         )}
       >
         {(title || description) && (
-          <div className="flex items-start justify-between gap-4 border-b border-border p-5">
+          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border p-5">
             {/* Il titolo si accorcia e va a capo, il pulsante Chiudi no: su 360px
                 restava schiacciato a 23px di larghezza. */}
             <div className="min-w-0 flex-1 space-y-1">
@@ -345,8 +352,8 @@ export function Dialog({
             </Button>
           </div>
         )}
-        <div className="max-h-[70vh] overflow-y-auto p-5">{children}</div>
-        {footer && <div className="flex items-center justify-end gap-2 border-t border-border p-4">{footer}</div>}
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
+        {footer && <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border p-4">{footer}</div>}
       </div>
     </div>
   )
@@ -637,7 +644,7 @@ export function Tabs<T extends string>({
           aria-pressed={value === it.value}
           onClick={() => onChange(it.value)}
           className={cn(
-            'shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all focus-ring',
+            'shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all focus-ring [@media(pointer:coarse)]:min-h-10',
             value === it.value ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
           )}
         >

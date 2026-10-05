@@ -347,7 +347,13 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
       : `Settimana ${format(periodStart, 'd MMM', { locale: it })} – ${format(periodEnd, 'd MMM yyyy', { locale: it })}`
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    /* Scorre il contenitore esterno, non la griglia: testata, guida e
+       scorciatoia della ditta stanno dentro lo scorrimento, cosi' su un
+       telefono (anche in orizzontale) il calendario non resta in 128px. Da lg
+       in su le due colonne riempiono l'altezza (`lg:overflow-hidden` sulla
+       griglia) e il contenitore scorre solo se lo schermo e' troppo basso per
+       la loro altezza minima. */
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto overscroll-contain">
       <PageHeader
         title="Calendario Pulizie"
         subtitle={
@@ -393,9 +399,11 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
       {/* La colonna unica del telefono va bloccata a `minmax(0,1fr)`: senza,
           la griglia si allarga fino al contenuto piu' largo e l'app scorre di
           lato invece di stare nello schermo. */}
-      {/* Sotto lg il fondo lascia posto al pulsante "+" flottante (e alla
-          barra di sistema dei telefoni): senza, copriva l'ultima riga. */}
-      <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-4 pb-[calc(7rem+env(safe-area-inset-bottom))] grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,55fr)_minmax(0,45fr)] lg:content-stretch lg:overflow-hidden lg:pb-4">
+      {/* Sotto lg il fondo lascia posto al pulsante "+" flottante (56px + 24px
+          di distanza) e alla barra di sistema dei telefoni: senza, copriva
+          l'ultima riga. Da lg l'altezza minima fa scorrere il contenitore
+          invece di tagliare la colonna delle richieste. */}
+      <div className="grid flex-none content-start gap-4 p-4 pb-[calc(7rem+env(safe-area-inset-bottom))] grid-cols-[minmax(0,1fr)] lg:min-h-[36rem] lg:flex-1 lg:grid-cols-[minmax(0,55fr)_minmax(0,45fr)] lg:content-stretch lg:overflow-hidden lg:pb-4">
         {/* ---------------------------------------------------- calendario */}
         <Card className="flex min-w-0 flex-col lg:min-h-0 lg:overflow-hidden">
           <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
@@ -578,7 +586,7 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
               type="button"
               onClick={() => setStatuses([])}
               className={cn(
-                'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-medium transition-colors focus-ring',
+                'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-1 text-xs font-medium transition-colors focus-ring [@media(pointer:coarse)]:min-h-10 [@media(pointer:coarse)]:px-3',
                 statuses.length === 0 ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted',
               )}
             >
@@ -595,19 +603,20 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
                   onClick={() => toggleStatus(s)}
                   aria-pressed={on}
                   className={cn(
-                    'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-medium transition-colors focus-ring',
+                    'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-1 text-xs font-medium transition-colors focus-ring [@media(pointer:coarse)]:min-h-10 [@media(pointer:coarse)]:px-3',
                     on ? 'bg-muted text-foreground ring-1 ring-inset ring-border' : 'text-muted-foreground hover:bg-muted',
-                    !on && n === 0 && 'opacity-45',
                   )}
                 >
-                  <StatusDot status={s} className="size-2" />
+                  {/* Lo zero si attenua nel pallino, non nel testo: con l'opacita'
+                      sull'intera pillola il contrasto scendeva sotto la soglia. */}
+                  <StatusDot status={s} className={cn('size-2', !on && n === 0 && 'opacity-50')} />
                   {STATUS_META[s].label}
                   <span className="tabular-nums">{n}</span>
                 </button>
               )
             })}
             {/* Solo legenda: il blu segna le pulizie con check-in. */}
-            <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2 py-1 text-[11px] font-medium text-muted-foreground">
+            <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2 py-1 text-xs font-medium text-muted-foreground [@media(pointer:coarse)]:min-h-10 [@media(pointer:coarse)]:px-3">
               <span className="inline-block size-2 rounded-full bg-checkin" />
               Check-in
             </span>
@@ -669,7 +678,7 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
 
             <div className="flex flex-wrap items-center gap-2">
               <Select
-                className="h-8 w-auto text-xs"
+                className="h-8 w-auto text-xs [@media(pointer:coarse)]:h-10"
                 aria-label="Ordinamento"
                 value={sort}
                 onChange={(e) => setSort(e.target.value as SortKey)}
@@ -823,7 +832,7 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
       {/* Sul telefono niente pulsante di aggiornamento: la sincronizzazione e'
           automatica, e due pulsanti tondi coprivano le celle dei giorni. */}
       {mayCreate && (
-        <div className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 z-30 lg:hidden">
+        <div className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-[calc(1.5rem+env(safe-area-inset-right))] z-30 lg:hidden">
           <Button
             size="icon"
             onClick={openNew}
@@ -909,7 +918,7 @@ function CalendarioPulizie({ modeSwitch }: { modeSwitch: React.ReactNode }) {
         open={formOpen}
         onClose={closeForm}
         initial={editing}
-        defaultDate={selectedDay ?? undefined}
+        defaultDate={selectedDay ?? TODAY}
       />
 
       <Dialog
