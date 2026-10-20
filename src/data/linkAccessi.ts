@@ -11,6 +11,7 @@
  * Non toccano nient'altro: calendario, pulizie e codici restano come sono.
  */
 import type { Apartment } from '@/types'
+import { norm } from '@/lib/format'
 
 interface LinkCasa {
   /** Pagina con le foto e i controlli di come va lasciata la casa.
@@ -51,9 +52,9 @@ export const LINK_FISSI: Record<string, LinkCasa> = {
     comeLasciare: 'https://tools.affittibreviaroma.com/check-consoli-5',
     infoAccessi: 'https://drive.google.com/drive/u/2/folders/1qfSnM4Qw8NfQjsDNsMkMJu7FzmH2-d8A',
   },
-  /* Stazione Centrale Roma · Via di Porta Labicana 19. Link "come lasciare
-     la casa" non ancora dato. */
+  /* Stazione Centrale Roma · Via di Porta Labicana 19 */
   'ap-labicana': {
+    comeLasciare: 'https://tools.affittibreviaroma.com/check-llabicana-19',
     infoAccessi: 'https://drive.google.com/drive/folders/1nfdd2tdzYd_5TanFMHZ2yPAqCbiNWbkp?usp=drive_link',
   },
   /* Villa di Prestigio · Via Appia Pignatelli 198. Nessun link "come
@@ -64,9 +65,37 @@ export const LINK_FISSI: Record<string, LinkCasa> = {
   },
 }
 
+/*
+ * Case create dentro l'app: il loro identificativo nasce sul telefono di chi
+ * le crea e qui non si conosce. Si riconoscono dal nome o dall'indirizzo,
+ * senza badare a maiuscole, accenti e punteggiatura ("Viale dei Quattro
+ * Venti, 12" vale come "viale quattro venti").
+ */
+export const LINK_PER_NOME: { cerca: string; link: LinkCasa }[] = [
+  /* Viale Quattro Venti */
+  {
+    cerca: 'quattro venti',
+    link: {
+      comeLasciare: 'https://tools.affittibreviaroma.com/quattro-venti',
+      infoAccessi: 'https://drive.google.com/drive/folders/1w6zCU-WDmRGQPbnm0cv-hOMjNBVlK8b1?usp=sharing',
+    },
+  },
+]
+
+const semplice = (s: string | undefined) => norm(s ?? '').replace(/[^a-z0-9]+/g, ' ').trim()
+
+/** I link fissi di una casa: per identificativo, altrimenti per nome o indirizzo. */
+function fissiDi(apartment: Apartment): LinkCasa {
+  const perId = LINK_FISSI[apartment.id]
+  if (perId) return perId
+  const nome = semplice(apartment.name)
+  const indirizzo = semplice(apartment.address)
+  return LINK_PER_NOME.find((x) => nome.includes(x.cerca) || indirizzo.includes(x.cerca))?.link ?? {}
+}
+
 /** I link da mostrare per una casa: quelli fissi prima, poi quelli salvati. */
 export function linkDellaCasa(apartment: Apartment) {
-  const fissi = LINK_FISSI[apartment.id] ?? {}
+  const fissi = fissiDi(apartment)
   const haComeLasciare = fissi.comeLasciare !== undefined
   const haInfoAccessi = fissi.infoAccessi !== undefined
   return {
